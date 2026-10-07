@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'accounts',
     'cvs',
     "templates_app",
+     "cv_imports",
 ]
 
 MIDDLEWARE = [
@@ -104,3 +105,6 @@ SIMPLE_JWT = {
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 SECURE_SSL_REDIRECT = not DEBUG
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
