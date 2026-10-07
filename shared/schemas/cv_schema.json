@@ -1,0 +1,303 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cv contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "meta",
+    "personal",
+    "summary",
+    "skills",
+    "education",
+    "experience",
+    "projects",
+    "certifications",
+    "achievements",
+    "languages"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_role",
+        "career_level",
+        "template_id"
+      ],
+      "properties": {
+        "target_role": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "career_level": {
+          "enum": [
+            "",
+            "fresher",
+            "experienced",
+            "other"
+          ]
+        },
+        "template_id": {
+          "type": "string",
+          "maxLength": 255
+        }
+      }
+    },
+    "personal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "full_name",
+        "email",
+        "phone",
+        "location",
+        "linkedin",
+        "github",
+        "portfolio"
+      ],
+      "properties": {
+        "full_name": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "location": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "linkedin": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "github": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "portfolio": {
+          "type": "string",
+          "maxLength": 255
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 5000
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 255
+      },
+      "maxItems": 100
+    },
+    "education": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "institution",
+          "degree",
+          "field_of_study",
+          "start_date",
+          "end_date",
+          "grade"
+        ],
+        "properties": {
+          "institution": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "degree": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "field_of_study": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "start_date": {
+            "type": "string",
+            "pattern": "^$|^\\d{4}-(0[1-9]|1[0-2])$"
+          },
+          "end_date": {
+            "type": "string",
+            "pattern": "^$|^\\d{4}-(0[1-9]|1[0-2])$"
+          },
+          "grade": {
+            "type": "string",
+            "maxLength": 255
+          }
+        }
+      }
+    },
+    "experience": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "company",
+          "job_title",
+          "location",
+          "start_date",
+          "end_date",
+          "is_current",
+          "highlights"
+        ],
+        "properties": {
+          "company": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "job_title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "start_date": {
+            "type": "string",
+            "pattern": "^$|^\\d{4}-(0[1-9]|1[0-2])$"
+          },
+          "end_date": {
+            "type": "string",
+            "pattern": "^$|^\\d{4}-(0[1-9]|1[0-2])$"
+          },
+          "is_current": {
+            "type": "boolean"
+          },
+          "highlights": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 5000
+            }
+          }
+        }
+      },
+      "maxItems": 5
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "description",
+          "technologies",
+          "url",
+          "highlights"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "technologies": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "highlights": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 5000
+            }
+          }
+        }
+      }
+    },
+    "certifications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "issuer",
+          "date",
+          "url"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "issuer": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "date": {
+            "type": "string",
+            "pattern": "^$|^\\d{4}-(0[1-9]|1[0-2])$"
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 255
+          }
+        }
+      }
+    },
+    "achievements": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 5000
+      }
+    },
+    "languages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "proficiency"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "proficiency": {
+            "enum": [
+              "",
+              "basic",
+              "conversational",
+              "professional",
+              "fluent",
+              "native"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

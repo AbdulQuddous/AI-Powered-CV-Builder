@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Template contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "template_id",
+    "name",
+    "template_type",
+    "career_levels",
+    "target_roles",
+    "supported_cv_schema_versions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "template_id": {
+      "type": "string",
+      "maxLength": 255
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 255
+    },
+    "template_type": {
+      "enum": [
+        "ats",
+        "modern",
+        "classic"
+      ]
+    },
+    "career_levels": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "fresher",
+          "experienced",
+          "other"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "target_roles": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 255
+      }
+    },
+    "supported_cv_schema_versions": {
+      "type": "array",
+      "items": {
+        "const": "1.0"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  }
+}
