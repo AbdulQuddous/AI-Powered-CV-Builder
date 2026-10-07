@@ -1,2 +1,4 @@
 from django.urls import path, include
-urlpatterns = [path('api/auth/', include('accounts.urls'))]
+urlpatterns = [path('api/auth/', include('accounts.urls')),
+               path('api/cvs/', include('cvs.urls')),
+            ]
