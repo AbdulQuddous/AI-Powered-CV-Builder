@@ -1,0 +1,142 @@
+from django.conf import settings
+from django.db import transaction
+
+from chatbot.models import (
+    ChatMessage,
+    ChatSession,
+)
+from chatbot.services.groq_client import GroqClient
+from chatbot.services.prompt_builder import (
+    build_messages,
+)
+from chatbot.services.state_manager import (
+    get_initial_state,
+    update_state,
+)
+
+
+INITIAL_ASSISTANT_MESSAGE = (
+    "Let's build your CV. "
+    "What role are you targeting?"
+)
+
+
+def create_chat_session(*, user, cv_id=None):
+    """
+    Creates a new conversation without calling Groq.
+
+    The initial question is deterministic so session creation
+    does not consume an AI request.
+    """
+
+    state = get_initial_state()
+
+    with transaction.atomic():
+        session = ChatSession.objects.create(
+            user=user,
+            cv_id=cv_id,
+            status=ChatSession.Status.ACTIVE,
+            current_section="target",
+            conversation_state=state,
+            model_name=settings.GROQ_MODEL,
+        )
+
+        ChatMessage.objects.create(
+            session=session,
+            role=ChatMessage.Role.ASSISTANT,
+            content=INITIAL_ASSISTANT_MESSAGE,
+            intent="collect_information",
+            section="target",
+            cv_updates={},
+            next_action="ask_question",
+        )
+
+    return session
+
+
+def process_user_message(
+    *,
+    session,
+    user_message,
+):
+    """
+    Main M5 orchestration.
+
+    1. Build context
+    2. Ask Groq
+    3. Validate structured response
+    4. Update M5 state
+    5. Persist user + assistant messages atomically
+    """
+
+    if session.status != ChatSession.Status.ACTIVE:
+        raise ValueError(
+            "Chat session is not active."
+        )
+
+    messages = build_messages(
+        session=session,
+        pending_user_message=user_message,
+    )
+
+    client = GroqClient()
+
+    ai_response = client.generate(
+        messages=messages
+    )
+
+    new_state = update_state(
+        session.conversation_state,
+        ai_response,
+    )
+
+    with transaction.atomic():
+        ChatMessage.objects.create(
+            session=session,
+            role=ChatMessage.Role.USER,
+            content=user_message,
+        )
+
+        assistant_message = (
+            ChatMessage.objects.create(
+                session=session,
+                role=ChatMessage.Role.ASSISTANT,
+                content=ai_response[
+                    "assistant_message"
+                ],
+                intent=ai_response["intent"],
+                section=ai_response["section"],
+                cv_updates=ai_response[
+                    "cv_updates"
+                ],
+                next_action=ai_response[
+                    "next_action"
+                ],
+            )
+        )
+
+        session.current_section = (
+            ai_response["section"]
+        )
+
+        session.conversation_state = (
+            new_state
+        )
+
+        if ai_response[
+            "next_action"
+        ] == "complete":
+            session.status = (
+                ChatSession.Status.COMPLETED
+            )
+
+        session.save(
+            update_fields=[
+                "current_section",
+                "conversation_state",
+                "status",
+                "updated_at",
+            ]
+        )
+
+    return assistant_message

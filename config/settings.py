@@ -1,7 +1,7 @@
 from pathlib import Path
 from datetime import timedelta
 import environ
-
+import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -28,7 +28,8 @@ INSTALLED_APPS = [
     'accounts',
     'cvs',
     "templates_app",
-     "cv_imports",
+    "cv_imports",
+    "chatbot",  
 ]
 
 MIDDLEWARE = [
@@ -108,3 +109,15 @@ SECURE_SSL_REDIRECT = not DEBUG
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+
+GROQ_MODEL = os.getenv(
+    "GROQ_MODEL",
+    "openai/gpt-oss-20b",
+)
+
+GROQ_BASE_URL = os.getenv(
+    "GROQ_BASE_URL",
+    "https://api.groq.com/openai/v1",
+)

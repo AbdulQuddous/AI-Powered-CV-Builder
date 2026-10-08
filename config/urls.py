@@ -8,10 +8,8 @@ urlpatterns = [
    path('api/auth/', include('accounts.urls')),
    path('api/cvs/', include('cvs.urls')),
    path("api/templates/",include("templates_app.urls")),
-   path(
-        "api/cv-import/",
-        include("cv_imports.urls"),
-    ),
+   path("api/cv-import/",include("cv_imports.urls"),),
+   path("api/chat/",include("chatbot.urls"),),
 ]
 
 if settings.DEBUG:
