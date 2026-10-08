@@ -95,7 +95,7 @@ REST_FRAMEWORK = {
 
 # JWT Authentication Settings
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=50),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
@@ -120,4 +120,22 @@ GROQ_MODEL = os.getenv(
 GROQ_BASE_URL = os.getenv(
     "GROQ_BASE_URL",
     "https://api.groq.com/openai/v1",
+)
+
+GEMINI_API_KEY = os.getenv(
+    "GEMINI_API_KEY",
+    "",
+)
+
+GEMINI_MODEL = os.getenv(
+    "GEMINI_MODEL",
+    "gemini-3.5-flash-lite",
+)
+
+GEMINI_BASE_URL = os.getenv(
+    "GEMINI_BASE_URL",
+    (
+        "https://generativelanguage."
+        "googleapis.com/v1beta/openai/"
+    ),
 )

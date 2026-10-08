@@ -41,6 +41,74 @@ OPTIONAL_PERSONAL_FIELDS = {
 }
 
 
+# ============================================================
+# SECTION FIELD DEFINITIONS
+# ============================================================
+
+EDUCATION_FIELD_ORDER = [
+    "degree",
+    "institution",
+    "field_of_study",
+    "end_date",
+]
+
+# These are useful, but do not block section completion.
+EDUCATION_OPTIONAL_FIELDS = [
+    "start_date",
+    "grade",
+]
+
+
+EXPERIENCE_FIELD_ORDER = [
+    "company",
+    "role",
+    "responsibilities",
+]
+
+EXPERIENCE_OPTIONAL_FIELDS = [
+    "location",
+    "start_date",
+    "end_date",
+]
+
+
+PROJECT_FIELD_ORDER = [
+    "name",
+    "description",
+    "technologies",
+]
+
+PROJECT_OPTIONAL_FIELDS = [
+    "url",
+]
+
+EMPTY_LIKE_VALUES = {
+    "",
+    "none",
+    "null",
+    "n/a",
+    "na",
+    "no",
+    "not available",
+    "not applicable",
+}
+
+
+def is_meaningful_text(value):
+    if value is None:
+        return False
+
+    if isinstance(value, str):
+        return (
+            value.strip().lower()
+            not in EMPTY_LIKE_VALUES
+        )
+
+    return True
+# ============================================================
+# DEFAULT STATES
+# ============================================================
+
 def get_default_personal_fields():
     return {
         "full_name": "missing",
@@ -53,6 +121,37 @@ def get_default_personal_fields():
     }
 
 
+def get_default_education_fields():
+    return {
+        "degree": "missing",
+        "institution": "missing",
+        "field_of_study": "missing",
+        "start_date": "missing",
+        "end_date": "missing",
+        "grade": "missing",
+    }
+
+
+def get_default_experience_fields():
+    return {
+        "company": "missing",
+        "role": "missing",
+        "location": "missing",
+        "start_date": "missing",
+        "end_date": "missing",
+        "responsibilities": "missing",
+    }
+
+
+def get_default_project_fields():
+    return {
+        "name": "missing",
+        "description": "missing",
+        "technologies": "missing",
+        "url": "missing",
+    }
+
+
 def get_initial_state():
     return {
         "target_role": None,
@@ -62,6 +161,18 @@ def get_initial_state():
 
         "personal_fields": (
             get_default_personal_fields()
+        ),
+
+        "education_fields": (
+            get_default_education_fields()
+        ),
+
+        "experience_fields": (
+            get_default_experience_fields()
+        ),
+
+        "project_fields": (
+            get_default_project_fields()
         ),
 
         "next_personal_field": None,
@@ -81,10 +192,25 @@ def get_initial_state():
     }
 
 
+# ============================================================
+# STATE COMPATIBILITY
+# ============================================================
+
+def _merge_field_state(
+    default_fields,
+    incoming_fields,
+):
+    result = deepcopy(default_fields)
+
+    if isinstance(incoming_fields, dict):
+        result.update(incoming_fields)
+
+    return result
+
+
 def ensure_state(state):
     """
-    Ensure old or partial conversation state remains
-    compatible with the current M5 state structure.
+    Keeps old sessions compatible when new state fields are added.
     """
 
     default = get_initial_state()
@@ -94,45 +220,56 @@ def ensure_state(state):
 
     merged = deepcopy(default)
 
+    nested_fields = {
+        "personal_fields",
+        "education_fields",
+        "experience_fields",
+        "project_fields",
+    }
+
     for key, value in state.items():
-        if key != "personal_fields":
+        if key not in nested_fields:
             merged[key] = value
 
-    incoming_personal = state.get(
-        "personal_fields",
-        {},
+    merged["personal_fields"] = (
+        _merge_field_state(
+            get_default_personal_fields(),
+            state.get("personal_fields"),
+        )
     )
 
-    if isinstance(incoming_personal, dict):
-        personal_fields = (
-            get_default_personal_fields()
+    merged["education_fields"] = (
+        _merge_field_state(
+            get_default_education_fields(),
+            state.get("education_fields"),
         )
+    )
 
-        personal_fields.update(
-            incoming_personal
+    merged["experience_fields"] = (
+        _merge_field_state(
+            get_default_experience_fields(),
+            state.get("experience_fields"),
         )
+    )
 
-        merged["personal_fields"] = (
-            personal_fields
+    merged["project_fields"] = (
+        _merge_field_state(
+            get_default_project_fields(),
+            state.get("project_fields"),
         )
+    )
 
     return merged
 
+
+# ============================================================
+# METADATA
+# ============================================================
 
 def update_conversation_metadata(
     state,
     ai_response,
 ):
-    """
-    Store conversation-level information that is
-    not part of normal CV updates.
-
-    Includes:
-    - target role
-    - career level
-    - skipped optional personal fields
-    """
-
     state_updates = (
         ai_response.get("state_updates")
         or {}
@@ -146,13 +283,17 @@ def update_conversation_metadata(
         "career_level"
     )
 
-    if target_role:
+    if (
+        target_role
+        and not state.get("target_role")
+    ):
         state["target_role"] = target_role
 
-    if career_level:
-        state["career_level"] = (
-            career_level
-        )
+    if (
+        career_level
+        and not state.get("career_level")
+    ):
+        state["career_level"] = career_level
 
     skipped_fields = (
         state_updates.get(
@@ -161,10 +302,9 @@ def update_conversation_metadata(
         or []
     )
 
-    personal_fields = state.get(
-        "personal_fields",
-        get_default_personal_fields(),
-    )
+    personal_fields = state[
+        "personal_fields"
+    ]
 
     for field in skipped_fields:
         if field in OPTIONAL_PERSONAL_FIELDS:
@@ -172,22 +312,17 @@ def update_conversation_metadata(
                 "skipped"
             )
 
-    state["personal_fields"] = (
-        personal_fields
-    )
-
     return state
 
+
+# ============================================================
+# PERSONAL
+# ============================================================
 
 def update_personal_field_state(
     state,
     cv_updates,
 ):
-    """
-    Mark personal fields as collected when the
-    AI extracted an actual value.
-    """
-
     personal = cv_updates.get(
         "personal"
     )
@@ -195,71 +330,245 @@ def update_personal_field_state(
     if not isinstance(personal, dict):
         return state
 
-    personal_fields = state.get(
-        "personal_fields",
-        get_default_personal_fields(),
-    )
+    fields = state["personal_fields"]
 
     for field in PERSONAL_FIELD_ORDER:
         value = personal.get(field)
 
-        if value not in (
-            None,
-            "",
+        # Optional personal fields such as
+        # LinkedIn, GitHub, and portfolio can
+        # be explicitly skipped.
+        if (
+            field in OPTIONAL_PERSONAL_FIELDS
+            and isinstance(value, str)
+            and value.strip().lower()
+            in EMPTY_LIKE_VALUES
         ):
-            personal_fields[field] = (
-                "collected"
-            )
+            fields[field] = "skipped"
+            continue
 
-    state["personal_fields"] = (
-        personal_fields
-    )
+        if is_meaningful_text(value):
+            fields[field] = "collected"
 
     return state
 
 
 def get_next_personal_field(state):
-    """
-    Return the first personal field that has
-    not been collected or explicitly skipped.
-    """
-
     state = ensure_state(state)
 
-    personal_fields = state.get(
-        "personal_fields",
-        {},
-    )
+    fields = state["personal_fields"]
 
     for field in PERSONAL_FIELD_ORDER:
-        field_status = personal_fields.get(
+        if fields.get(
             field,
             "missing",
-        )
-
-        if field_status == "missing":
+        ) == "missing":
             return field
 
     return None
 
 
+# ============================================================
+# EDUCATION
+# ============================================================
+
+def update_education_field_state(
+    state,
+    cv_updates,
+):
+    education = cv_updates.get(
+        "education"
+    )
+
+    if not isinstance(
+        education,
+        list,
+    ):
+        return state
+
+    fields = state["education_fields"]
+
+    for item in education:
+        if not isinstance(item, dict):
+            continue
+
+        for field in (
+            EDUCATION_FIELD_ORDER
+            + EDUCATION_OPTIONAL_FIELDS
+        ):
+            value = item.get(field)
+
+            if value not in (
+                None,
+                "",
+                [],
+                {},
+            ):
+                fields[field] = (
+                    "collected"
+                )
+
+    return state
+
+
+def get_next_education_field(state):
+    fields = state[
+        "education_fields"
+    ]
+
+    for field in EDUCATION_FIELD_ORDER:
+        if fields.get(
+            field,
+            "missing",
+        ) == "missing":
+            return field
+
+    return None
+
+
+# ============================================================
+# EXPERIENCE
+# ============================================================
+
+def update_experience_field_state(
+    state,
+    cv_updates,
+):
+    experience = cv_updates.get(
+        "experience"
+    )
+
+    if not isinstance(
+        experience,
+        list,
+    ):
+        return state
+
+    fields = state[
+        "experience_fields"
+    ]
+
+    for item in experience:
+        if not isinstance(item, dict):
+            continue
+
+        for field in (
+            EXPERIENCE_FIELD_ORDER
+            + EXPERIENCE_OPTIONAL_FIELDS
+        ):
+            value = item.get(field)
+
+            if value not in (
+                None,
+                "",
+                [],
+                {},
+            ):
+                fields[field] = (
+                    "collected"
+                )
+
+    return state
+
+
+def get_next_experience_field(state):
+    fields = state[
+        "experience_fields"
+    ]
+
+    for field in EXPERIENCE_FIELD_ORDER:
+        if fields.get(
+            field,
+            "missing",
+        ) == "missing":
+            return field
+
+    return None
+
+
+# ============================================================
+# PROJECTS
+# ============================================================
+
+def update_project_field_state(
+    state,
+    cv_updates,
+):
+    projects = cv_updates.get(
+        "projects"
+    )
+
+    if not isinstance(
+        projects,
+        list,
+    ):
+        return state
+
+    fields = state[
+        "project_fields"
+    ]
+
+    for item in projects:
+        if not isinstance(item, dict):
+            continue
+
+        for field in (
+            PROJECT_FIELD_ORDER
+            + PROJECT_OPTIONAL_FIELDS
+        ):
+            value = item.get(field)
+
+            if value not in (
+                None,
+                "",
+                [],
+                {},
+            ):
+                fields[field] = (
+                    "collected"
+                )
+
+    return state
+
+
+def get_next_project_field(state):
+    fields = state[
+        "project_fields"
+    ]
+
+    for field in PROJECT_FIELD_ORDER:
+        if fields.get(
+            field,
+            "missing",
+        ) == "missing":
+            return field
+
+    return None
+
+
+# ============================================================
+# SIMPLE SECTIONS
+# ============================================================
+
+def has_meaningful_value(value):
+    return value not in (
+        None,
+        "",
+        [],
+        {},
+    )
+
+
+# ============================================================
+# NEXT REQUIRED STEP
+# ============================================================
+
 def get_required_conversation_step(state):
-    """
-    Determine the next deterministic conversation
-    step.
-
-    M5 decides the workflow.
-    Groq only:
-    - understands the user's response,
-    - extracts structured information,
-    - phrases the next question.
-    """
-
     state = ensure_state(state)
 
-    # =========================================
-    # 1. Target role
-    # =========================================
+    # --------------------------------------------------------
+    # Target
+    # --------------------------------------------------------
 
     if not state.get("target_role"):
         return {
@@ -267,33 +576,25 @@ def get_required_conversation_step(state):
             "field": "target_role",
         }
 
-    # =========================================
-    # 2. Career level
-    # =========================================
-
     if not state.get("career_level"):
         return {
             "section": "target",
             "field": "career_level",
         }
 
-    # =========================================
-    # 3. Personal information
-    # =========================================
+    # --------------------------------------------------------
+    # Personal
+    # --------------------------------------------------------
 
-    next_personal_field = (
+    next_field = (
         get_next_personal_field(state)
     )
 
-    if next_personal_field:
+    if next_field:
         return {
             "section": "personal",
-            "field": next_personal_field,
+            "field": next_field,
         }
-
-    # =========================================
-    # 4. Core CV sections
-    # =========================================
 
     completed_sections = set(
         state.get(
@@ -302,25 +603,90 @@ def get_required_conversation_step(state):
         )
     )
 
-    for section in CORE_SECTION_ORDER:
-        if section not in completed_sections:
-            return {
-                "section": section,
+    # --------------------------------------------------------
+    # Education
+    # --------------------------------------------------------
 
-                # At this stage we only track
-                # completion at section level.
-                "field": section,
+    if "education" not in completed_sections:
+        next_field = (
+            get_next_education_field(
+                state
+            )
+        )
+
+        if next_field:
+            return {
+                "section": "education",
+                "field": next_field,
             }
 
-    # =========================================
-    # 5. Review
-    # =========================================
+    # --------------------------------------------------------
+    # Skills
+    # --------------------------------------------------------
+
+    if "skills" not in completed_sections:
+        return {
+            "section": "skills",
+            "field": "skills",
+        }
+
+    # --------------------------------------------------------
+    # Experience
+    # --------------------------------------------------------
+
+    if "experience" not in completed_sections:
+        next_field = (
+            get_next_experience_field(
+                state
+            )
+        )
+
+        if next_field:
+            return {
+                "section": "experience",
+                "field": next_field,
+            }
+
+    # --------------------------------------------------------
+    # Projects
+    # --------------------------------------------------------
+
+    if "projects" not in completed_sections:
+        next_field = (
+            get_next_project_field(
+                state
+            )
+        )
+
+        if next_field:
+            return {
+                "section": "projects",
+                "field": next_field,
+            }
+
+    # --------------------------------------------------------
+    # Summary
+    # --------------------------------------------------------
+
+    if "summary" not in completed_sections:
+        return {
+            "section": "summary",
+            "field": "summary",
+        }
+
+    # --------------------------------------------------------
+    # Review
+    # --------------------------------------------------------
 
     return {
         "section": "review",
         "field": "review",
     }
 
+
+# ============================================================
+# UPDATE STATE
+# ============================================================
 
 def update_state(
     state,
@@ -330,36 +696,43 @@ def update_state(
 
     state["message_count"] += 1
 
-    # =========================================
-    # 1. Conversation metadata
-    # =========================================
+    # --------------------------------------------------------
+    # 1. Metadata
+    # --------------------------------------------------------
 
     state = update_conversation_metadata(
         state,
         ai_response,
     )
 
-    # =========================================
-    # 2. AI-proposed CV updates
-    # =========================================
-
     cv_updates = (
         ai_response.get("cv_updates")
         or {}
     )
 
-    # =========================================
-    # 3. Personal progress
-    # =========================================
+    # --------------------------------------------------------
+    # 2. Update field-level progress
+    # --------------------------------------------------------
 
     state = update_personal_field_state(
         state,
         cv_updates,
     )
 
-    # =========================================
-    # 4. Completed sections
-    # =========================================
+    state = update_education_field_state(
+        state,
+        cv_updates,
+    )
+
+    state = update_experience_field_state(
+        state,
+        cv_updates,
+    )
+
+    state = update_project_field_state(
+        state,
+        cv_updates,
+    )
 
     completed_sections = set(
         state.get(
@@ -368,52 +741,124 @@ def update_state(
         )
     )
 
-    next_personal_field = (
-        get_next_personal_field(state)
-    )
+    # --------------------------------------------------------
+    # 3. Personal completion
+    # --------------------------------------------------------
 
-    # Personal is complete only when every
-    # personal field was collected or skipped.
     if (
         state.get("target_role")
         and state.get("career_level")
-        and next_personal_field is None
+        and get_next_personal_field(
+            state
+        ) is None
     ):
         completed_sections.add(
             "personal"
         )
 
-    # NOTE:
-    # For now a non-empty section update marks
-    # that section complete.
-    #
-    # We will improve this later with field-level
-    # completeness after verifying the overall
-    # deterministic workflow.
-    for key, value in cv_updates.items():
-        if key == "personal":
-            continue
+    # --------------------------------------------------------
+    # 4. Education completion
+    # --------------------------------------------------------
 
-        if (
-            key in CV_SECTIONS
-            and value not in (
-                None,
-                "",
-                [],
-                {},
-            )
-        ):
+    if (
+        get_next_education_field(
+            state
+        )
+        is None
+    ):
+        completed_sections.add(
+            "education"
+        )
+    else:
+        completed_sections.discard(
+            "education"
+        )
+
+    # --------------------------------------------------------
+    # 5. Skills completion
+    # --------------------------------------------------------
+
+    skills = cv_updates.get("skills")
+
+    if has_meaningful_value(skills):
+        completed_sections.add(
+            "skills"
+        )
+
+    # --------------------------------------------------------
+    # 6. Experience completion
+    # --------------------------------------------------------
+
+    if (
+        get_next_experience_field(
+            state
+        )
+        is None
+    ):
+        completed_sections.add(
+            "experience"
+        )
+    else:
+        completed_sections.discard(
+            "experience"
+        )
+
+    # --------------------------------------------------------
+    # 7. Projects completion
+    # --------------------------------------------------------
+
+    if (
+        get_next_project_field(
+            state
+        )
+        is None
+    ):
+        completed_sections.add(
+            "projects"
+        )
+    else:
+        completed_sections.discard(
+            "projects"
+        )
+
+    # --------------------------------------------------------
+    # 8. Summary completion
+    # --------------------------------------------------------
+
+    summary = cv_updates.get(
+        "summary"
+    )
+
+    if has_meaningful_value(summary):
+        completed_sections.add(
+            "summary"
+        )
+
+    # --------------------------------------------------------
+    # 9. Optional sections
+    # --------------------------------------------------------
+
+    for section in [
+        "certifications",
+        "achievements",
+        "languages",
+    ]:
+        value = cv_updates.get(
+            section
+        )
+
+        if has_meaningful_value(value):
             completed_sections.add(
-                key
+                section
             )
 
     state["completed_sections"] = sorted(
         completed_sections
     )
 
-    # =========================================
-    # 5. Missing core sections
-    # =========================================
+    # --------------------------------------------------------
+    # 10. Missing sections
+    # --------------------------------------------------------
 
     required_sections = {
         "personal",
@@ -429,9 +874,9 @@ def update_state(
         - completed_sections
     )
 
-    # =========================================
-    # 6. Determine deterministic next step
-    # =========================================
+    # --------------------------------------------------------
+    # 11. Determine next deterministic step
+    # --------------------------------------------------------
 
     required_step = (
         get_required_conversation_step(
@@ -450,10 +895,34 @@ def update_state(
         state[
             "next_personal_field"
         ] = required_step["field"]
-
     else:
         state[
             "next_personal_field"
         ] = None
 
     return state
+
+
+EMPTY_LIKE_VALUES = {
+    "",
+    "none",
+    "null",
+    "n/a",
+    "na",
+    "no",
+    "not available",
+    "not applicable",
+}
+
+
+def is_meaningful_text(value):
+    if value is None:
+        return False
+
+    if isinstance(value, str):
+        return (
+            value.strip().lower()
+            not in EMPTY_LIKE_VALUES
+        )
+
+    return True
