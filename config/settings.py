@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "templates_app",
     "cv_imports",
     "chatbot",  
+    "ai",
 ]
 
 MIDDLEWARE = [
@@ -139,3 +140,19 @@ GEMINI_BASE_URL = os.getenv(
         "googleapis.com/v1beta/openai/"
     ),
 )
+
+# Separate model configuration without separate credentials.
+M6_GEMINI_MODEL = os.getenv(
+    "M6_GEMINI_MODEL",
+    "gemini-3.5-flash-lite",
+)
+
+# Successful AI results are reusable for one hour.
+M6_CACHE_SECONDS = 3600
+
+# Bound AI request duration.
+M6_TIMEOUT_MS = 30000
+
+# Limit consumption through authenticated endpoints.
+REST_FRAMEWORK.setdefault("DEFAULT_THROTTLE_RATES", {})
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["m6_ai"] = "20/hour"
