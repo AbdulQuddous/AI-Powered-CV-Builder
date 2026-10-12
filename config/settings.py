@@ -25,12 +25,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
+    "django.contrib.staticfiles",
     'accounts',
     'cvs',
     "templates_app",
     "cv_imports",
     "chatbot",  
     "ai",
+    "m7_editor",
 ]
 
 MIDDLEWARE = [
@@ -73,7 +75,30 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
+STATIC_URL = "/static/"
 
+# Additional project-level static files
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
+
+# Directory for collected static files in production
+STATIC_ROOT = BASE_DIR / "staticfiles"
 # Django Rest Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

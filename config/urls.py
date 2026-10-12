@@ -11,6 +11,7 @@ urlpatterns = [
    path("api/cv-import/",include("cv_imports.urls")),
    path("api/chat/",include("chatbot.urls")),
    path("api/ai/",include("ai.urls")),
+   path("", include("m7_editor.urls")),
 ]
 
 if settings.DEBUG:

@@ -1,0 +1,210 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Edit CV · CV Maker</title>
+  <link rel="stylesheet" href="{% static 'm7_editor/css/editor.css' %}">
+  {{ cv_id|json_script:"m7-config" }}
+  <script defer src="{% static 'm7_editor/js/api.js' %}"></script>
+  <script defer src="{% static 'm7_editor/js/editor.js' %}"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.4/dist/cdn.min.js"></script>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+<div x-data="cvEditor" x-cloak>
+  <header class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:px-8">
+    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <span class="grid size-10 place-items-center rounded-xl bg-teal-700 text-xl font-bold text-white">C</span>
+        <div>
+          <p class="font-bold leading-tight tracking-tight">CV Maker <span class="font-normal text-slate-400">/ Editor</span></p>
+          <p class="text-xs text-slate-500">Edit your CV without losing its AI-generated structure</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="hidden text-sm sm:inline" :class="dirty ? 'text-amber-700' : 'text-slate-500'"
+              x-text="dirty ? 'Unsaved changes' : (loaded ? 'All changes saved' : '')"></span>
+        <button type="button" @click="exportDraft()" :disabled="!loaded"
+          class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-100 disabled:opacity-50">Export draft</button>
+        <button type="button" @click="save()" :disabled="!dirty || saving || conflict"
+          class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-40"
+          x-text="saving ? 'Saving…' : 'Save changes'"></button>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-7xl px-4 py-6 md:px-8">
+    <p x-show="notice" role="status" class="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-800" x-text="notice"></p>
+    <div x-show="error" role="alert" class="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+      <p x-text="error"></p>
+      <div x-show="conflict" class="mt-3 flex flex-wrap gap-2">
+        <button type="button" @click="exportDraft()" class="rounded-lg border border-rose-300 px-3 py-2 font-medium">Download draft JSON</button>
+        <button type="button" @click="reload(true)" class="rounded-lg bg-rose-700 px-3 py-2 font-semibold text-white">Discard draft &amp; reload latest</button>
+      </div>
+    </div>
+
+    <div x-show="loading" role="status" class="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500">Loading your CV…</div>
+
+    <section x-show="!loading && authRequired" class="mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
+      <h1 class="mb-2 text-2xl font-semibold">Sign in</h1>
+      <p class="mb-5 text-sm text-slate-500">Use your existing M1 account to load the CV. Your CV data remains protected by M1/M2.</p>
+      <form @submit.prevent="signIn()" class="space-y-4">
+        <label for="login-email" class="block text-sm font-medium">Email Address
+          <input id="login-email" class="m7-input mt-1" type="email"
+                 autocomplete="username" placeholder="Enter your email"
+                 required x-model="username">
+        </label>
+        <label for="login-password" class="block text-sm font-medium">Password
+          <input id="login-password" class="m7-input mt-1" type="password"
+                 autocomplete="current-password" required x-model="password">
+        </label>
+        <button type="submit" class="w-full rounded-lg bg-teal-700 px-4 py-2.5 font-semibold text-white hover:bg-teal-800">Sign in</button>
+      </form>
+    </section>
+
+    <div x-show="!loading && loaded && !authRequired" class="grid grid-cols-1 gap-5 lg:grid-cols-[190px_minmax(0,1fr)_minmax(290px,0.92fr)]">
+      <nav aria-label="CV sections" class="h-fit rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:sticky lg:top-24">
+        <p class="px-3 pb-3 pt-2 text-xs font-bold uppercase tracking-widest text-slate-400">Sections</p>
+        <div class="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-1">
+          <template x-for="pair in sections" :key="pair[0]">
+            <button type="button" @click="active=pair[0]"
+              class="rounded-lg px-3 py-2.5 text-left text-sm font-medium transition"
+              :class="active===pair[0] ? 'bg-teal-50 text-teal-800 ring-1 ring-teal-200' : 'text-slate-600 hover:bg-slate-100'"
+              :aria-current="active===pair[0] ? 'page' : null" x-text="pair[1]"></button>
+          </template>
+        </div>
+      </nav>
+
+      <section class="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-7">
+        <div class="mb-6 border-b border-slate-100 pb-5">
+          <p class="mb-1 text-xs font-bold uppercase tracking-widest text-teal-700">Manual editor</p>
+          <h1 class="text-2xl font-bold tracking-tight" x-text="activeLabel"></h1>
+          <p class="mt-1 text-sm text-slate-500">Edit what is accurate. Changes are sent to M2 when you save.</p>
+        </div>
+        <fieldset :disabled="saving || conflict" class="min-w-0 space-y-5 disabled:opacity-60">
+          <div x-show="active==='personal'" class="grid gap-4">
+            <template x-for="key in personalKeys()" :key="key">
+              <label class="block text-sm font-medium text-slate-700">
+                <span x-text="key.replaceAll('_',' ')"></span>
+                <input class="m7-input mt-1 capitalize-none" :type="key==='email' ? 'email' : 'text'"
+                  :value="personalValue(key)" @input="setPersonal(key,$event.target.value)"
+                  :placeholder="'Enter '+key.replaceAll('_',' ')">
+              </label>
+            </template>
+          </div>
+
+          <div x-show="active==='summary'">
+            <label class="block text-sm font-medium text-slate-700">Professional summary
+              <textarea rows="9" class="m7-input mt-2" maxlength="3000"
+                :value="value(cv.summary)" @input="setSummary($event.target.value)"
+                placeholder="Write a concise, factual summary tailored to the target role…"></textarea>
+            </label>
+          </div>
+
+          <template x-for="pair in sections.filter(p => !['personal','summary'].includes(p[0]))" :key="pair[0]">
+            <div x-show="active===pair[0]" class="space-y-4">
+              <template x-if="isList(pair[0])">
+                <div class="space-y-4">
+                  <template x-for="(item,index) in list(pair[0])" :key="index">
+                    <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                      <div class="mb-4 flex items-center justify-between gap-2">
+                        <h2 class="font-semibold" x-text="pair[1]+' '+(index+1)"></h2>
+                        <div class="flex gap-2 text-xs font-semibold text-slate-600">
+                          <button type="button" :disabled="index===0" @click="move(pair[0],index,-1)" class="rounded border bg-white px-2 py-1 disabled:opacity-30" aria-label="Move up">↑</button>
+                          <button type="button" :disabled="index===list(pair[0]).length-1" @click="move(pair[0],index,1)" class="rounded border bg-white px-2 py-1 disabled:opacity-30" aria-label="Move down">↓</button>
+                          <button type="button" @click="remove(pair[0],index)" class="rounded border border-rose-200 bg-white px-2 py-1 text-rose-700">Remove</button>
+                        </div>
+                      </div>
+                      <template x-if="isRow(item)">
+                        <div class="space-y-3">
+                          <template x-for="key in rowFields(item)" :key="key">
+                            <div>
+                              <label class="mb-1 block text-sm font-medium capitalize text-slate-700" x-text="key.replaceAll('_',' ')"></label>
+                              <template x-if="isEditableValue(item[key])">
+                                <div>
+                                  <template x-if="isMultiline(key,item[key])">
+                                    <textarea class="m7-input" rows="3" :value="value(item[key])" @input="setRow(pair[0],index,key,$event.target.value)"></textarea>
+                                  </template>
+                                  <template x-if="!isMultiline(key,item[key])">
+                                    <input class="m7-input" :value="value(item[key])" @input="setRow(pair[0],index,key,$event.target.value)">
+                                  </template>
+                                </div>
+                              </template>
+                              <p x-show="!isEditableValue(item[key])" class="text-xs text-amber-800">Nested object preserved unchanged; edit it in the AI interface.</p>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                      <template x-if="!isRow(item)">
+                        <label class="block text-sm font-medium">Entry
+                          <textarea class="m7-input mt-1" rows="2" :value="value(item)" @input="setRow(pair[0],index,null,$event.target.value)"></textarea>
+                        </label>
+                      </template>
+                    </div>
+                  </template>
+                  <p x-show="list(pair[0]).length===0" class="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">No entries yet.</p>
+                  <button type="button" @click="add(pair[0])"
+                    class="w-full rounded-xl border-2 border-dashed border-teal-200 py-3 text-sm font-semibold text-teal-800 hover:bg-teal-50">+ Add <span x-text="pair[1].toLowerCase()"></span></button>
+                </div>
+              </template>
+              <template x-if="isMap(pair[0])">
+                <div class="space-y-4">
+                  <template x-for="key in Object.keys(cv[pair[0]] || {})" :key="key">
+                    <label class="block text-sm font-medium text-slate-700">
+                      <span class="capitalize" x-text="key.replaceAll('_',' ')"></span>
+                      <textarea class="m7-input mt-1" rows="3" :disabled="!isEditableValue(cv[pair[0]][key])"
+                        :value="value(cv[pair[0]][key])" @input="setMapValue(pair[0],key,$event.target.value)"></textarea>
+                      <span x-show="Array.isArray(cv[pair[0]][key])" class="text-xs text-slate-400">One item per line</span>
+                    </label>
+                  </template>
+                  <p class="text-xs text-slate-500">Existing categories and field types are preserved.</p>
+                </div>
+              </template>
+              <template x-if="typeof cv[pair[0]] === 'string'">
+                <label class="block text-sm font-medium">Content
+                  <textarea rows="8" class="m7-input mt-2" :value="value(cv[pair[0]])" @input="setPlain(pair[0],$event.target.value)"></textarea>
+                </label>
+              </template>
+            </div>
+          </template>
+          <div class="flex items-center justify-between border-t border-slate-100 pt-5">
+            <span class="text-xs text-slate-500">CV ID: <strong x-text="id"></strong> · Version <strong x-text="loaded?.version ?? '?' "></strong></span>
+            <button type="button" @click="save()" :disabled="!dirty || saving || conflict"
+              class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">Save CV</button>
+          </div>
+        </fieldset>
+      </section>
+
+      <aside class="min-w-0 lg:sticky lg:top-24 lg:max-h-[calc(100vh-8rem)] lg:overflow-auto">
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="mb-5 flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <h2 class="font-semibold">Live content preview</h2>
+            <span class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-500">Not PDF layout</span>
+          </div>
+          <div class="break-words rounded border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+            <h3 class="text-xl font-bold text-slate-900" x-text="cv.personal?.full_name || 'Your Name'"></h3>
+            <p class="mt-1 text-sm font-medium text-teal-700" x-text="cv.meta?.target_role || ''"></p>
+            <p class="mt-2 text-xs text-slate-500" x-text="[cv.personal?.email,cv.personal?.phone,cv.personal?.location].filter(Boolean).join(' · ')"></p>
+            <p class="mt-2 text-xs text-slate-500" x-text="[cv.personal?.linkedin,cv.personal?.github,cv.personal?.portfolio].filter(Boolean).join(' · ')"></p>
+            <section x-show="cv.summary" class="mt-5 border-t pt-3">
+              <h4 class="mb-2 text-xs font-bold uppercase tracking-wider text-slate-600">Summary</h4>
+              <p class="whitespace-pre-wrap text-xs leading-relaxed text-slate-700" x-text="value(cv.summary)"></p>
+            </section>
+            <template x-for="pair in sections.filter(p => !['personal','summary'].includes(p[0]))" :key="pair[0]">
+              <section x-show="previewRows(pair[0]).length>0" class="mt-5 border-t pt-3">
+                <h4 class="mb-2 text-xs font-bold uppercase tracking-wider text-slate-600" x-text="pair[1]"></h4>
+                <template x-for="(line,index) in previewRows(pair[0])" :key="index">
+                  <p class="mb-2 whitespace-pre-wrap text-xs leading-relaxed text-slate-700" x-text="line"></p>
+                </template>
+              </section>
+            </template>
+          </div>
+          <p class="mt-3 text-xs leading-relaxed text-slate-500">The final document will be rendered by M8 from the same saved CV JSON; this panel is a safe content preview.</p>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+</body>
+</html>

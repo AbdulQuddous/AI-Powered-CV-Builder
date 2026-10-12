@@ -1,0 +1,650 @@
+/* State, form behavior and live preview.
+   No backend models, migrations, or AI calls. */
+
+(function (global) {
+  'use strict';
+
+  const copy = value =>
+    JSON.parse(JSON.stringify(value));
+
+  const SECTIONS = [
+    ['personal', 'Personal'],
+    ['summary', 'Summary'],
+    ['experience', 'Experience'],
+    ['education', 'Education'],
+    ['projects', 'Projects'],
+    ['skills', 'Skills'],
+    ['certifications', 'Certifications'],
+    ['achievements', 'Achievements'],
+    ['languages', 'Languages']
+  ];
+
+  const PERSONAL_KEYS = [
+    'full_name',
+    'email',
+    'phone',
+    'location',
+    'linkedin',
+    'github',
+    'portfolio'
+  ];
+
+  const DEFAULT_ROW = {
+    experience: {
+      company: null,
+      role: null,
+      location: null,
+      start_date: null,
+      end_date: null,
+      responsibilities: null
+    },
+
+    education: {
+      degree: null,
+      institution: null,
+      field_of_study: null,
+      start_date: null,
+      end_date: null,
+      grade: null
+    },
+
+    projects: {
+      name: null,
+      description: null,
+      technologies: null,
+      url: null
+    }
+  };
+
+  function emptyLike(v) {
+    if (Array.isArray(v)) {
+      return [];
+    }
+
+    if (v && typeof v === 'object') {
+      return Object.fromEntries(
+        Object.entries(v).map(
+          ([k, val]) => [k, emptyLike(val)]
+        )
+      );
+    }
+
+    if (v === null) {
+      return null;
+    }
+
+    if (typeof v === 'boolean') {
+      return false;
+    }
+
+    if (typeof v === 'number') {
+      return 0;
+    }
+
+    return '';
+  }
+
+  function fieldValue(value) {
+    if (Array.isArray(value)) {
+      return value
+        .map(x => x ?? '')
+        .join('\n');
+    }
+
+    if (
+      value === null ||
+      value === undefined
+    ) {
+      return '';
+    }
+
+    if (typeof value === 'object') {
+      return JSON.stringify(value);
+    }
+
+    return String(value);
+  }
+
+  function setScalar(original, typed) {
+    if (Array.isArray(original)) {
+      return typed
+        .split(/\r?\n/)
+        .map(x => x.trim())
+        .filter(Boolean);
+    }
+
+    if (typeof original === 'number') {
+      const n = Number(typed);
+
+      return (
+        typed.trim() === '' ||
+        !Number.isFinite(n)
+      )
+        ? original
+        : n;
+    }
+
+    if (typeof original === 'boolean') {
+      return typed === 'true';
+    }
+
+    // Null is changed only when the user edits the field.
+    return typed;
+  }
+
+  function snapshot(v) {
+    return JSON.stringify(v);
+  }
+
+  function cvEditor() {
+    return {
+      id: '',
+      cv: {},
+      loaded: null,
+      initial: '',
+      active: 'personal',
+
+      sections: SECTIONS,
+
+      authRequired: false,
+      loading: true,
+      saving: false,
+
+      notice: '',
+      error: '',
+
+      username: '',
+      password: '',
+
+      conflict: false,
+
+      // Check whether the CV has unsaved changes.
+      get dirty() {
+        return (
+          !!this.loaded &&
+          snapshot(this.cv) !== this.initial
+        );
+      },
+
+      // Currently selected section name.
+      get activeLabel() {
+        return (
+          SECTIONS.find(
+            ([key]) => key === this.active
+          )?.[1] || ''
+        );
+      },
+
+      // Initialize the editor.
+      init() {
+        this.id = JSON.parse(
+          global.document
+            .getElementById('m7-config')
+            .textContent
+        );
+
+        global.addEventListener(
+          'beforeunload',
+          event => {
+            if (this.dirty) {
+              event.preventDefault();
+              event.returnValue = '';
+            }
+          }
+        );
+
+        this.reload();
+      },
+
+      // Load the CV from M2.
+      async reload(force = false) {
+        if (
+          !force &&
+          this.dirty &&
+          !global.confirm(
+            'Discard your unsaved edits and reload from server?'
+          )
+        ) {
+          return;
+        }
+
+        this.loading = true;
+        this.error = '';
+        this.notice = '';
+        this.conflict = false;
+
+        try {
+          const loaded = await global.M7Api.load(
+            this.id
+          );
+
+          this.loaded = loaded;
+
+          // Preserve all unknown JSON fields.
+          this.cv = copy(loaded.document);
+
+          this.initial = snapshot(this.cv);
+
+          this.authRequired = false;
+
+        } catch (e) {
+          this.authRequired = e.status === 401;
+          this.error = e.message;
+
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      // Sign in using the existing M1 API.
+      async signIn() {
+        this.error = '';
+        this.loading = true;
+
+        try {
+          await global.M7Api.login(
+            this.username,
+            this.password
+          );
+
+          this.password = '';
+
+          await this.reload(true);
+
+        } catch (e) {
+          this.error = e.message;
+          this.loading = false;
+        }
+      },
+
+      // Save changes to M2.
+      async save() {
+        if (
+          !this.dirty ||
+          this.saving ||
+          this.conflict
+        ) {
+          return;
+        }
+
+        this.saving = true;
+        this.error = '';
+        this.notice = '';
+
+        try {
+          const result = await global.M7Api.save(
+            this.id,
+            this.loaded,
+            copy(this.cv)
+          );
+
+          this.loaded = result;
+
+          this.cv = copy(result.document);
+
+          this.initial = snapshot(this.cv);
+
+          this.notice = 'CV saved successfully.';
+
+        } catch (e) {
+          this.conflict =
+            e.status === 409 ||
+            e.code === 'version_conflict';
+
+          this.authRequired = e.status === 401;
+
+          this.error = this.conflict
+            ? (
+              'Another edit was saved first. ' +
+              'Download your draft, then reload ' +
+              'the latest version.'
+            )
+            : (
+              `${e.message}` +
+              (
+                e.status === 400
+                  ? ' Check the validation details from M2.'
+                  : ''
+              )
+            );
+
+        } finally {
+          this.saving = false;
+        }
+      },
+
+      // ------------------------------
+      // PERSONAL INFORMATION
+      // ------------------------------
+
+      personalKeys() {
+        const val = this.cv.personal;
+
+        return [
+          ...new Set([
+            ...PERSONAL_KEYS,
+
+            ...Object.keys(
+              val &&
+              typeof val === 'object'
+                ? val
+                : {}
+            )
+          ])
+        ];
+      },
+
+      personalValue(key) {
+        return fieldValue(
+          this.cv.personal?.[key]
+        );
+      },
+
+      setPersonal(key, value) {
+        if (
+          !this.cv.personal ||
+          typeof this.cv.personal !== 'object' ||
+          Array.isArray(this.cv.personal)
+        ) {
+          this.cv.personal = {};
+        }
+
+        for (const required of PERSONAL_KEYS) {
+          if (
+            !Object.prototype.hasOwnProperty.call(
+              this.cv.personal,
+              required
+            )
+          ) {
+            this.cv.personal[required] = null;
+          }
+        }
+
+        this.cv.personal[key] = setScalar(
+          this.cv.personal[key],
+          value
+        );
+      },
+
+      // ------------------------------
+      // PROFESSIONAL SUMMARY
+      // ------------------------------
+
+      setSummary(value) {
+        this.cv.summary = setScalar(
+          this.cv.summary,
+          value
+        );
+      },
+
+      // ------------------------------
+      // DYNAMIC SECTIONS
+      // ------------------------------
+
+      list(section) {
+        return Array.isArray(this.cv[section])
+          ? this.cv[section]
+          : [];
+      },
+
+      isList(section) {
+        return (
+          this.cv[section] == null ||
+          Array.isArray(this.cv[section])
+        );
+      },
+
+      isMap(section) {
+        const x = this.cv[section];
+
+        return (
+          x &&
+          typeof x === 'object' &&
+          !Array.isArray(x)
+        );
+      },
+
+      rowFields(row) {
+        return (
+          row &&
+          typeof row === 'object' &&
+          !Array.isArray(row)
+        )
+          ? Object.keys(row)
+          : [];
+      },
+
+      isRow(row) {
+        return (
+          row !== null &&
+          typeof row === 'object' &&
+          !Array.isArray(row)
+        );
+      },
+
+      isEditableValue(v) {
+        return (
+          v === null ||
+          typeof v !== 'object' ||
+          Array.isArray(v)
+        );
+      },
+
+      value: fieldValue,
+
+      isMultiline(key, v) {
+        return (
+          Array.isArray(v) ||
+          /description|responsibilities|summary|details|achievement|bullet/i.test(
+            key
+          )
+        );
+      },
+
+      // Add a new entry to a section.
+      add(section) {
+        if (this.cv[section] == null) {
+          this.cv[section] = [];
+        }
+
+        if (!Array.isArray(this.cv[section])) {
+          return;
+        }
+
+        const sample = this.cv[section].find(
+          x => x !== null && x !== undefined
+        );
+
+        this.cv[section].push(
+          sample !== undefined
+            ? emptyLike(sample)
+            : DEFAULT_ROW[section]
+              ? copy(DEFAULT_ROW[section])
+              : ''
+        );
+      },
+
+      // Remove a section entry.
+      remove(section, index) {
+        this.cv[section].splice(index, 1);
+      },
+
+      // Move an entry up or down.
+      move(section, index, delta) {
+        const list = this.cv[section];
+
+        const next = index + delta;
+
+        if (
+          !Array.isArray(list) ||
+          next < 0 ||
+          next >= list.length
+        ) {
+          return;
+        }
+
+        [
+          list[index],
+          list[next]
+        ] = [
+          list[next],
+          list[index]
+        ];
+      },
+
+      // Update one field inside an entry.
+      setRow(section, index, key, value) {
+        const row = this.cv[section][index];
+
+        if (key === null) {
+          this.cv[section][index] = setScalar(
+            row,
+            value
+          );
+        } else {
+          row[key] = setScalar(
+            row[key],
+            value
+          );
+        }
+      },
+
+      // Update a dictionary-based section.
+      setMapValue(section, key, value) {
+        this.cv[section][key] = setScalar(
+          this.cv[section][key],
+          value
+        );
+      },
+
+      // Update a plain text section.
+      setPlain(section, value) {
+        this.cv[section] = setScalar(
+          this.cv[section],
+          value
+        );
+      },
+
+      // ------------------------------
+      // LIVE PREVIEW
+      // ------------------------------
+
+      short(value) {
+        if (value == null) {
+          return '';
+        }
+
+        if (Array.isArray(value)) {
+          return value
+            .map(v => this.short(v))
+            .filter(Boolean)
+            .join(' • ');
+        }
+
+        if (typeof value === 'object') {
+          return Object.values(value)
+            .map(v => this.short(v))
+            .filter(Boolean)
+            .join(' • ');
+        }
+
+        return String(value);
+      },
+
+      previewRows(section) {
+        const val = this.cv[section];
+
+        if (val == null) {
+          return [];
+        }
+
+        if (Array.isArray(val)) {
+          return val
+            .map(x => this.short(x))
+            .filter(Boolean);
+        }
+
+        if (typeof val === 'object') {
+          return Object.entries(val).map(
+            ([k, v]) => `${k}: ${this.short(v)}`
+          );
+        }
+
+        return val
+          ? [String(val)]
+          : [];
+      },
+
+      // ------------------------------
+      // EXPORT UNSAVED DRAFT
+      // ------------------------------
+
+      exportDraft() {
+        const blob = new Blob(
+          [
+            JSON.stringify(
+              this.cv,
+              null,
+              2
+            )
+          ],
+          {
+            type: 'application/json'
+          }
+        );
+
+        const href = URL.createObjectURL(blob);
+
+        const link = global.document.createElement(
+          'a'
+        );
+
+        link.href = href;
+
+        link.download =
+          `cv-${this.id}-unsaved.json`;
+
+        link.click();
+
+        setTimeout(
+          () => URL.revokeObjectURL(href),
+          1000
+        );
+      }
+    };
+  }
+
+  // Make the editor available globally.
+  global.M7Editor = {
+    cvEditor,
+    fieldValue,
+    emptyLike,
+    setScalar
+  };
+
+  // Support JavaScript unit testing.
+  if (
+    typeof module !== 'undefined' &&
+    module.exports
+  ) {
+    module.exports = global.M7Editor;
+  }
+
+  // Register with Alpine.js.
+  if (global.document) {
+    global.document.addEventListener(
+      'alpine:init',
+      () => {
+        global.Alpine.data(
+          'cvEditor',
+          cvEditor
+        );
+      }
+    );
+  }
+
+})(
+  typeof window !== 'undefined'
+    ? window
+    : globalThis
+);
