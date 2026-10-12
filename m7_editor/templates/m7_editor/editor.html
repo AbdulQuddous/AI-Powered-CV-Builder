@@ -6,6 +6,158 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Edit CV · CV Maker</title>
   <link rel="stylesheet" href="{% static 'm7_editor/css/editor.css' %}">
+
+  <!-- M8 preview styles are intentionally plain CSS.
+       editor.css may contain only precompiled Tailwind utility classes. -->
+  <style>
+    [x-cloak] { display: none !important; }
+
+    .m8-viewer,
+    .m8-viewer * { box-sizing: border-box; }
+
+    .m8-viewer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      background: #e8edf3;
+      color: #0f172a;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .m8-viewer__toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      flex: 0 0 auto;
+      width: 100%;
+      min-height: 76px;
+      padding: 12px clamp(16px, 3vw, 42px);
+      background: #fff;
+      border-bottom: 1px solid #dce3eb;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, .04);
+    }
+
+    .m8-viewer__title-group,
+    .m8-viewer__actions {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .m8-viewer__title h2 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.25;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .m8-viewer__title p {
+      margin: 3px 0 0;
+      color: #64748b;
+      font-size: 12px;
+    }
+
+    .m8-viewer__button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 40px;
+      padding: 9px 16px;
+      border: 1px solid #cbd5e1;
+      border-radius: 9px;
+      background: #fff;
+      color: #334155;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      text-decoration: none;
+      transition: background .15s ease, border-color .15s ease;
+    }
+
+    .m8-viewer__button:hover { background: #f1f5f9; }
+    .m8-viewer__button:focus-visible {
+      outline: 3px solid rgba(13, 148, 136, .35);
+      outline-offset: 2px;
+    }
+
+    .m8-viewer__button--primary {
+      background: #0f766e;
+      border-color: #0f766e;
+      color: #fff;
+    }
+
+    .m8-viewer__button--primary:hover { background: #115e59; }
+    .m8-viewer__button:disabled { opacity: .5; cursor: not-allowed; }
+
+    .m8-viewer__workspace {
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 0;
+      width: 100%;
+      padding: 20px 22px 24px;
+      overflow: hidden;
+    }
+
+    .m8-viewer__frame {
+      display: block;
+      width: min(100%, 940px);
+      height: 100%;
+      min-height: 0;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 14px 40px rgba(15, 23, 42, .14);
+      overflow: hidden;
+    }
+
+    .m8-viewer__iframe {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      border: 0;
+      background: #fff;
+    }
+
+    .m8-viewer__error {
+      margin: 0;
+      flex: 0 0 auto;
+      padding: 11px 24px;
+      border-top: 1px solid #fecaca;
+      background: #fff1f2;
+      color: #9f1239;
+      font-size: 13px;
+    }
+
+    @media (max-width: 640px) {
+      .m8-viewer__toolbar { gap: 12px; padding: 12px; }
+      .m8-viewer__title h2 { font-size: 15px; }
+      .m8-viewer__actions { width: 100%; gap: 8px; }
+      .m8-viewer__actions .m8-viewer__button { flex: 1 1 auto; }
+      .m8-viewer__workspace { padding: 10px 8px; }
+      .m8-viewer__frame { border-radius: 8px; }
+      .m8-viewer__button { font-size: 12px; padding: 8px 10px; }
+    }
+  </style>
   {{ cv_id|json_script:"m7-config" }}
   <script defer src="{% static 'm7_editor/js/api.js' %}"></script>
   <script defer src="{% static 'm7_editor/js/editor.js' %}"></script>
@@ -13,7 +165,7 @@
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
 <div x-data="cvEditor" x-cloak>
-  <header class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:px-8">
+  <header x-show="!m8PreviewOpen" class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:px-8">
     <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <span class="grid size-10 place-items-center rounded-xl bg-teal-700 text-xl font-bold text-white">C</span>
@@ -22,30 +174,50 @@
           <p class="text-xs text-slate-500">Edit your CV without losing its AI-generated structure</p>
         </div>
       </div>
-      <div class="flex items-center gap-2">
-        <span class="hidden text-sm sm:inline" :class="dirty ? 'text-amber-700' : 'text-slate-500'"
-              x-text="dirty ? 'Unsaved changes' : (loaded ? 'All changes saved' : '')"></span>
-        <button type="button" @click="exportDraft()" :disabled="!loaded"
-          class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-100 disabled:opacity-50">Export draft</button>
-        <button type="button" @click="save()" :disabled="!dirty || saving || conflict"
-          class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-40"
-          x-text="saving ? 'Saving…' : 'Save changes'"></button>
-      </div>
-    </div>
-  </header>
+      <div class="flex flex-wrap items-center gap-2">
+      <span class="hidden text-sm sm:inline"
+            :class="dirty ? 'text-amber-700' : 'text-slate-500'"
+            x-text="dirty ? 'Unsaved changes' : (loaded ? 'All changes saved' : '')"></span>
 
-  <main class="mx-auto max-w-7xl px-4 py-6 md:px-8">
+      <button type="button" @click="exportDraft()" :disabled="!loaded"
+        class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-100 disabled:opacity-50">
+        Export draft JSON
+      </button>
+
+      <button type="button" @click="save()" :disabled="!dirty || saving || conflict"
+        class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-40"
+        x-text="saving ? 'Saving…' : 'Save changes'"></button>
+
+      <button id="preview-cv-btn" type="button" @click="previewM8()"
+        :disabled="!loaded || loading || saving || m8Busy || authRequired"
+        class="rounded-lg border border-teal-300 bg-white px-3 py-2 text-sm font-semibold text-teal-800 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-40">
+        Preview CV
+      </button>
+
+      <button id="export-pdf-btn" type="button" @click="downloadM8('pdf')"
+        :disabled="!loaded || loading || saving || m8Busy || authRequired"
+        class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">
+        Download PDF
+      </button>
+
+      <button id="export-docx-btn" type="button" @click="downloadM8('docx')"
+        :disabled="!loaded || loading || saving || m8Busy || authRequired"
+        class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">
+        Download DOCX
+      </button>
+    </div>
+  </div>
+  </header>
+  <main x-show="!m8PreviewOpen" class="mx-auto max-w-7xl px-4 py-6 md:px-8">
     <p x-show="notice" role="status" class="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-800" x-text="notice"></p>
     <div x-show="error" role="alert" class="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
       <p x-text="error"></p>
       <div x-show="conflict" class="mt-3 flex flex-wrap gap-2">
         <button type="button" @click="exportDraft()" class="rounded-lg border border-rose-300 px-3 py-2 font-medium">Download draft JSON</button>
-        <button type="button" @click="reload(true)" class="rounded-lg bg-rose-700 px-3 py-2 font-semibold text-white">Discard draft &amp; reload latest</button>
+        <button type="button" @click="reload(true)" class="rounded-lg bg-rose-700 px-3 py-2 font-semibold text-white">Discard draft & reload latest</button>
       </div>
     </div>
-
     <div x-show="loading" role="status" class="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500">Loading your CV…</div>
-
     <section x-show="!loading && authRequired" class="mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
       <h1 class="mb-2 text-2xl font-semibold">Sign in</h1>
       <p class="mb-5 text-sm text-slate-500">Use your existing M1 account to load the CV. Your CV data remains protected by M1/M2.</p>
@@ -62,7 +234,6 @@
         <button type="submit" class="w-full rounded-lg bg-teal-700 px-4 py-2.5 font-semibold text-white hover:bg-teal-800">Sign in</button>
       </form>
     </section>
-
     <div x-show="!loading && loaded && !authRequired" class="grid grid-cols-1 gap-5 lg:grid-cols-[190px_minmax(0,1fr)_minmax(290px,0.92fr)]">
       <nav aria-label="CV sections" class="h-fit rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:sticky lg:top-24">
         <p class="px-3 pb-3 pt-2 text-xs font-bold uppercase tracking-widest text-slate-400">Sections</p>
@@ -75,7 +246,6 @@
           </template>
         </div>
       </nav>
-
       <section class="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-7">
         <div class="mb-6 border-b border-slate-100 pb-5">
           <p class="mb-1 text-xs font-bold uppercase tracking-widest text-teal-700">Manual editor</p>
@@ -93,7 +263,6 @@
               </label>
             </template>
           </div>
-
           <div x-show="active==='summary'">
             <label class="block text-sm font-medium text-slate-700">Professional summary
               <textarea rows="9" class="m7-input mt-2" maxlength="3000"
@@ -101,7 +270,6 @@
                 placeholder="Write a concise, factual summary tailored to the target role…"></textarea>
             </label>
           </div>
-
           <template x-for="pair in sections.filter(p => !['personal','summary'].includes(p[0]))" :key="pair[0]">
             <div x-show="active===pair[0]" class="space-y-4">
               <template x-if="isList(pair[0])">
@@ -175,7 +343,6 @@
           </div>
         </fieldset>
       </section>
-
       <aside class="min-w-0 lg:sticky lg:top-24 lg:max-h-[calc(100vh-8rem)] lg:overflow-auto">
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div class="mb-5 flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
@@ -205,6 +372,68 @@
       </aside>
     </div>
   </main>
+
+  <!-- M8: The fixed viewer uses scoped CSS (not Tailwind utilities). -->
+  <section
+    x-show="m8PreviewOpen"
+    x-cloak
+    @keydown.escape.window="closeM8Preview()"
+    class="m8-viewer"
+    role="dialog"
+    aria-modal="true"
+    aria-label="CV document preview"
+  >
+    <div class="m8-viewer__toolbar">
+      <div class="m8-viewer__title-group">
+        <button
+          type="button"
+          class="m8-viewer__button"
+          @click="closeM8Preview()"
+        >
+          &#8592; Back to Editor
+        </button>
+        <div class="m8-viewer__title">
+          <h2>CV Preview</h2>
+          <p>Selected template · Last saved version</p>
+        </div>
+      </div>
+
+      <div class="m8-viewer__actions">
+        <button
+          type="button"
+          class="m8-viewer__button m8-viewer__button--primary"
+          :disabled="m8Busy"
+          @click="downloadM8('pdf')"
+        >
+          Download PDF
+        </button>
+        <button
+          type="button"
+          class="m8-viewer__button"
+          :disabled="m8Busy"
+          @click="downloadM8('docx')"
+        >
+          Download DOCX
+        </button>
+      </div>
+    </div>
+
+    <div class="m8-viewer__workspace">
+      <div class="m8-viewer__frame">
+        <template x-if="m8PreviewOpen && m8PreviewUrl">
+          <iframe
+            :src="m8PreviewUrl"
+            class="m8-viewer__iframe"
+            title="Rendered CV document"
+            sandbox=""
+            referrerpolicy="no-referrer"
+          ></iframe>
+        </template>
+      </div>
+    </div>
+
+    <p x-show="error" x-text="error" role="alert" class="m8-viewer__error"></p>
+  </section>
 </div>
 </body>
 </html>

@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "chatbot",  
     "ai",
     "m7_editor",
+    "m8_renderer",
 ]
 
 MIDDLEWARE = [

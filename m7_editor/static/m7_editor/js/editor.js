@@ -1,5 +1,7 @@
 /* State, form behavior and live preview.
-   No backend models, migrations, or AI calls. */
+   M7 Editor + M8 Rendering & Export Integration.
+   No backend models, migrations, or AI calls.
+*/
 
 (function (global) {
   'use strict';
@@ -55,6 +57,10 @@
       url: null
     }
   };
+
+  // --------------------------------
+  // HELPER FUNCTIONS
+  // --------------------------------
 
   function emptyLike(v) {
     if (Array.isArray(v)) {
@@ -128,7 +134,6 @@
       return typed === 'true';
     }
 
-    // Null is changed only when the user edits the field.
     return typed;
   }
 
@@ -136,19 +141,29 @@
     return JSON.stringify(v);
   }
 
+  // --------------------------------
+  // ALPINE EDITOR COMPONENT
+  // --------------------------------
+
   function cvEditor() {
     return {
+
       id: '',
       cv: {},
       loaded: null,
       initial: '',
-      active: 'personal',
 
+      active: 'personal',
       sections: SECTIONS,
 
       authRequired: false,
       loading: true,
       saving: false,
+
+      // M8 states
+      m8Busy: false,
+      m8PreviewOpen: false,
+      m8PreviewUrl: null,
 
       notice: '',
       error: '',
@@ -158,7 +173,10 @@
 
       conflict: false,
 
-      // Check whether the CV has unsaved changes.
+      // --------------------------------
+      // CHECK UNSAVED CHANGES
+      // --------------------------------
+
       get dirty() {
         return (
           !!this.loaded &&
@@ -166,7 +184,6 @@
         );
       },
 
-      // Currently selected section name.
       get activeLabel() {
         return (
           SECTIONS.find(
@@ -175,7 +192,10 @@
         );
       },
 
-      // Initialize the editor.
+      // --------------------------------
+      // INITIALIZE EDITOR
+      // --------------------------------
+
       init() {
         this.id = JSON.parse(
           global.document
@@ -196,7 +216,10 @@
         this.reload();
       },
 
-      // Load the CV from M2.
+      // --------------------------------
+      // LOAD CV FROM M2
+      // --------------------------------
+
       async reload(force = false) {
         if (
           !force &&
@@ -220,7 +243,7 @@
 
           this.loaded = loaded;
 
-          // Preserve all unknown JSON fields.
+          // Preserve unknown JSON fields
           this.cv = copy(loaded.document);
 
           this.initial = snapshot(this.cv);
@@ -236,7 +259,10 @@
         }
       },
 
-      // Sign in using the existing M1 API.
+      // --------------------------------
+      // LOGIN USING M1
+      // --------------------------------
+
       async signIn() {
         this.error = '';
         this.loading = true;
@@ -257,7 +283,10 @@
         }
       },
 
-      // Save changes to M2.
+      // --------------------------------
+      // SAVE CV TO M2
+      // --------------------------------
+
       async save() {
         if (
           !this.dirty ||
@@ -279,9 +308,7 @@
           );
 
           this.loaded = result;
-
           this.cv = copy(result.document);
-
           this.initial = snapshot(this.cv);
 
           this.notice = 'CV saved successfully.';
@@ -313,11 +340,274 @@
         }
       },
 
-      // ------------------------------
-      // PERSONAL INFORMATION
-      // ------------------------------
+      // =================================================
+      // M8 — CV RENDERING AND EXPORT
+      // =================================================
+
+      // --------------------------------
+      // CHECK WHETHER M8 IS READY
+      // --------------------------------
+
+      ensureM8Ready() {
+        this.error = '';
+
+        if (
+          this.authRequired ||
+          !this.loaded
+        ) {
+          this.error =
+            'Sign in and load your CV first.';
+
+          return false;
+        }
+
+        if (
+          this.saving ||
+          this.loading ||
+          this.m8Busy
+        ) {
+          return false;
+        }
+
+        if (this.conflict) {
+          this.error =
+            'Resolve the version conflict before previewing or exporting.';
+
+          return false;
+        }
+
+        if (this.dirty) {
+          this.error =
+            'Save your changes before previewing or exporting. M8 uses the saved CV.';
+
+          return false;
+        }
+
+        return true;
+      },
+
+      // --------------------------------
+      // M8 AUTHENTICATED API REQUEST
+      // --------------------------------
+
+      async m8Request(action, method = 'GET') {
+
+        // Use JWT stored by existing M7 API
+        const token =
+          global.sessionStorage.getItem('cv_access') ||
+          global.sessionStorage.getItem('access') ||
+          global.sessionStorage.getItem('access_token');
+
+        if (!token) {
+          const error = new Error(
+            'Please sign in again to access M8.'
+          );
+
+          error.status = 401;
+
+          throw error;
+        }
+
+        const url =
+          `/api/cvs/${encodeURIComponent(this.id)}/${action}`;
+
+        const response = await global.fetch(
+          url,
+          {
+            method,
+
+            headers: {
+              Authorization: `Bearer ${token}`
+            },
+
+            credentials: 'same-origin',
+
+            cache: 'no-store'
+          }
+        );
+
+        if (!response.ok) {
+
+          let message =
+            `M8 request failed (HTTP ${response.status}).`;
+
+          try {
+            const body = await response.json();
+
+            const detail =
+              body.detail ||
+              body.message ||
+              body.error;
+
+            if (typeof detail === 'string') {
+              message = detail;
+
+            } else if (
+              detail &&
+              typeof detail === 'object'
+            ) {
+              message = JSON.stringify(detail);
+            }
+
+          } catch (_) {
+            // Keep original HTTP error
+          }
+
+          const error = new Error(message);
+
+          error.status = response.status;
+
+          throw error;
+        }
+
+        return response;
+      },
+
+      // --------------------------------
+      // M8 HTML PREVIEW
+      // --------------------------------
+
+      async previewM8() {
+
+        if (!this.ensureM8Ready()) {
+          return;
+        }
+
+        this.m8Busy = true;
+        this.notice = '';
+
+        try {
+
+          const response = await this.m8Request(
+            'preview/',
+            'GET'
+          );
+
+          const markup = await response.text();
+
+          const url = URL.createObjectURL(
+            new Blob(
+              [markup],
+              {
+                type: 'text/html;charset=utf-8'
+              }
+            )
+          );
+
+          // Close previous preview
+          this.closeM8Preview();
+
+          this.m8PreviewUrl = url;
+
+          this.m8PreviewOpen = true;
+
+          this.notice =
+            'Rendered preview loaded from M8.';
+
+        } catch (error) {
+
+          if (error.status === 401) {
+            this.authRequired = true;
+          }
+
+          this.error = error.message;
+
+        } finally {
+          this.m8Busy = false;
+        }
+      },
+
+      // --------------------------------
+      // CLOSE M8 PREVIEW
+      // --------------------------------
+
+      closeM8Preview() {
+
+        this.m8PreviewOpen = false;
+
+        if (this.m8PreviewUrl) {
+
+          URL.revokeObjectURL(
+            this.m8PreviewUrl
+          );
+
+          this.m8PreviewUrl = null;
+        }
+      },
+
+      // --------------------------------
+      // M8 PDF / DOCX DOWNLOAD
+      // --------------------------------
+
+      async downloadM8(format) {
+
+        if (!['pdf', 'docx'].includes(format)) {
+          return;
+        }
+
+        if (!this.ensureM8Ready()) {
+          return;
+        }
+
+        this.m8Busy = true;
+        this.notice = '';
+
+        try {
+
+          const response = await this.m8Request(
+            `export/${format}/`,
+            'POST'
+          );
+
+          const contents = await response.blob();
+
+          const url = URL.createObjectURL(
+            contents
+          );
+
+          const anchor =
+            global.document.createElement('a');
+
+          anchor.href = url;
+
+          anchor.download =
+            `cv-${this.id}.${format}`;
+
+          global.document.body.appendChild(
+            anchor
+          );
+
+          anchor.click();
+
+          anchor.remove();
+
+          global.setTimeout(
+            () => URL.revokeObjectURL(url),
+            60000
+          );
+
+          this.notice =
+            `${format.toUpperCase()} exported successfully via M8.`;
+
+        } catch (error) {
+
+          if (error.status === 401) {
+            this.authRequired = true;
+          }
+
+          this.error = error.message;
+
+        } finally {
+          this.m8Busy = false;
+        }
+      },
+
+      // =================================================
+      // M7 — PERSONAL INFORMATION
+      // =================================================
 
       personalKeys() {
+
         const val = this.cv.personal;
 
         return [
@@ -341,6 +631,7 @@
       },
 
       setPersonal(key, value) {
+
         if (
           !this.cv.personal ||
           typeof this.cv.personal !== 'object' ||
@@ -350,6 +641,7 @@
         }
 
         for (const required of PERSONAL_KEYS) {
+
           if (
             !Object.prototype.hasOwnProperty.call(
               this.cv.personal,
@@ -366,28 +658,31 @@
         );
       },
 
-      // ------------------------------
-      // PROFESSIONAL SUMMARY
-      // ------------------------------
+      // =================================================
+      // M7 — PROFESSIONAL SUMMARY
+      // =================================================
 
       setSummary(value) {
+
         this.cv.summary = setScalar(
           this.cv.summary,
           value
         );
       },
 
-      // ------------------------------
-      // DYNAMIC SECTIONS
-      // ------------------------------
+      // =================================================
+      // M7 — DYNAMIC CV SECTIONS
+      // =================================================
 
       list(section) {
+
         return Array.isArray(this.cv[section])
           ? this.cv[section]
           : [];
       },
 
       isList(section) {
+
         return (
           this.cv[section] == null ||
           Array.isArray(this.cv[section])
@@ -395,6 +690,7 @@
       },
 
       isMap(section) {
+
         const x = this.cv[section];
 
         return (
@@ -405,6 +701,7 @@
       },
 
       rowFields(row) {
+
         return (
           row &&
           typeof row === 'object' &&
@@ -415,6 +712,7 @@
       },
 
       isRow(row) {
+
         return (
           row !== null &&
           typeof row === 'object' &&
@@ -423,6 +721,7 @@
       },
 
       isEditableValue(v) {
+
         return (
           v === null ||
           typeof v !== 'object' ||
@@ -433,6 +732,7 @@
       value: fieldValue,
 
       isMultiline(key, v) {
+
         return (
           Array.isArray(v) ||
           /description|responsibilities|summary|details|achievement|bullet/i.test(
@@ -441,8 +741,12 @@
         );
       },
 
-      // Add a new entry to a section.
+      // --------------------------------
+      // ADD SECTION ENTRY
+      // --------------------------------
+
       add(section) {
+
         if (this.cv[section] == null) {
           this.cv[section] = [];
         }
@@ -464,13 +768,24 @@
         );
       },
 
-      // Remove a section entry.
+      // --------------------------------
+      // REMOVE SECTION ENTRY
+      // --------------------------------
+
       remove(section, index) {
-        this.cv[section].splice(index, 1);
+
+        this.cv[section].splice(
+          index,
+          1
+        );
       },
 
-      // Move an entry up or down.
+      // --------------------------------
+      // MOVE SECTION ENTRY
+      // --------------------------------
+
       move(section, index, delta) {
+
         const list = this.cv[section];
 
         const next = index + delta;
@@ -492,16 +807,23 @@
         ];
       },
 
-      // Update one field inside an entry.
+      // --------------------------------
+      // UPDATE SECTION ENTRY
+      // --------------------------------
+
       setRow(section, index, key, value) {
+
         const row = this.cv[section][index];
 
         if (key === null) {
+
           this.cv[section][index] = setScalar(
             row,
             value
           );
+
         } else {
+
           row[key] = setScalar(
             row[key],
             value
@@ -509,32 +831,42 @@
         }
       },
 
-      // Update a dictionary-based section.
+      // --------------------------------
+      // UPDATE DICTIONARY SECTION
+      // --------------------------------
+
       setMapValue(section, key, value) {
+
         this.cv[section][key] = setScalar(
           this.cv[section][key],
           value
         );
       },
 
-      // Update a plain text section.
+      // --------------------------------
+      // UPDATE PLAIN TEXT SECTION
+      // --------------------------------
+
       setPlain(section, value) {
+
         this.cv[section] = setScalar(
           this.cv[section],
           value
         );
       },
 
-      // ------------------------------
-      // LIVE PREVIEW
-      // ------------------------------
+      // =================================================
+      // M7 — LIVE CONTENT PREVIEW
+      // =================================================
 
       short(value) {
+
         if (value == null) {
           return '';
         }
 
         if (Array.isArray(value)) {
+
           return value
             .map(v => this.short(v))
             .filter(Boolean)
@@ -542,6 +874,7 @@
         }
 
         if (typeof value === 'object') {
+
           return Object.values(value)
             .map(v => this.short(v))
             .filter(Boolean)
@@ -552,6 +885,7 @@
       },
 
       previewRows(section) {
+
         const val = this.cv[section];
 
         if (val == null) {
@@ -559,12 +893,14 @@
         }
 
         if (Array.isArray(val)) {
+
           return val
             .map(x => this.short(x))
             .filter(Boolean);
         }
 
         if (typeof val === 'object') {
+
           return Object.entries(val).map(
             ([k, v]) => `${k}: ${this.short(v)}`
           );
@@ -575,11 +911,12 @@
           : [];
       },
 
-      // ------------------------------
-      // EXPORT UNSAVED DRAFT
-      // ------------------------------
+      // =================================================
+      // M7 — EXPORT UNSAVED JSON DRAFT
+      // =================================================
 
       exportDraft() {
+
         const blob = new Blob(
           [
             JSON.stringify(
@@ -593,11 +930,12 @@
           }
         );
 
-        const href = URL.createObjectURL(blob);
-
-        const link = global.document.createElement(
-          'a'
+        const href = URL.createObjectURL(
+          blob
         );
+
+        const link =
+          global.document.createElement('a');
 
         link.href = href;
 
@@ -614,7 +952,10 @@
     };
   }
 
-  // Make the editor available globally.
+  // --------------------------------
+  // EXPOSE EDITOR GLOBALLY
+  // --------------------------------
+
   global.M7Editor = {
     cvEditor,
     fieldValue,
@@ -622,7 +963,10 @@
     setScalar
   };
 
-  // Support JavaScript unit testing.
+  // --------------------------------
+  // SUPPORT JAVASCRIPT UNIT TESTING
+  // --------------------------------
+
   if (
     typeof module !== 'undefined' &&
     module.exports
@@ -630,11 +974,16 @@
     module.exports = global.M7Editor;
   }
 
-  // Register with Alpine.js.
+  // --------------------------------
+  // REGISTER WITH ALPINE.JS
+  // --------------------------------
+
   if (global.document) {
+
     global.document.addEventListener(
       'alpine:init',
       () => {
+
         global.Alpine.data(
           'cvEditor',
           cvEditor

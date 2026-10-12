@@ -12,6 +12,7 @@ urlpatterns = [
    path("api/chat/",include("chatbot.urls")),
    path("api/ai/",include("ai.urls")),
    path("", include("m7_editor.urls")),
+   path("api/cvs/",include("m8_renderer.urls")),
 ]
 
 if settings.DEBUG:

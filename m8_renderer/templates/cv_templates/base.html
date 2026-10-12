@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>{{ personal.full_name }} - CV</title>
+
+    <style>
+        @page {
+            size: A4;
+            margin: 14mm;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            color: #263238;
+            font-size: 10pt;
+            line-height: 1.5;
+        }
+
+        .document {
+            width: 100%;
+            max-width: 190mm;
+            margin: 0 auto;
+        }
+
+        .header {
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #1e4975;
+        }
+
+        .name {
+            margin: 0;
+            color: #1e4975;
+            font-size: 25pt;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .target-role {
+            margin-top: 7px;
+            font-size: 12pt;
+            font-weight: 600;
+        }
+
+        .contact {
+            margin-top: 8px;
+            font-size: 9pt;
+            overflow-wrap: anywhere;
+        }
+
+        .section {
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            margin: 0 0 10px;
+            padding-bottom: 4px;
+            font-size: 11pt;
+            font-weight: 700;
+            color: #1e4975;
+            text-transform: uppercase;
+            border-bottom: 1px solid #d5dce4;
+        }
+
+        .summary {
+            margin: 0;
+            white-space: pre-line;
+        }
+
+        .skills {
+            margin: 0;
+        }
+
+        .entry {
+            margin-bottom: 12px;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .entry-title {
+            font-size: 10.5pt;
+            font-weight: 700;
+            margin-bottom: 3px;
+        }
+
+        .entry-subtitle {
+            font-size: 9pt;
+            color: #52616b;
+            margin-bottom: 4px;
+        }
+
+        .entry-description {
+            margin: 4px 0;
+            white-space: pre-line;
+        }
+
+        .entry ul {
+            padding-left: 18px;
+            margin: 5px 0;
+        }
+
+        .entry li {
+            margin-bottom: 3px;
+        }
+
+        /* Classic template */
+
+        .theme-classic {
+            font-family: Georgia, serif;
+        }
+
+        .theme-classic .name,
+        .theme-classic .section-title {
+            color: #333333;
+        }
+
+        .theme-classic .header {
+            border-color: #444444;
+            text-align: center;
+        }
+
+        /* Developer template */
+
+        .theme-developer {
+            font-family: Arial, sans-serif;
+        }
+
+        .theme-developer .name,
+        .theme-developer .section-title {
+            color: #176b5d;
+        }
+
+        .theme-developer .header {
+            border-color: #176b5d;
+        }
+
+        .theme-developer .target-role {
+            font-family: monospace;
+        }
+
+        @media screen {
+            body {
+                padding: 24px;
+                background: #f1f5f9;
+            }
+
+            .document {
+                background: white;
+                padding: 18mm;
+                box-shadow: 0 4px 24px rgba(0, 0, 0, 0.09);
+            }
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+
+            .document {
+                padding: 0;
+                box-shadow: none;
+                max-width: none;
+            }
+        }
+    </style>
+</head>
+
+<body class="theme-{% block theme %}modern{% endblock %}">
+
+<main class="document">
+
+    <!-- PERSONAL INFORMATION -->
+
+    <header class="header">
+
+        <h1 class="name">
+            {{ personal.full_name|default:"Curriculum Vitae" }}
+        </h1>
+
+        {% if target_role %}
+        <div class="target-role">
+            {{ target_role }}
+        </div>
+        {% endif %}
+
+        {% if contact %}
+        <div class="contact">
+            {{ contact|join:" | " }}
+        </div>
+        {% endif %}
+
+    </header>
+
+
+    <!-- PROFESSIONAL SUMMARY -->
+
+    {% if summary %}
+    <section class="section">
+
+        <h2 class="section-title">
+            Professional Summary
+        </h2>
+
+        <p class="summary">
+            {{ summary }}
+        </p>
+
+    </section>
+    {% endif %}
+
+
+    <!-- TECHNICAL SKILLS -->
+
+    {% if skills %}
+    <section class="section">
+
+        <h2 class="section-title">
+            Skills
+        </h2>
+
+        <p class="skills">
+            {{ skills|join:", " }}
+        </p>
+
+    </section>
+    {% endif %}
+
+
+    <!-- EXPERIENCE, PROJECTS, EDUCATION, ETC. -->
+
+    {% for section in sections %}
+
+    <section class="section">
+
+        <h2 class="section-title">
+            {{ section.label }}
+        </h2>
+
+        {% for item in section.items %}
+
+        <div class="entry">
+
+            {% if item.title %}
+            <div class="entry-title">
+                {{ item.title }}
+            </div>
+            {% endif %}
+
+            {% if item.subtitle %}
+            <div class="entry-subtitle">
+                {{ item.subtitle }}
+            </div>
+            {% endif %}
+
+            {% if item.description %}
+            <p class="entry-description">
+                {{ item.description }}
+            </p>
+            {% endif %}
+
+            {% if item.bullets %}
+
+            <ul>
+                {% for bullet in item.bullets %}
+                <li>{{ bullet }}</li>
+                {% endfor %}
+            </ul>
+
+            {% endif %}
+
+        </div>
+
+        {% endfor %}
+
+    </section>
+
+    {% endfor %}
+
+</main>
+
+</body>
+</html>
