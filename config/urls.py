@@ -13,6 +13,7 @@ urlpatterns = [
    path("api/ai/",include("ai.urls")),
    path("", include("m7_editor.urls")),
    path("api/cvs/",include("m8_renderer.urls")),
+   path("",include("m9_dashboard.urls")),
 ]
 
 if settings.DEBUG:

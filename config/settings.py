@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "ai",
     "m7_editor",
     "m8_renderer",
+    "m9_dashboard",
 ]
 
 MIDDLEWARE = [
