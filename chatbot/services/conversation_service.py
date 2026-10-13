@@ -16,10 +16,16 @@ from chatbot.services.prompt_builder import (
 
 from chatbot.services.response_normalizer import (
     normalize_ai_response,
+    sanitize_ai_response_for_state,
+)
+
+from chatbot.services.conversation_router import (
+    try_local_extraction,
 )
 
 from chatbot.services.state_manager import (
     get_initial_state,
+    get_required_conversation_step,
     update_state,
 )
 
@@ -96,26 +102,76 @@ def process_user_message(
         )
 
     # =========================================
-    # 2. Build prompt using current state
+    # 2. Determine what backend needs next
     # =========================================
 
-    messages = build_messages(
-        session=session,
-        pending_user_message=user_message,
+    required_step = (
+        get_required_conversation_step(
+            session.conversation_state
+        )
     )
 
     # =========================================
-    # 3. Gemini extracts information
+    # 3. Try zero-cost deterministic extraction
+    #    wrapped in fail-safe so local parsing
+    #    can never break the conversation.
     # =========================================
 
-    client = GeminiClient()
+    local_response = None
 
-    ai_response = client.generate(
-        messages=messages
+    try:
+        local_response = (
+            try_local_extraction(
+                required_step=required_step,
+                user_message=user_message,
+            )
+        )
+    except Exception:
+        # Local optimization must NEVER
+        # break the conversation.
+        local_response = None
+
+    # =========================================
+    # 4. Fall back to Gemini only when local
+    #    parsing cannot confidently understand
+    #    the message.
+    # =========================================
+
+    if local_response is not None:
+        ai_response = local_response
+
+    else:
+        messages = build_messages(
+            session=session,
+            pending_user_message=(
+                user_message
+            ),
+        )
+
+        client = GeminiClient()
+
+        ai_response = client.generate(
+            messages=messages
+        )
+
+    # =========================================
+    # 4b. Sanitize BEFORE state mutation
+    # =========================================
+    # Irrelevant messages must never change CV
+    # state. Gemini may occasionally return
+    # unwanted updates even when intent is
+    # "irrelevant", so the backend enforces
+    # this rule before update_state() runs.
+    # =========================================
+
+    ai_response = (
+        sanitize_ai_response_for_state(
+            ai_response
+        )
     )
 
     # =========================================
-    # 4. Update deterministic state
+    # 5. Update deterministic state
     # =========================================
 
     new_state = update_state(
@@ -124,7 +180,7 @@ def process_user_message(
     )
 
     # =========================================
-    # 5. Backend decides NEXT step
+    # 6. Backend decides NEXT step
     # =========================================
 
     ai_response = normalize_ai_response(
@@ -133,7 +189,7 @@ def process_user_message(
     )
 
     # =========================================
-    # 6. Persist atomically
+    # 7. Persist atomically
     # =========================================
 
     with transaction.atomic():

@@ -25,43 +25,59 @@ QUESTION_MAP = {
         "What is your full name?"
     ),
 
+    # --- grouped contact first ---
     ("personal", "email"): (
-        "What is your email address?"
+        "Please share your contact information: "
+        "your email address, phone number, "
+        "and current city."
     ),
 
+    # --- targeted follow-ups if email alone was given ---
     ("personal", "phone"): (
-        "What is your phone number?"
+        "Please also share your phone number "
+        "and current city."
     ),
 
     ("personal", "location"): (
         "What is your current city or location?"
     ),
 
+    # --- grouped professional links first ---
     ("personal", "linkedin"): (
-        "Do you have a LinkedIn profile URL "
-        "you would like to include?"
+        "Please share your LinkedIn, GitHub, "
+        "and portfolio links if you have them. "
+        "You can also tell me which ones "
+        "you don't have."
     ),
 
     ("personal", "github"): (
-        "Do you have a GitHub profile URL "
-        "you would like to include?"
+        "Please share your GitHub and portfolio "
+        "links if available, or tell me which "
+        "ones you don't have."
     ),
 
     ("personal", "portfolio"): (
-        "Do you have a portfolio website "
-        "you would like to include?"
+        "Do you have a portfolio website? "
+        "You can share it or say no portfolio."
     ),
 
     # ========================================================
     # Education
     # ========================================================
 
+    # --- grouped education first ---
     ("education", "degree"): (
-        "What degree did you complete?"
+        "Please share your education details: "
+        "degree, field of study, university, "
+        "and graduation year. You can also "
+        "include your start year and grade "
+        "or CGPA if available."
     ),
 
+    # --- targeted follow-ups ---
     ("education", "institution"): (
-        "Which institution or university did you attend?"
+        "Which institution or university "
+        "did you attend?"
     ),
 
     ("education", "field_of_study"): (
@@ -69,7 +85,8 @@ QUESTION_MAP = {
     ),
 
     ("education", "end_date"): (
-        "When did you graduate or expect to graduate?"
+        "When did you graduate or when "
+        "do you expect to graduate?"
     ),
 
     # ========================================================
@@ -85,11 +102,15 @@ QUESTION_MAP = {
     # Experience
     # ========================================================
 
+    # --- grouped experience first ---
     ("experience", "company"): (
-        "Which company or organization did you "
-        "work or intern at?"
+        "Please tell me about your most relevant "
+        "job or internship: company, role, "
+        "dates or location if available, and "
+        "your main responsibilities."
     ),
 
+    # --- targeted follow-ups ---
     ("experience", "role"): (
         "What was your role or job title?"
     ),
@@ -103,19 +124,22 @@ QUESTION_MAP = {
     # Projects
     # ========================================================
 
+    # --- grouped project first ---
     ("projects", "name"): (
-        "What project would you like to include "
-        "in your CV?"
+        "Tell me about a project you'd like "
+        "to include: its name, what it does, "
+        "and the main technologies you used."
     ),
 
+    # --- targeted follow-ups ---
     ("projects", "description"): (
-        "Could you briefly describe what this "
-        "project does?"
+        "Could you briefly describe what "
+        "this project does?"
     ),
 
     ("projects", "technologies"): (
-        "What technologies did you use for "
-        "this project?"
+        "What technologies did you use "
+        "for this project?"
     ),
 
     # ========================================================
@@ -147,6 +171,44 @@ def has_cv_updates(ai_response):
     return False
 
 
+def sanitize_ai_response_for_state(
+    ai_response,
+):
+    """
+    Irrelevant messages must never change CV state.
+
+    Gemini may occasionally return unwanted updates even
+    when intent is irrelevant, so the backend enforces
+    this rule.
+    """
+
+    if (
+        ai_response.get("intent")
+        != "irrelevant"
+    ):
+        return ai_response
+
+    ai_response["state_updates"] = {
+        "target_role": None,
+        "career_level": None,
+        "skipped_personal_fields": [],
+    }
+
+    ai_response["cv_updates"] = {
+        "personal": None,
+        "summary": None,
+        "skills": None,
+        "education": None,
+        "experience": None,
+        "projects": None,
+        "certifications": None,
+        "achievements": None,
+        "languages": None,
+    }
+
+    return ai_response
+
+
 def normalize_ai_response(
     *,
     ai_response,
@@ -172,6 +234,55 @@ def normalize_ai_response(
     ]
 
     # ========================================================
+    # Irrelevant message
+    # ========================================================
+    # User said something unrelated to CV building.
+    # Do not advance state; repeat the pending question
+    # with a short notice.
+
+    if (
+        ai_response.get("intent")
+        == "irrelevant"
+    ):
+        question = QUESTION_MAP.get(
+            (
+                section,
+                field,
+            )
+        )
+
+        if not question:
+            question = (
+                f"Could you provide more "
+                f"information about your "
+                f"{section}?"
+            )
+
+        ai_response[
+            "section"
+        ] = section
+
+        ai_response[
+            "intent"
+        ] = "irrelevant"
+
+        ai_response[
+            "next_action"
+        ] = (
+            "ask_question"
+        )
+
+        ai_response[
+            "assistant_message"
+        ] = (
+            "That doesn't seem related to "
+            "your CV. Let's continue: "
+            f"{question}"
+        )
+
+        return ai_response
+
+    # ========================================================
     # Completion
     # ========================================================
 
@@ -179,7 +290,8 @@ def normalize_ai_response(
         section == "review"
         and ai_response.get(
             "next_action"
-        ) == "complete"
+        )
+        == "complete"
     ):
         ai_response[
             "section"

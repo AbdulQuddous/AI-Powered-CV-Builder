@@ -19,6 +19,7 @@ CHAT_RESPONSE_SCHEMA = {
                 "clarify_information",
                 "update_cv",
                 "give_suggestion",
+                "irrelevant",
                 "complete",
             ],
         },
