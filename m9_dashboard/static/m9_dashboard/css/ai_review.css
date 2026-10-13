@@ -1,0 +1,19 @@
+.ai-card { max-width: 1000px; }
+.ai-header, .ai-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+.ai-actions { justify-content: flex-start; margin-top: 16px; }
+.ai-header h2 { font-size: 22px; font-weight: 700; }
+.ai-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+.ai-card h4 { font-weight: 600; margin-bottom: 8px; }
+.ai-panel, .ai-controls { margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+.ai-card p { margin-bottom: 12px; }
+.ai-card ul { padding-left: 20px; list-style: disc; }
+.ai-card li { margin-bottom: 8px; overflow-wrap: anywhere; }
+.ai-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 16px 0; }
+.ai-suggestion-group { margin-top: 16px; }
+.ai-suggestion { border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+.ai-suggestion a { display: inline-block; }
+.ai-priority { color: #475569; font-size: 12px; font-weight: 600; }
+.ai-error { color: #b91c1c; background: #fef2f2; padding: 12px; border-radius: 12px; }
+.ai-card .hidden, #importStructured.hidden { display: none !important; }
+.ai-controls .form-label { margin-top: 12px; }
+@media (max-width: 640px) { .ai-columns { grid-template-columns: 1fr; } }

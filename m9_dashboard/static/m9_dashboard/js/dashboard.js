@@ -198,6 +198,12 @@ function updateAuthUI() {
 
 
 function clearSession() {
+    window.M6Review?.reset();
+    closeModal("aiModal");
+    window.M4Import?.reset();
+    closeModal("importModal");
+    resetChat();
+    sessionStorage.removeItem("m9_chat_sessions");
     sessionStorage.removeItem(TOKEN_KEY);
 
     state.cvs = [];
@@ -275,6 +281,7 @@ async function handleLogin(event) {
         showToast("Successfully signed in.");
 
         await loadCVs();
+        await window.M4Import?.resume();
 
     } catch (error) {
         showFormError(
@@ -342,9 +349,9 @@ async function apiFetch(path, options = {}) {
         clearSession();
         openModal("loginModal");
 
-        throw new Error(
+        throw Object.assign(new Error(
             "Your session has expired. Please sign in again."
-        );
+        ), { status: 401 });
     }
 
     if (!response.ok) {
@@ -365,7 +372,7 @@ async function apiFetch(path, options = {}) {
             message = `Request failed (${response.status}).`;
         }
 
-        throw new Error(message);
+        throw Object.assign(new Error(message), { status: response.status, details: payload });
     }
 
     return response;
@@ -501,6 +508,7 @@ async function loadCVs() {
                 Number(cv.id) > 0
             );
         });
+        window.M6Review?.observe(state.cvs);
 
         updateStatistics();
         populateTemplateFilter();
@@ -810,6 +818,29 @@ function renderCVs() {
             </div>
         `;
 
+        const aiButton = document.createElement("button");
+        aiButton.type = "button";
+        aiButton.className = "secondary-button mt-3";
+        aiButton.dataset.action = "ai";
+        aiButton.dataset.id = id;
+        aiButton.textContent = "Continue with AI";
+        card.appendChild(aiButton);
+        const reviewAI = document.createElement("button");
+        reviewAI.type = "button";
+        reviewAI.className = "secondary-button mt-3";
+        reviewAI.dataset.action = "intelligence";
+        reviewAI.dataset.id = id;
+        reviewAI.textContent = "AI Review";
+        card.appendChild(reviewAI);
+        const remembered = rememberedChats()[String(id)];
+        if (remembered) {
+            const reviewButton = document.createElement("button");
+            reviewButton.type = "button";
+            reviewButton.className = "secondary-button mt-3";
+            reviewButton.textContent = "Review AI chat";
+            reviewButton.addEventListener("click", () => openAIChat(id, remembered));
+            card.appendChild(reviewButton);
+        }
         grid.appendChild(card);
     });
 }
@@ -1087,7 +1118,12 @@ async function handleCardClick(event) {
 
     const action = button.dataset.action;
 
-    if (action === "edit") {
+    if (action === "intelligence") {
+        await window.M6Review.open(id);
+    } else if (action === "ai") {
+        await openAIChat(id);
+
+    } else if (action === "edit") {
         editCV(id);
 
     } else if (action === "view") {
@@ -1099,11 +1135,256 @@ async function handleCardClick(event) {
 }
 
 
+// M9 only renders M5 responses; it never interprets cv_updates.
+const chat = { session: null, cvId: null, busy: false, generation: 0, pending: null };
+
+function rememberedChats() {
+    try { return JSON.parse(sessionStorage.getItem("m9_chat_sessions") || "{}") || {}; }
+    catch (_) { return {}; }
+}
+
+function rememberChat(cvId, id) {
+    const sessions = rememberedChats();
+    if (id) sessions[String(cvId)] = id;
+    else delete sessions[String(cvId)];
+    sessionStorage.setItem("m9_chat_sessions", JSON.stringify(sessions));
+}
+
+function resetChat() {
+    chat.generation++;
+    chat.session = null;
+    chat.pending = null;
+    chat.busy = false;
+    $("chatHistory").replaceChildren();
+    $("chatInput").value = "";
+    closeModal("chatModal");
+    const url = new URL(window.location.href);
+    url.searchParams.delete("chat");
+    window.history.replaceState(null, "", url);
+}
+
+function chatBusy(busy) {
+    chat.busy = busy;
+    const inactive = !chat.session || chat.session.status !== "active";
+    $("chatInput").disabled = busy || inactive;
+    $("chatSend").disabled = busy || inactive;
+    $("chatRetry").disabled = busy;
+    $("chatSave").disabled = busy;
+    $("chatThinking").classList.toggle("hidden", !busy);
+}
+
+function appendChatMessage(role, content) {
+    if (!["user", "assistant"].includes(role)) return;
+    const bubble = document.createElement("div");
+    bubble.className = `chat-message chat-message-${role}`;
+    const label = document.createElement("strong");
+    label.textContent = role === "user" ? "You" : "Assistant";
+    bubble.append(label, document.createTextNode(String(content || "")));
+    $("chatHistory").appendChild(bubble);
+    $("chatHistory").scrollTop = $("chatHistory").scrollHeight;
+}
+
+function renderChatSession(session) {
+    chat.session = session;
+    chat.cvId = session.cv_id;
+    $("chatHistory").replaceChildren();
+    (session.messages || []).forEach(message => appendChatMessage(message.role, message.content));
+    const cv = state.cvs.find(item => Number(item.id) === Number(session.cv_id));
+    $("chatCVName").textContent = cv?.name || (session.cv_id ? `CV #${session.cv_id}` : "New AI conversation");
+    const completed = session.status === "completed";
+    $("chatStatus").textContent = completed ? "Collection complete" : session.status === "archived" ? "Conversation archived" : session.current_section === "review" ? "Review — you can send corrections" : `Current section: ${session.current_section}`;
+    $("chatComplete").classList.toggle("hidden", !completed);
+    $("chatSave").classList.toggle("hidden", !completed);
+    $("chatEditor").classList.toggle("hidden", !completed || !session.cv_id);
+    if (session.cv_id) $("chatEditor").href = `/cvs/${session.cv_id}/edit/`;
+    chatBusy(chat.busy);
+}
+
+function chatError(error) {
+    const messages = {
+        401: "Your session has expired. Please sign in again.",
+        404: "This conversation is unavailable or does not belong to your account.",
+        409: "This conversation is no longer active. Reopen it to see its current status.",
+        429: "Too many requests. Please wait before retrying.",
+        502: "The assistant is temporarily unavailable. Please retry shortly.",
+        500: "Something went wrong. Please try again later."
+    };
+    $("chatError").textContent = messages[error.status] || "Unable to reach the conversation service. Your message is preserved; please retry.";
+    $("chatError").classList.remove("hidden");
+    $("chatRetry").classList.toggle("hidden", [401, 404, 409].includes(error.status));
+}
+
+async function getChatSession(id) {
+    const response = await apiFetch(`/api/chat/sessions/${encodeURIComponent(id)}/`);
+    return response.json();
+}
+
+async function openAIChat(cvId, explicitId = null) {
+    if (!requireLogin() || chat.busy) return;
+    const generation = ++chat.generation;
+    chat.session = null;
+    chat.cvId = cvId;
+    chat.pending = null;
+    $("chatInput").value = "";
+    $("chatHistory").replaceChildren();
+    $("chatStatus").textContent = "Opening conversation…";
+    $("chatError").classList.add("hidden");
+    $("chatRetry").classList.add("hidden");
+    $("chatComplete").classList.add("hidden");
+    $("chatEditor").classList.add("hidden");
+    $("chatSave").classList.add("hidden");
+    $("chatSaveStatus").classList.add("hidden");
+    openModal("chatModal");
+    chatBusy(true);
+    try {
+        let session;
+        const remembered = explicitId || rememberedChats()[String(cvId)];
+        if (remembered) {
+            try { session = await getChatSession(remembered); }
+            catch (error) {
+                if (error.status !== 404 || explicitId) throw error;
+                rememberChat(cvId, null);
+            }
+            if (!explicitId && session?.status !== "active") session = null;
+        }
+        if (generation !== chat.generation) return;
+        if (!session) {
+            const response = await apiFetch("/api/chat/sessions/", {
+                method: "POST", body: JSON.stringify({ cv_id: cvId })
+            });
+            const created = await response.json();
+            if (generation !== chat.generation) return;
+            rememberChat(cvId, created.id);
+            session = { ...created, messages: [{ role: "assistant", content: created.assistant_message }] };
+        }
+        if (generation !== chat.generation) return;
+        renderChatSession(session);
+        const url = new URL(window.location.href);
+        url.searchParams.set("chat", session.id);
+        window.history.replaceState(null, "", url);
+    } catch (error) {
+        if (generation === chat.generation) chatError(error);
+    } finally {
+        if (generation === chat.generation) chatBusy(false);
+    }
+}
+
+async function sendChatMessage(event) {
+    event?.preventDefault();
+    if (chat.busy || !chat.session || chat.session.status !== "active") return;
+    const text = $("chatInput").value.trim();
+    if (!text) return;
+    const generation = chat.generation;
+    $("chatError").classList.add("hidden");
+    $("chatRetry").classList.add("hidden");
+    chatBusy(true);
+    try {
+        // Reconcile a failed/ambiguous POST before retrying to avoid duplicate messages.
+        if (chat.pending) {
+            const latest = await getChatSession(chat.session.id);
+            if (generation !== chat.generation) return;
+            const received = latest.messages.some(message => message.role === "user" && !chat.pending.ids.includes(message.id));
+            renderChatSession(latest);
+            if (received) {
+                if (text === chat.pending.text) $("chatInput").value = "";
+                chat.pending = null;
+                return;
+            }
+            chat.pending = null;
+            if (latest.status !== "active") return;
+        }
+        chat.pending = { text, ids: (chat.session.messages || []).map(message => message.id) };
+        appendChatMessage("user", text);
+        const response = await apiFetch(`/api/chat/sessions/${encodeURIComponent(chat.session.id)}/messages/`, {
+            method: "POST", body: JSON.stringify({ message: text })
+        });
+        const result = await response.json();
+        if (generation !== chat.generation) return;
+        // Store successful response locally before loading authoritative history.
+        chat.session.messages.push({ role: "user", content: text }, {
+            role: "assistant", content: result.assistant_message,
+            next_action: result.next_action
+        });
+        chat.session.current_section = result.section;
+        if (result.next_action === "complete") chat.session.status = "completed";
+        if (result.next_action === "review") chat.session.current_section = "review";
+        chat.pending = null;
+        $("chatInput").value = "";
+        renderChatSession(chat.session);
+        try {
+            const latest = await getChatSession(chat.session.id);
+            if (generation === chat.generation) renderChatSession(latest);
+        } catch (_) { /* The successful response remains visible; refresh reloads history. */ }
+    } catch (error) {
+        if (generation === chat.generation) {
+            renderChatSession(chat.session);
+            chatError(error);
+        }
+    } finally {
+        if (generation === chat.generation) {
+            chatBusy(false);
+            if (!$("chatInput").disabled) $("chatInput").focus();
+        }
+    }
+}
+
 // ======================================================
 // 17. REGISTER EVENTS
 // ======================================================
 
+async function saveChatCV() {
+    if (chat.busy || chat.session?.status !== "completed") return;
+    const generation = chat.generation;
+    chatBusy(true);
+    $("chatThinking").classList.add("hidden");
+    $("chatError").classList.add("hidden");
+    $("chatRetry").classList.add("hidden");
+    $("chatSaveStatus").classList.remove("hidden");
+    $("chatSaveStatus").textContent = "Saving collected details…";
+    try {
+        const payload = { session_id: chat.session.id };
+        if (chat.session.cv_id) {
+            const response = await apiFetch(`/api/cvs/${chat.session.cv_id}/`);
+            const cv = await response.json();
+            if (generation !== chat.generation) return;
+            payload.expected_version = cv.version;
+        }
+        const response = await apiFetch("/api/cvs/from-chat/", {
+            method: "POST", body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (generation !== chat.generation) return;
+        chat.session.cv_id = result.cv.id;
+        rememberChat(result.cv.id, chat.session.id);
+        rememberChat(null, null);
+        renderChatSession(chat.session);
+        $("chatSaveStatus").textContent = "Details saved. You can now view or edit your CV." +
+            (result.warnings?.length ? " " + result.warnings.join(" ") : "");
+        await loadCVs();
+    } catch (error) {
+        if (generation === chat.generation) {
+            $("chatSaveStatus").textContent = error.status === 409
+                ? "The CV changed while saving. Click Save again to merge with the latest version."
+                : error.status === 400
+                    ? "Some collected details need clarification before they can be saved. " + error.message
+                    : "Could not save the details. Please sign in if needed and try Save again.";
+        }
+    } finally {
+        if (generation === chat.generation) chatBusy(false);
+    }
+}
+
 function registerEvents() {
+    const ai = window.M6Api.create(apiFetch);
+    window.M6Review.init({fetch: apiFetch, ai, requireLogin, openModal, refresh: loadCVs});
+    window.M4Import.init({ fetch: apiFetch, ai, requireLogin, openModal, refresh: loadCVs });
+    $("chatSave").addEventListener("click", saveChatCV);
+    $("createAI").addEventListener("click", () => openAIChat(null));
+    $("chatForm").addEventListener("submit", sendChatMessage);
+    $("chatRetry").addEventListener("click", () => {
+        if (chat.session) sendChatMessage();
+        else openAIChat(chat.cvId);
+    });
     $("loginForm").addEventListener(
         "submit",
         handleLogin
@@ -1175,6 +1456,9 @@ function registerEvents() {
             [
                 "createModal",
                 "previewModal",
+                "chatModal",
+                "importModal",
+                "aiModal",
             ].forEach((id) => {
                 if (!$(id).classList.contains("hidden")) {
                     closeModal(id);
@@ -1198,6 +1482,12 @@ async function initializeDashboard() {
 
     if (getToken()) {
         await loadCVs();
+        const sessionId = new URLSearchParams(window.location.search).get("chat");
+        if (new URLSearchParams(window.location.search).has("import")) {
+            await window.M4Import.resume();
+        } else if (sessionId && /^[0-9a-f-]{36}$/i.test(sessionId)) {
+            await openAIChat(null, sessionId);
+        }
     } else {
         openModal("loginModal");
     }

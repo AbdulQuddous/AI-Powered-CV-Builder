@@ -1,0 +1,59 @@
+<div id="importModal" class="dashboard-modal hidden" role="dialog" aria-modal="true" aria-labelledby="importTitle">
+    <div class="modal-backdrop"></div>
+    <section class="modal-card import-card">
+        <header class="import-header">
+            <div>
+                <h2 id="importTitle">Import Existing CV</h2>
+                <p>Upload your existing PDF or DOCX CV and extract its text.</p>
+            </div>
+            <button type="button" class="secondary-button" data-close="importModal">Close</button>
+        </header>
+        <p id="importStatus" role="status" aria-live="polite">Choose a file to begin.</p>
+        <div id="importError" class="import-error hidden" role="alert"></div>
+        <div id="importDrop" class="import-drop">
+            <p>Drop one file here or choose a file.</p>
+            <label for="importFile" class="form-label">Choose CV file</label>
+            <input id="importFile" type="file" accept=".pdf,.docx" aria-describedby="importHelp">
+            <p id="importHelp">PDF or DOCX · Maximum 5 MB. Scanned PDFs may not contain extractable text.</p>
+        </div>
+        <div id="importSelected" class="hidden">
+            <p id="importFileName" class="import-filename"></p>
+            <p id="importFileMeta"></p>
+            <div class="import-actions">
+                <button id="importRemove" type="button" class="secondary-button">Remove</button>
+                <button id="importUpload" type="button" class="primary-button">Upload CV</button>
+            </div>
+        </div>
+        <div id="importDetails" class="hidden">
+            <h3>Uploaded file</h3>
+            <p id="importRecordName" class="import-filename"></p>
+            <p id="importRecordMeta"></p>
+            <div class="import-actions">
+                <button id="importExtract" type="button" class="primary-button">Extract Text</button>
+                <button id="importRefresh" type="button" class="secondary-button">Refresh status</button>
+                <button id="importNew" type="button" class="secondary-button">Choose another file</button>
+            </div>
+        </div>
+        <button id="importReload" type="button" class="secondary-button hidden">Retry loading import</button>
+        <div id="importResult" class="hidden">
+            <label for="importText" class="form-label">Extracted plain text</label>
+            <textarea id="importText" class="form-input import-text" readonly></textarea>
+            <p>Uploading and extracting does not create or update a saved CV. Use AI extraction to review structured information before creating a new CV.</p>
+            <button id="importParse" type="button" class="primary-button">Extract CV information with AI</button>
+        </div>
+        <div id="importStructured" class="hidden">
+            <h3>Review extracted information</h3>
+            <p id="importAIWarnings" role="status"></p>
+            <div id="importCVPreview"></div>
+            <label for="importCVTitle" class="form-label">New CV name</label>
+            <input id="importCVTitle" class="form-input" maxlength="255">
+            <label for="importTemplate" class="form-label">Template</label>
+            <select id="importTemplate" class="form-input"></select>
+            <div class="import-actions">
+                <button id="importConfirm" type="button" class="primary-button">Confirm and create new CV</button>
+                <button id="importDiscard" type="button" class="secondary-button">Discard extracted proposal</button>
+                <a id="importEditor" class="secondary-button hidden">Open created CV in Editor</a>
+            </div>
+        </div>
+    </section>
+</div>

@@ -46,3 +46,8 @@ class CVVersionSerializer(CVReadSerializer):
         model = CVVersion
         fields = ['id','cv_id','name','target_role','career_level','template_id','data','version','created_at']
         read_only_fields = fields
+
+
+class ChatImportSerializer(StrictSerializer):
+    session_id = serializers.UUIDField()
+    expected_version = serializers.IntegerField(min_value=1, required=False)

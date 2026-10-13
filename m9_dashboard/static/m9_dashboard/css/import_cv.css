@@ -1,0 +1,15 @@
+.import-card { max-width: 760px; }
+.import-header, .import-actions { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+.import-actions { justify-content: flex-start; flex-wrap: wrap; margin-top: 16px; }
+.import-header h2 { font-size: 22px; font-weight: 700; }
+.import-header p, #importHelp, #importResult p { color: #64748b; font-size: 14px; }
+.import-card > div, #importStatus { margin-top: 20px; }
+.import-drop { border: 2px dashed #cbd5e1; border-radius: 16px; padding: 24px; background: #f8fafc; }
+.import-drop.dragging { border-color: #4f46e5; background: #eef2ff; }
+.import-drop p, .import-drop input { margin-bottom: 12px; }
+.import-drop input { width: 100%; }
+.import-error { color: #b91c1c; background: #fef2f2; padding: 12px; border-radius: 12px; }
+.import-filename { font-weight: 600; overflow-wrap: anywhere; }
+.import-text { min-height: 260px; margin-bottom: 12px; resize: vertical; white-space: pre-wrap; }
+.import-card .hidden { display: none !important; }
+@media (max-width: 640px) { .import-header { align-items: flex-start; flex-wrap: wrap; } .import-drop { padding: 16px; } }

@@ -103,3 +103,35 @@ class M9DashboardTests(SimpleTestCase):
             response.status_code,
             405,
         )
+
+    def test_ai_chat_controls_preserve_existing_dashboard(self):
+        response = self.client.get("/dashboard/")
+        for element_id in (
+            "createAI", "chatModal", "chatHistory", "chatForm", "chatInput",
+            "chatSend", "chatRetry", "chatError", "chatComplete", "chatEditor", "chatSave", "chatSaveStatus",
+            "cardsGrid", "createForm", "previewFrame",
+        ):
+            with self.subTest(element_id=element_id):
+                self.assertContains(response, f'id="{element_id}"')
+        self.assertContains(response, 'maxlength="10000"')
+        self.assertContains(response, 'aria-labelledby="chatTitle"')
+
+    def test_import_controls_and_assets_are_available(self):
+        response = self.client.get('/dashboard/')
+        for element_id in ('importCV', 'importModal', 'importFile', 'importUpload', 'importExtract', 'importRefresh', 'importText'):
+            self.assertContains(response, f'id="{element_id}"')
+        self.assertContains(response, 'accept=".pdf,.docx"')
+        self.assertContains(response, 'does not create or update a saved CV')
+        self.assertTemplateUsed(response, 'm9_dashboard/import_modal.html')
+        for asset in ('js/import_cv.js', 'css/import_cv.css'):
+            self.assertIsNotNone(finders.find('m9_dashboard/' + asset))
+
+    def test_ai_intelligence_controls_and_assets(self):
+        response = self.client.get('/dashboard/')
+        for element_id in ('aiModal', 'aiRole', 'aiValidate', 'aiOptimize', 'aiViewSuggestions', 'aiRewrite', 'aiImprove', 'aiApply', 'aiDiscard', 'importParse', 'importConfirm'):
+            self.assertContains(response, f'id="{element_id}"')
+        self.assertContains(response, 'Role')
+        self.assertContains(response, 'not a certified ATS score')
+        self.assertTemplateUsed(response, 'm9_dashboard/ai_review.html')
+        for asset in ('js/ai_api.js', 'js/ai_ui.js', 'js/ai_review.js', 'css/ai_review.css'):
+            self.assertIsNotNone(finders.find('m9_dashboard/' + asset))

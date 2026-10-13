@@ -21,6 +21,8 @@
         rel="stylesheet"
         href="{% static 'm9_dashboard/css/dashboard.css' %}"
     >
+    <link rel="stylesheet" href="{% static 'm9_dashboard/css/import_cv.css' %}">
+    <link rel="stylesheet" href="{% static 'm9_dashboard/css/ai_review.css' %}">
 </head>
 
 <body class="bg-slate-50 text-slate-800 antialiased">
@@ -143,7 +145,10 @@
                 </h2>
             </div>
 
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
+
+                <button id="importCV" type="button" class="secondary-button">Import Existing CV</button>
+                <button id="createAI" type="button" class="primary-button">Create CV with AI</button>
 
                 <span
                     id="authStatus"
@@ -752,6 +757,32 @@
 </div>
 
 
+<!-- M5 conversation client -->
+<div id="chatModal" class="dashboard-modal hidden" role="dialog" aria-modal="true" aria-labelledby="chatTitle">
+    <div class="modal-backdrop"></div>
+    <section class="modal-card chat-card">
+        <header class="chat-header">
+            <div><h2 id="chatTitle">AI CV Assistant</h2><p id="chatCVName"></p><p id="chatStatus" role="status"></p></div>
+            <button type="button" data-close="chatModal" class="secondary-button">Close</button>
+        </header>
+        <div id="chatHistory" class="chat-history" role="log" aria-live="polite" aria-label="Conversation"></div>
+        <p id="chatThinking" class="hidden" role="status">Thinking…</p>
+        <div id="chatError" class="hidden" role="alert"></div>
+        <button id="chatRetry" type="button" class="secondary-button hidden">Retry</button>
+        <form id="chatForm" class="chat-composer">
+            <label for="chatInput" class="form-label">Your message</label>
+            <div class="chat-input-row"><input id="chatInput" class="form-input" maxlength="10000" autocomplete="off" placeholder="Type your answer…" required><button id="chatSend" class="primary-button" type="submit">Send</button></div>
+        </form>
+        <p id="chatComplete" class="hidden">Information collection is complete. Save the collected details to include them in your CV preview.</p>
+        <button id="chatSave" type="button" class="primary-button hidden">Save collected details to CV</button>
+        <p id="chatSaveStatus" role="status" class="hidden"></p>
+        <a id="chatEditor" class="primary-button hidden">Open CV Editor</a>
+    </section>
+</div>
+
+{% include 'm9_dashboard/import_modal.html' %}
+{% include 'm9_dashboard/ai_review.html' %}
+
 <!-- TOAST -->
 <div
     id="toast"
@@ -765,6 +796,10 @@
     src="{% static 'm9_dashboard/js/dashboard.js' %}"
     defer
 ></script>
+<script src="{% static 'm9_dashboard/js/import_cv.js' %}" defer></script>
+<script src="{% static 'm9_dashboard/js/ai_api.js' %}" defer></script>
+<script src="{% static 'm9_dashboard/js/ai_ui.js' %}" defer></script>
+<script src="{% static 'm9_dashboard/js/ai_review.js' %}" defer></script>
 
 </body>
 </html>

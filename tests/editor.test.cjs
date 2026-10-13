@@ -91,3 +91,22 @@ test('server conflict is propagated without overwrite', async () => {
     assert.equal(calls, 1);
   } finally { global.fetch = previousFetch; }
 });
+
+test('editor accepts only known section names from navigation links', () => {
+  const previous = {document: global.document, location: global.location, addEventListener: global.addEventListener};
+  try {
+    global.document = {getElementById: () => ({textContent: '12'})};
+    global.addEventListener = () => {};
+    for (const [hash, expected] of [['#projects', 'projects'], ['#unsupported-section', 'personal']]) {
+      global.location = {hash};
+      const component = edit.cvEditor();
+      component.reload = () => {};
+      component.init();
+      assert.equal(component.active, expected);
+    }
+  } finally {
+    global.document = previous.document;
+    global.location = previous.location;
+    global.addEventListener = previous.addEventListener;
+  }
+});

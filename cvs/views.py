@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import CV
 from .serializers import (CVReadSerializer, CVWriteSerializer, CVPatchSerializer,
-                          CVVersionSerializer, CheckpointSerializer, DuplicateSerializer)
+                          CVVersionSerializer, CheckpointSerializer, DuplicateSerializer, ChatImportSerializer)
 from . import services
 
 class CVPagination(PageNumberPagination):
@@ -20,6 +20,13 @@ class CVViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Gener
     http_method_names = ['get','post','patch','delete','head','options']
     def get_queryset(self):
         return CV.objects.filter(owner=self.request.user)
+    @action(detail=False, methods=['post'], url_path='from-chat')
+    def from_chat(self, request):
+        from .chat_import import save_chat_cv
+        serializer = ChatImportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        cv, warnings = save_chat_cv(user=request.user, **serializer.validated_data)
+        return Response({'cv': CVReadSerializer(cv).data, 'warnings': warnings})
     def create(self, request):
         serializer = CVWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

@@ -1,0 +1,17 @@
+<div id="aiModal" class="dashboard-modal hidden" role="dialog" aria-modal="true" aria-labelledby="aiTitle">
+    <div class="modal-backdrop"></div>
+    <section class="modal-card ai-card">
+        <header class="ai-header"><div><h2 id="aiTitle">AI CV Intelligence</h2><p id="aiCVName"></p></div><button type="button" class="secondary-button" data-close="aiModal">Close</button></header>
+        <p id="aiStatus" role="status" aria-live="polite">Select a saved CV to begin.</p>
+        <p id="aiError" role="alert" class="hidden ai-error"></p>
+        <div class="ai-controls">
+            <label class="form-label" for="aiRole">Target role</label><input id="aiRole" class="form-input" maxlength="200">
+            <label class="form-label" for="aiJob">Job description (optional)</label><textarea id="aiJob" class="form-input" rows="3" maxlength="10000"></textarea>
+            <div class="ai-actions"><button id="aiValidate" type="button" class="secondary-button">Health Check</button><button id="aiOptimize" type="button" class="primary-button">Optimize for Role</button><button id="aiViewSuggestions" type="button" class="secondary-button">View Suggestions</button><button id="aiReload" type="button" class="secondary-button">Reload CV</button><a id="aiEditor" class="secondary-button">Open CV Editor</a><button id="aiPDF" type="button" class="secondary-button">Download saved PDF</button></div>
+        </div>
+        <section id="aiHealth" class="hidden ai-panel"><h3>CV Health Check</h3><p id="aiStructure"></p><p>Structure validity is separate from completeness.</p><div id="aiWarnings"></div></section>
+        <section id="aiAnalysis" class="hidden ai-panel"><h3 id="aiScore"></h3><p id="aiEstimate">AI-generated estimate based on your CV and target role. It is not a certified ATS score or a hiring probability.</p><div class="ai-columns"><div><h4>Strengths</h4><div id="aiStrengths"></div></div><div><h4>Areas to improve</h4><div id="aiGaps"></div></div></div><h3>Suggestions</h3><div id="aiSuggestions"></div></section>
+        <section class="ai-panel"><h3>Improve saved text</h3><label for="aiField" class="form-label">CV field</label><select id="aiField" class="form-input"></select><label for="aiSource" class="form-label">Original text</label><textarea id="aiSource" class="form-input" rows="4" readonly></textarea><div class="ai-actions"><button id="aiRewrite" type="button" class="primary-button">Rewrite with AI</button><button id="aiImprove" type="button" class="secondary-button">Improve with AI</button></div></section>
+        <section id="aiComparison" class="hidden ai-panel"><h3>Review suggested wording</h3><div class="ai-columns"><div><label for="aiOriginal" class="form-label">Original</label><textarea id="aiOriginal" class="form-input" rows="5" readonly></textarea></div><div><label for="aiRewritten" class="form-label">Suggested improvement</label><textarea id="aiRewritten" class="form-input" rows="5" readonly></textarea></div></div><div id="aiChanges"></div><div class="ai-actions"><button id="aiApply" type="button" class="primary-button">Apply and save this field</button><button id="aiDiscard" type="button" class="secondary-button">Discard</button></div></section>
+    </section>
+</div>

@@ -197,6 +197,10 @@
       // --------------------------------
 
       init() {
+        const requestedSection = (global.location?.hash || '').slice(1);
+        if (SECTIONS.some(([key]) => key === requestedSection)) {
+          this.active = requestedSection;
+        }
         this.id = JSON.parse(
           global.document
             .getElementById('m7-config')
