@@ -565,6 +565,9 @@ def has_meaningful_value(value):
 
 def get_required_conversation_step(state):
     state = ensure_state(state)
+    if state.get('mode') == 'edit_existing':
+        from chatbot.services.existing_cv_conversation import edit_step
+        return edit_step(state)
 
     # --------------------------------------------------------
     # Target
@@ -691,7 +694,11 @@ def get_required_conversation_step(state):
 def update_state(
     state,
     ai_response,
+    user_message=None,
 ):
+    if isinstance(state, dict) and state.get('mode') == 'edit_existing':
+        from chatbot.services.existing_cv_conversation import update_edit_state
+        return update_edit_state(state, ai_response, user_message)
     state = ensure_state(state)
 
     state["message_count"] += 1

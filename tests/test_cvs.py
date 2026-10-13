@@ -108,3 +108,63 @@ class CVTests(APITestCase):
         cv=self.create();url=f"/api/cvs/{cv['id']}/"
         self.assertEqual(self.client.patch(url,{},format='json').status_code,400)
         self.assertEqual(self.client.put(url,self.payload,format='json').status_code,405)
+
+    def test_delete_returns_empty_204_and_removes_owned_cv_versions(self):
+        cv = self.create()
+        url = f"/api/cvs/{cv['id']}/"
+        self.client.patch(url, {'name': 'Updated', 'expected_version': 1}, format='json')
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.content, b'')
+        self.assertFalse(CV.objects.filter(pk=cv['id']).exists())
+        self.assertFalse(CVVersion.objects.filter(cv_id=cv['id']).exists())
+        self.assertEqual(self.client.get('/api/cvs/').data['count'], 0)
+
+    def test_failed_delete_preserves_cv_and_versions(self):
+        from rest_framework.exceptions import APIException
+        cv = self.create()
+        with patch('cvs.services.delete_cv', side_effect=APIException('Deletion unavailable')):
+            response = self.client.delete(f"/api/cvs/{cv['id']}/")
+        self.assertEqual(response.status_code, 500)
+        self.assertTrue(CV.objects.filter(pk=cv['id']).exists())
+        self.assertEqual(CVVersion.objects.filter(cv_id=cv['id']).count(), 1)
+
+    def test_expired_jwt_cannot_delete_a_cv(self):
+        from datetime import timedelta
+        from rest_framework_simplejwt.tokens import AccessToken
+        cv = self.create()
+        token = AccessToken.for_user(self.user)
+        token.set_exp(lifetime=timedelta(seconds=-1))
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + str(token))
+        self.assertEqual(self.client.delete(f"/api/cvs/{cv['id']}/").status_code, 401)
+        self.assertTrue(CV.objects.filter(pk=cv['id']).exists())
+
+    def test_version_history_returns_timestamps_without_mutating_versions(self):
+        from django.utils.dateparse import parse_datetime
+        cv = self.create()
+        url = f"/api/cvs/{cv['id']}/"
+        self.client.patch(url, {'name': 'Second version', 'expected_version': 1}, format='json')
+        before = CVVersion.objects.filter(cv_id=cv['id']).count()
+        first = self.client.get(url + 'versions/?page_size=1')
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.data['results'][0]['version'], 2)
+        self.assertIsNotNone(parse_datetime(first.data['results'][0]['created_at']))
+        self.assertIsNotNone(first.data['next'])
+        second = self.client.get(url + 'versions/?page_size=1&page=2')
+        self.assertEqual(second.data['results'][0]['version'], 1)
+        self.assertEqual(CVVersion.objects.filter(cv_id=cv['id']).count(), before)
+        self.assertEqual(CV.objects.get(pk=cv['id']).version, 2)
+
+    def test_chatbot_created_cv_can_be_deleted_without_modifying_chat_history(self):
+        from chatbot.models import ChatMessage, ChatSession
+        session = ChatSession.objects.create(user=self.user, status='completed', conversation_state={'target_role': 'Backend Developer'})
+        ChatMessage.objects.create(session=session, role='assistant', content='Collection complete', cv_updates={'personal': {'full_name': 'Ali Khan'}, 'skills': ['Python', 'Django']})
+        created = self.client.post('/api/cvs/from-chat/', {'session_id': str(session.id)}, format='json')
+        self.assertEqual(created.status_code, 200, created.data)
+        cv_id = created.data['cv']['id']
+        deleted = self.client.delete(f'/api/cvs/{cv_id}/')
+        self.assertEqual(deleted.status_code, 204)
+        self.assertFalse(CV.objects.filter(pk=cv_id).exists())
+        self.assertFalse(CVVersion.objects.filter(cv_id=cv_id).exists())
+        self.assertTrue(ChatSession.objects.filter(pk=session.id).exists())
+        self.assertEqual(session.messages.count(), 1)

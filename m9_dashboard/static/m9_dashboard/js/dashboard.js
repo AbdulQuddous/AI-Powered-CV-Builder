@@ -15,6 +15,10 @@ const state = {
     cvs: [],
     loading: false,
     toastTimer: null,
+    creating: false,
+    duplicating: new Set(),
+    listGeneration: 0,
+    eventsRegistered: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -79,6 +83,11 @@ function getTargetRole(cv) {
         cv.target_role ||
         "General Resume"
     );
+}
+
+function getCareerLevel(cv) {
+    const level = cv.data?.meta?.career_level || cv.career_level || "";
+    return ({fresher: "Fresher", experienced: "Experienced", other: "Other"})[level] || "Not specified";
 }
 
 
@@ -198,6 +207,8 @@ function updateAuthUI() {
 
 
 function clearSession() {
+    state.listGeneration++;
+    window.M9Crud?.reset();
     window.M6Review?.reset();
     closeModal("aiModal");
     window.M4Import?.reset();
@@ -434,6 +445,8 @@ async function loadCVs() {
     }
 
     state.loading = true;
+    const generation = state.listGeneration;
+    const access = getToken();
 
     clearFeedback();
 
@@ -500,6 +513,7 @@ async function loadCVs() {
             nextURL = page.next;
         }
 
+        if (generation !== state.listGeneration || access !== getToken()) return;
         // Each CV ID must be a valid integer.
         state.cvs = allCVs.filter((cv) => {
             return (
@@ -707,6 +721,7 @@ function renderCVs() {
         const role = escapeHTML(
             getTargetRole(cv)
         );
+        const career = escapeHTML(getCareerLevel(cv));
 
         const template = escapeHTML(
             getTemplateLabel(getTemplateId(cv))
@@ -753,6 +768,7 @@ function renderCVs() {
                 <p class="mt-2 text-sm text-slate-500">
                     ${role}
                 </p>
+                <p class="mt-2 text-sm text-slate-500">Career level: ${career}</p>
 
                 <div class="mt-4 flex flex-wrap gap-2">
 
@@ -817,6 +833,20 @@ function renderCVs() {
 
             </div>
         `;
+
+        const operations = document.createElement("div");
+        operations.className = "mt-3 grid grid-cols-2 gap-2";
+        for (const [action, label] of [["versions", "Version history"], ["delete", "Delete"]]) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.dataset.action = action;
+            button.dataset.id = id;
+            button.className = action === "delete" ? "danger-outline-button" : "secondary-button";
+            button.textContent = label;
+            button.setAttribute("aria-label", `${label} for ${cv.name || `CV #${id}`}`);
+            operations.appendChild(button);
+        }
+        card.appendChild(operations);
 
         const aiButton = document.createElement("button");
         aiButton.type = "button";
@@ -907,10 +937,13 @@ async function viewCV(id) {
 // ======================================================
 
 async function duplicateCV(id, button) {
+    if (state.duplicating.has(id) || !requireLogin()) return;
+    state.duplicating.add(id);
+    const access = getToken();
     setButtonBusy(button, true, "Copying...");
 
     try {
-        await apiFetch(
+        const response = await apiFetch(
             `/api/cvs/${id}/duplicate/`,
             {
                 method: "POST",
@@ -918,9 +951,21 @@ async function duplicateCV(id, button) {
             }
         );
 
-        showToast("CV duplicated successfully.");
+        const duplicate = await response.json();
+        if (access !== getToken()) return;
+        if (!Number.isSafeInteger(duplicate.id) || duplicate.id <= 0) {
+            throw new Error("The copy may have been created. Refresh the dashboard to find it.");
+        }
+        state.listGeneration++;
+        state.cvs.push(duplicate);
+        updateStatistics();
+        populateTemplateFilter();
+        renderCVs();
 
         await loadCVs();
+        if (access === getToken()) {
+            showToast(`Created “${duplicate.name}” (CV #${duplicate.id}).`);
+        }
 
     } catch (error) {
         showToast(
@@ -928,6 +973,7 @@ async function duplicateCV(id, button) {
         );
 
     } finally {
+        state.duplicating.delete(id);
         setButtonBusy(button, false);
     }
 }
@@ -1023,6 +1069,7 @@ async function openCreateCV() {
 
 async function handleCreateCV(event) {
     event.preventDefault();
+    if (state.creating || !requireLogin()) return;
 
     const button = $("createSubmit");
 
@@ -1050,6 +1097,8 @@ async function handleCreateCV(event) {
     }
 
     setButtonBusy(button, true, "Creating...");
+    state.creating = true;
+    const access = getToken();
 
     try {
         const response = await apiFetch(
@@ -1061,6 +1110,7 @@ async function handleCreateCV(event) {
         );
 
         const result = await response.json();
+        if (access !== getToken()) return;
 
         const createdCV =
             result.data?.id
@@ -1092,6 +1142,7 @@ async function handleCreateCV(event) {
         );
 
     } finally {
+        state.creating = false;
         setButtonBusy(button, false);
     }
 }
@@ -1118,7 +1169,12 @@ async function handleCardClick(event) {
 
     const action = button.dataset.action;
 
-    if (action === "intelligence") {
+    if (action === "delete" || action === "versions") {
+        const cv = state.cvs.find(item => Number(item.id) === id);
+        if (!cv) return;
+        if (action === "delete") window.M9Crud.openDelete(cv, button);
+        else await window.M9Crud.openHistory(cv, button);
+    } else if (action === "intelligence") {
         await window.M6Review.open(id);
     } else if (action === "ai") {
         await openAIChat(id);
@@ -1132,6 +1188,17 @@ async function handleCardClick(event) {
     } else if (action === "duplicate") {
         await duplicateCV(id, button);
     }
+}
+
+function onCVDeleted(id) {
+    state.listGeneration++;
+    state.cvs = state.cvs.filter(cv => Number(cv.id) !== id);
+    rememberChat(id, null);
+    if (Number(chat.cvId) === id) resetChat();
+    window.M6Review?.observe(state.cvs);
+    updateStatistics();
+    populateTemplateFilter();
+    renderCVs();
 }
 
 
@@ -1375,6 +1442,10 @@ async function saveChatCV() {
 }
 
 function registerEvents() {
+    if (state.eventsRegistered) return;
+    state.eventsRegistered = true;
+    window.M9Crud.init({fetch: apiFetch, requireLogin, openModal, closeModal,
+        normalizeList: normalizeListResponse, onDeleted: onCVDeleted, notify: showToast});
     const ai = window.M6Api.create(apiFetch);
     window.M6Review.init({fetch: apiFetch, ai, requireLogin, openModal, refresh: loadCVs});
     window.M4Import.init({ fetch: apiFetch, ai, requireLogin, openModal, refresh: loadCVs });

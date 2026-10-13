@@ -176,6 +176,10 @@ def build_messages(
     # Conversation history
     # =========================================
 
+    if state.get('mode') == 'edit_existing':
+        from chatbot.services.existing_cv_conversation import EDIT_CONTROL
+        messages.append({'role': 'system', 'content': EDIT_CONTROL})
+
     history = list(
         session.messages.order_by(
             "-created_at"

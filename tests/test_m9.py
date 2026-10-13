@@ -135,3 +135,12 @@ class M9DashboardTests(SimpleTestCase):
         self.assertTemplateUsed(response, 'm9_dashboard/ai_review.html')
         for asset in ('js/ai_api.js', 'js/ai_ui.js', 'js/ai_review.js', 'css/ai_review.css'):
             self.assertIsNotNone(finders.find('m9_dashboard/' + asset))
+
+    def test_crud_dialogs_and_asset_are_available(self):
+        response = self.client.get('/dashboard/')
+        self.assertTemplateUsed(response, 'm9_dashboard/crud_modals.html')
+        for element_id in ('deleteModal', 'deleteCVName', 'deleteConfirm', 'deleteCancel', 'deleteError', 'versionsModal', 'versionsRows', 'versionsMore'):
+            self.assertContains(response, f'id="{element_id}"')
+        self.assertContains(response, 'aria-describedby="deleteDescription"')
+        self.assertContains(response, 'History is read-only')
+        self.assertIsNotNone(finders.find('m9_dashboard/js/cv_operations.js'))

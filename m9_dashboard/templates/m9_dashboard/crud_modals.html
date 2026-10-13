@@ -1,0 +1,29 @@
+<div id="deleteModal" class="dashboard-modal hidden" role="dialog" aria-modal="true" aria-labelledby="deleteTitle" aria-describedby="deleteDescription" tabindex="-1">
+    <div class="modal-backdrop"></div>
+    <section class="modal-card max-w-lg">
+        <h2 id="deleteTitle" class="text-xl font-bold">Delete CV?</h2>
+        <p id="deleteDescription" class="mt-4">Delete <strong id="deleteCVName"></strong> and its saved versions? This cannot be undone.</p>
+        <p id="deleteStatus" class="mt-4" role="status" aria-live="polite"></p>
+        <p id="deleteError" class="hidden mt-4 text-rose-700" role="alert"></p>
+        <div class="mt-6 flex flex-wrap justify-end gap-3">
+            <button id="deleteCancel" type="button" class="secondary-button">Cancel</button>
+            <button id="deleteConfirm" type="button" class="danger-button">Delete CV</button>
+        </div>
+    </section>
+</div>
+<div id="versionsModal" class="dashboard-modal hidden" role="dialog" aria-modal="true" aria-labelledby="versionsTitle">
+    <div class="modal-backdrop"></div>
+    <section class="modal-card max-w-3xl">
+        <header class="flex flex-wrap items-center justify-between gap-3">
+            <div><h2 id="versionsTitle" class="text-xl font-bold">Version history</h2><p id="versionsCVName" class="mt-2"></p></div>
+            <button id="versionsClose" type="button" class="secondary-button">Close</button>
+        </header>
+        <p id="versionsStatus" class="mt-4" role="status" aria-live="polite"></p>
+        <p id="versionsError" class="hidden mt-4 text-rose-700" role="alert"></p>
+        <div class="mt-5 overflow-x-auto">
+            <table class="versions-table"><caption class="sr-only">Saved CV versions</caption><thead><tr><th scope="col">Version</th><th scope="col">CV title</th><th scope="col">Saved at</th></tr></thead><tbody id="versionsRows"></tbody></table>
+        </div>
+        <button id="versionsMore" type="button" class="secondary-button hidden mt-5">Load older versions</button>
+        <p class="mt-4 text-sm text-slate-500">History is read-only. Viewing it does not change or remove saved versions.</p>
+    </section>
+</div>

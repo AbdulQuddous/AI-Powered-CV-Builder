@@ -218,6 +218,9 @@ def normalize_ai_response(
     Gemini extracts information.
     M5 state machine determines what comes next.
     """
+    if isinstance(new_state, dict) and new_state.get('mode') == 'edit_existing':
+        from chatbot.services.existing_cv_conversation import normalize_edit_response
+        return normalize_edit_response(ai_response, new_state)
 
     required_step = (
         get_required_conversation_step(

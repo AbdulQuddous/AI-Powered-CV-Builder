@@ -76,6 +76,11 @@ def merge_entries(entries, updates, section):
 
 
 def collected_updates(session):
+    if session.conversation_state.get('mode') == 'edit_existing':
+        updates = deepcopy(session.conversation_state.get('edit_updates', {'personal': {}}))
+        if session.conversation_state.get('edit_new_projects'):
+            updates.setdefault('projects', [])
+        return updates
     result = {"personal": {}}
     messages = session.messages.filter(role=ChatMessage.Role.ASSISTANT).exclude(intent="irrelevant").order_by("created_at", "id")
     for message in messages:
@@ -174,14 +179,19 @@ def build_chat_document(session, current=None):
             document[section] = list(dict.fromkeys(document[section] + strings(value)))
         elif section in (*IDENTITIES, "achievements"):
             existing = document[section]
+            additions = []
+            if section == 'projects' and session.conversation_state.get('mode') == 'edit_existing':
+                additions = session.conversation_state.get('edit_new_projects') or []
             if section == "experience":
                 existing = [dict(item, role=item["job_title"]) for item in existing]
             if section == "achievements":
                 value = [canonical_entry(section, item, warnings) for item in value]
             # Merge sparse proposals first, then fill required structural defaults.
-            entries = merge_entries(existing, value, section)
+            entries = merge_entries(existing + deepcopy(additions), value, section)
             document[section] = [canonical_entry(section, item, warnings) for item in entries]
     state = session.conversation_state or {}
+    if state.get('mode') == 'edit_existing':
+        state = state.get('edit_metadata_updates') or {}
     for key in ("target_role", "career_level"):
         if state.get(key):
             value = state[key]
@@ -200,6 +210,11 @@ def save_chat_cv(*, user, session_id, expected_version=None):
     if session.status != ChatSession.Status.COMPLETED:
         raise ChatImportConflict("Finish the conversation before saving its collected details.")
     cv = services.owned(user=user, cv_id=session.cv_id, lock=True) if session.cv_id else None
+    editing = session.conversation_state.get('mode') == 'edit_existing'
+    if editing and cv and session.conversation_state.get('edit_saved_cv_id') == cv.id:
+        # Completed editing proposals are immutable. Retrying approval must not
+        # append a project twice or overwrite later manual edits.
+        return cv, []
     document, warnings = build_chat_document(session, current=cv.data if cv else None)
     if cv:
         if document == cv.data:
@@ -212,4 +227,7 @@ def save_chat_cv(*, user, session_id, expected_version=None):
         cv = services.create_cv(user=user, values={"name": name[:255], "data": document})
         session.cv_id = cv.id
         session.save(update_fields=["cv_id", "updated_at"])
+    if editing:
+        session.conversation_state['edit_saved_cv_id'] = cv.id
+        session.save(update_fields=['conversation_state', 'updated_at'])
     return cv, warnings

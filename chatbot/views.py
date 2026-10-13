@@ -18,6 +18,7 @@ from chatbot.services.conversation_service import (
     create_chat_session,
     process_user_message,
 )
+from chatbot.services.existing_cv_conversation import prepare_existing_session
 from chatbot.services.groq_client import (
     AIServiceError,
 )
@@ -78,6 +79,7 @@ class ChatSessionDetailView(APIView):
             request,
             session_id,
         )
+        prepare_existing_session(session)
 
         serializer = (
             ChatSessionDetailSerializer(

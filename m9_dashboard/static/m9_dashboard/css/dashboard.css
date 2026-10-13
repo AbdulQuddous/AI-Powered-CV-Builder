@@ -7,6 +7,17 @@
         sans-serif;
 }
 
+.danger-button, .danger-outline-button {
+    border-radius: 12px; padding: 12px 20px; font-size: 14px; font-weight: 600;
+}
+.danger-button { background: #be123c; color: white; }
+.danger-button:hover { background: #9f1239; }
+.danger-outline-button { border: 1px solid #fecdd3; color: #be123c; background: white; }
+.danger-outline-button:hover { background: #fff1f2; }
+.versions-table { width: 100%; border-collapse: collapse; }
+.versions-table th, .versions-table td { padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: left; overflow-wrap: anywhere; }
+.versions-table td:last-child { white-space: nowrap; }
+
 html {
     scroll-behavior: smooth;
 }

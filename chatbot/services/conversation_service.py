@@ -28,6 +28,10 @@ from chatbot.services.state_manager import (
     get_required_conversation_step,
     update_state,
 )
+from chatbot.services.existing_cv_conversation import (
+    INTRO, initial_edit_state, owned_populated_cv, prepare_existing_session,
+    try_edit_local,
+)
 
 
 INITIAL_ASSISTANT_MESSAGE = (
@@ -42,6 +46,9 @@ def create_chat_session(
     cv_id=None,
 ):
     state = get_initial_state()
+    existing_cv = owned_populated_cv(user, cv_id)
+    if existing_cv:
+        state = initial_edit_state(state, existing_cv)
 
     with transaction.atomic():
         session = ChatSession.objects.create(
@@ -52,7 +59,7 @@ def create_chat_session(
                 ChatSession.Status.ACTIVE
             ),
 
-            current_section="target",
+            current_section=state['current_section'],
 
             conversation_state=state,
 
@@ -69,12 +76,12 @@ def create_chat_session(
             ),
 
             content=(
-                INITIAL_ASSISTANT_MESSAGE
+                INTRO if existing_cv else INITIAL_ASSISTANT_MESSAGE
             ),
 
             intent="collect_information",
 
-            section="target",
+            section=state['current_section'],
 
             cv_updates={},
 
@@ -100,6 +107,7 @@ def process_user_message(
         raise ValueError(
             "Chat session is not active."
         )
+    prepare_existing_session(session)
 
     # =========================================
     # 2. Determine what backend needs next
@@ -120,12 +128,15 @@ def process_user_message(
     local_response = None
 
     try:
-        local_response = (
-            try_local_extraction(
-                required_step=required_step,
-                user_message=user_message,
+        if session.conversation_state.get('mode') == 'edit_existing':
+            local_response = try_edit_local(session.conversation_state, user_message)
+        else:
+            local_response = (
+                try_local_extraction(
+                    required_step=required_step,
+                    user_message=user_message,
+                )
             )
-        )
     except Exception:
         # Local optimization must NEVER
         # break the conversation.
@@ -177,6 +188,7 @@ def process_user_message(
     new_state = update_state(
         session.conversation_state,
         ai_response,
+        user_message=user_message,
     )
 
     # =========================================
