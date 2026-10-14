@@ -33,29 +33,33 @@
 
   const DEFAULT_ROW = {
     experience: {
-      company: null,
-      role: null,
-      location: null,
-      start_date: null,
-      end_date: null,
-      responsibilities: null
+      company: '',
+      job_title: '',
+      location: '',
+      start_date: '',
+      end_date: '',
+      is_current: false,
+      highlights: []
     },
 
     education: {
-      degree: null,
-      institution: null,
-      field_of_study: null,
-      start_date: null,
-      end_date: null,
-      grade: null
+      degree: '',
+      institution: '',
+      field_of_study: '',
+      start_date: '',
+      end_date: '',
+      grade: ''
     },
 
     projects: {
-      name: null,
-      description: null,
-      technologies: null,
-      url: null
-    }
+      name: '',
+      description: '',
+      technologies: [],
+      url: '',
+      highlights: []
+    },
+    certifications: {name: '', issuer: '', date: '', url: ''},
+    languages: {name: '', proficiency: ''}
   };
 
   // --------------------------------
@@ -164,6 +168,10 @@
       m8Busy: false,
       m8PreviewOpen: false,
       m8PreviewUrl: null,
+      livePreviewLoading: false,
+      livePreviewError: '',
+      livePreviewZoom: 'fit',
+      _livePreview: null,
 
       notice: '',
       error: '',
@@ -217,7 +225,52 @@
           }
         );
 
+        this.$watch?.('cv', () => this._livePreview?.update());
         this.reload();
+      },
+
+      startLivePreview() {
+        if (!this.$refs || !global.M7LivePreview) return;
+        this._livePreview?.destroy();
+        this.livePreviewLoading = true;
+        this.livePreviewError = '';
+        this._livePreview = global.M7LivePreview.create({
+          frame: this.$refs.liveFrame,
+          viewport: this.$refs.liveViewport,
+          stage: this.$refs.liveStage,
+          panel: this.$refs.livePanel,
+          toolbar: this.$refs.liveToolbar,
+          initialZoom: this.livePreviewZoom,
+          getCV: () => this.cv,
+          request: () => this.m8Request('preview/'),
+          onReady: () => {
+            this.livePreviewLoading = false;
+            this._livePreview?.scrollToSection(this.active);
+          },
+          onError: error => {
+            this.livePreviewLoading = false;
+            this.livePreviewError = error.message || 'Could not load the CV template.';
+            if (error.status === 401) this.authRequired = true;
+          }
+        });
+        this._livePreview.load();
+      },
+
+      setLivePreviewZoom(zoom) {
+        if (!['fit', 1, 1.25].includes(zoom)) return;
+        this.livePreviewZoom = zoom;
+        this._livePreview?.setZoom(zoom);
+      },
+
+      selectSection(section) {
+        if (!SECTIONS.some(([key]) => key === section)) return;
+        this.active = section;
+        this._livePreview?.scrollToSection(section);
+      },
+
+      destroy() {
+        this._livePreview?.destroy();
+        this.closeM8Preview();
       },
 
       // --------------------------------
@@ -253,6 +306,7 @@
           this.initial = snapshot(this.cv);
 
           this.authRequired = false;
+          this.$nextTick?.(() => this.startLivePreview());
 
         } catch (e) {
           this.authRequired = e.status === 401;
@@ -330,14 +384,7 @@
               'Download your draft, then reload ' +
               'the latest version.'
             )
-            : (
-              `${e.message}` +
-              (
-                e.status === 400
-                  ? ' Check the validation details from M2.'
-                  : ''
-              )
-            );
+            : e.message;
 
         } finally {
           this.saving = false;
@@ -743,6 +790,10 @@
             key
           )
         );
+      },
+
+      isDateField(key) {
+        return ['date', 'start_date', 'end_date'].includes(key);
       },
 
       // --------------------------------

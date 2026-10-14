@@ -148,6 +148,17 @@
     );
   }
 
+  function validationMessages(details, path = '') {
+    if (typeof details === 'string') return [path ? `${path}: ${details}` : details];
+    if (Array.isArray(details)) return details.flatMap(item => validationMessages(item, path));
+    if (!isObject(details)) return [];
+    if (typeof details.path === 'string' && typeof details.message === 'string') {
+      return [`${details.path.replaceAll('/', ' → ')}: ${details.message}`];
+    }
+    return Object.entries(details).flatMap(([key, value]) =>
+      validationMessages(value, [path, key].filter(Boolean).join(' → ')));
+  }
+
   async function request(url, method = 'GET', payload) {
     const access = token();
 
@@ -217,7 +228,8 @@
             : `Request failed (${response.status}).`
         );
 
-      const error = new Error(String(text));
+      const messages = response.status === 400 ? validationMessages(details).slice(0, 5) : [];
+      const error = new Error(messages.length ? messages.join(' · ') : String(text));
 
       Object.assign(error, {
         status: response.status,
@@ -289,7 +301,8 @@
   global.M7Api = {
     ...api,
     normalizeResponse,
-    buildPatchBody
+    buildPatchBody,
+    validationMessages
   };
 
   if (

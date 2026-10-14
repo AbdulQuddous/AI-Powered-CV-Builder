@@ -110,3 +110,63 @@ test('editor accepts only known section names from navigation links', () => {
     global.addEventListener = previous.addEventListener;
   }
 });
+
+test('new entries use M10 field names and types even when sections are empty', () => {
+  const schema = require('../shared/schemas/cv_schema.json');
+  const component = edit.cvEditor();
+  component.cv = {experience: [], education: [], projects: [], certifications: [], languages: []};
+  for (const section of Object.keys(component.cv)) {
+    component.add(section);
+    const row = component.cv[section][0];
+    const contract = schema.properties[section].items;
+    assert.deepEqual(Object.keys(row).sort(), [...contract.required].sort());
+    for (const [key, value] of Object.entries(row)) {
+      assert.equal(Array.isArray(value) ? 'array' : typeof value,
+        contract.properties[key].type || 'string');
+    }
+  }
+  component.setRow('certifications', 0, 'name', 'Advance AI Bootcamp');
+  component.setRow('certifications', 0, 'date', '2026-10');
+  assert.equal(component.cv.certifications[0].name, 'Advance AI Bootcamp');
+  assert.equal(component.cv.certifications[0].date, '2026-10');
+  assert.equal(component.isDateField('date'), true);
+});
+
+test('section buttons reveal the selected preview section including repeated selections', () => {
+  const component = edit.cvEditor();
+  const calls = [];
+  component._livePreview = {scrollToSection: section => calls.push(section)};
+  component.selectSection('projects');
+  assert.equal(component.active, 'projects');
+  component.selectSection('projects');
+  component.selectSection('unsupported');
+  assert.deepEqual(calls, ['projects', 'projects']);
+});
+
+test('M2 certificate validation error is visible and failed saves preserve the draft', async () => {
+  const previous = {fetch: global.fetch, api: global.M7Api};
+  let calls = 0;
+  global.fetch = async () => {
+    calls++;
+    return {ok: false, status: 400, headers: {get: () => 'application/json'},
+      json: async () => ({error: {code: 'validation_error', details: {data: [
+        {path: 'certifications/0/date', message: 'Use a year and month.'}
+      ]}}})};
+  };
+  global.M7Api = api;
+  try {
+    const component = edit.cvEditor();
+    component.id = 11;
+    component.cv = structuredClone(cv);
+    component.loaded = {field: 'data', version: 3};
+    component.initial = JSON.stringify(component.cv);
+    component.cv.certifications = [{name: 'Advance AI Bootcamp', issuer: '', date: '2026', url: ''}];
+    await component.save();
+    assert.match(component.error, /certifications → 0 → date: Use a year and month/);
+    assert.equal(component.cv.certifications[0].name, 'Advance AI Bootcamp');
+    assert.equal(component.dirty, true);
+    assert.equal(component.saving, false);
+    assert.equal(component.loaded.version, 3);
+    assert.equal(calls, 1);
+  } finally { global.fetch = previous.fetch; global.M7Api = previous.api; }
+});

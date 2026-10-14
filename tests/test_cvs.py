@@ -98,6 +98,24 @@ class CVTests(APITestCase):
             self.assertEqual(response.status_code,400,response.data)
         self.assertEqual(CV.objects.get().version,1)
         self.assertEqual(CVVersion.objects.count(),1)
+
+    def test_editor_certificate_addition_and_invalid_date_do_not_lose_saved_data(self):
+        cv = self.create()
+        url = f"/api/cvs/{cv['id']}/"
+        data = deepcopy(cv['data'])
+        data['certifications'].append({
+            'name': 'Advance AI Bootcamp', 'issuer': '', 'date': '2026-10', 'url': ''
+        })
+        saved = self.client.patch(url, {'data': data, 'expected_version': 1}, format='json')
+        self.assertEqual(saved.status_code, 200, saved.data)
+        self.assertEqual(saved.data['data']['certifications'][0]['name'], 'Advance AI Bootcamp')
+        invalid = deepcopy(data)
+        invalid['certifications'][0]['date'] = '2026'
+        rejected = self.client.patch(url, {'data': invalid, 'expected_version': 2}, format='json')
+        self.assertEqual(rejected.status_code, 400)
+        self.assertEqual(rejected.data['error']['details']['data'][0]['path'], 'certifications/0/date')
+        self.assertEqual(CV.objects.get(pk=cv['id']).data, data)
+        self.assertEqual(CV.objects.get(pk=cv['id']).version, 2)
     def test_transaction_rolls_back_if_snapshot_fails(self):
         cv=self.create();url=f"/api/cvs/{cv['id']}/"
         with patch('cvs.services.snapshot',side_effect=RuntimeError('failure')):

@@ -59,10 +59,11 @@ Inspect `m7_editor/static/m7_editor/js/api.js`:
 - Manual editing for Personal, Summary, Experience, Education, Projects, Skills, Certifications, Achievements, Languages.
 - Preserves all unknown CV keys (including `schema_version` and `meta`) without conversion.
 - `add`, `remove`, `reorder` list entries; fields are driven by the loaded row shape.
-- Empty Experience/Education/Projects use known M5 row shapes; other blank lists default to string entries unless an existing row shows their true shape. Check shared schema before adding new object types in those sections.
+- Empty Experience, Education, Projects, Certifications, and Languages use M10-compatible object defaults. Skills and Achievements use strings. Dates use year-and-month inputs (`YYYY-MM`) and may be left blank; validation failures display M2's field details and retain the unsaved draft.
 - Multiline arrays are edited as one item per line and kept as arrays. Nested objects not supported by scalar controls are left untouched.
 - Save is explicit, not automatic. Conflicts (HTTP 409/`version_conflict`) show Export Draft / Reload Latest, never silently overwrite.
-- The live pane is a plain **content** preview, not the final PDF design. M8 handles PDF rendering.
+- The live pane loads the selected M8 template and shows an A4 sheet (210 × 297 mm), scaled to the pane width. The wider desktop preview sits beside a compact form; Fit width, 100%, and 125% controls allow larger text with horizontal scrolling. Draft edits update its content locally without saving or calling AI. Long content extends below the first sheet; M8 PDF export remains responsible for page breaks.
+- Selecting an editor section scrolls its preview heading into view when needed, at the current zoom. Empty sections are revealed once content is added. Scrolling respects reduced-motion preferences and leaves the form's position unchanged.
 
 ## Run checks
 
