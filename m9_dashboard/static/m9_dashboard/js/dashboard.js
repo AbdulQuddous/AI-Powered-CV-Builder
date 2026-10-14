@@ -19,7 +19,11 @@ const state = {
     duplicating: new Set(),
     listGeneration: 0,
     eventsRegistered: false,
+    registering: false,
+    signingIn: false,
 };
+
+const profile = {generation: 0, loaded: null, loading: false, saving: false, saved: false};
 
 const $ = (id) => document.getElementById(id);
 
@@ -168,6 +172,8 @@ function openModal(id) {
     $(id).classList.remove("hidden");
 
     document.body.style.overflow = "hidden";
+    if (id === 'loginModal') $('loginEmail').focus();
+    if (id === 'registerModal') $('registerName').focus();
 }
 
 
@@ -203,11 +209,13 @@ function updateAuthUI() {
         "hidden",
         !signedIn
     );
+    $('profileBtn').classList.toggle('hidden', !signedIn);
 }
 
 
 function clearSession() {
     state.listGeneration++;
+    resetProfile();
     window.M9Crud?.reset();
     window.M6Review?.reset();
     closeModal("aiModal");
@@ -235,9 +243,189 @@ function requireLogin() {
     return true;
 }
 
+function authErrorMessage(payload, fallback) {
+    const details = payload?.error?.details || payload?.detail || payload?.message;
+    function messages(value, field = '') {
+        if (typeof value === 'string') return [field ? `${field}: ${value}` : value];
+        if (Array.isArray(value)) return value.flatMap(item => messages(item, field));
+        if (!value || typeof value !== 'object') return [];
+        return Object.entries(value).flatMap(([key, item]) => messages(item, key.replaceAll('_', ' ')));
+    }
+    return messages(details).join(' · ') || fallback;
+}
+
+function profileControls() {
+    const changed = profile.loaded && $('profileName').value.trim() !== profile.loaded.full_name;
+    if (profile.saved && changed && !profile.saving) {
+        profile.saved = false;
+        $('profileStatus').textContent = 'Unsaved changes.';
+    }
+    $('profileFields').disabled = profile.loading || profile.saving || !profile.loaded;
+    $('profileSubmit').disabled = profile.loading || profile.saving || !profile.loaded || !changed;
+    $('profileSubmit').textContent = profile.saving ? 'Saving...' : profile.saved ? 'Saved ✓' : 'Save profile';
+    $('profileCancel').disabled = profile.saving;
+    $('profileCancel').textContent = profile.saved ? 'Done' : 'Close';
+    $('profileCancel').classList.toggle('profile-done', profile.saved);
+    $('profileStatus').classList.toggle('profile-status-success', profile.saved);
+    $('profileRetry').disabled = profile.loading || profile.saving;
+    $('profileModal').setAttribute('aria-busy', String(profile.loading || profile.saving));
+    if (profile.saving) $('profileModal').focus();
+}
+
+function resetProfile() {
+    profile.generation++;
+    profile.loaded = null;
+    profile.loading = profile.saving = false;
+    profile.saved = false;
+    $('profileName').value = $('profileEmail').value = '';
+    $('profileStatus').textContent = '';
+    clearFormError('profileError');
+    $('profileRetry').classList.add('hidden');
+    profileControls();
+    closeModal('profileModal');
+}
+
+function closeProfile() {
+    if (profile.saving) return;
+    resetProfile();
+    if (getToken()) $('profileBtn').focus();
+}
+
+function adoptProfile(data) {
+    if (!Number.isSafeInteger(data?.user_id) || typeof data.email !== 'string' || typeof data.full_name !== 'string') {
+        throw new Error('The account service returned an invalid profile. Please retry.');
+    }
+    profile.loaded = data;
+    $('profileEmail').value = data.email;
+    $('profileName').value = data.full_name;
+}
+
+async function openProfile() {
+    if (!requireLogin() || profile.loading || profile.saving) return;
+    resetProfile();
+    const generation = profile.generation, access = getToken();
+    profile.loading = true;
+    $('profileStatus').textContent = 'Loading your profile...';
+    profileControls();
+    openModal('profileModal');
+    $('profileCancel').focus();
+    try {
+        const response = await apiFetch('/api/auth/me/');
+        const data = await response.json();
+        if (generation !== profile.generation || access !== getToken()) return;
+        adoptProfile(data);
+        $('profileStatus').textContent = 'Change your full name to enable Save profile.';
+    } catch (error) {
+        if (generation !== profile.generation || access !== getToken()) return;
+        showFormError('profileError', authErrorMessage(error.details,
+            error.status ? error.message : 'Could not load your profile. Check your connection and retry.'));
+        $('profileStatus').textContent = '';
+        $('profileRetry').classList.remove('hidden');
+    } finally {
+        if (generation === profile.generation && access === getToken()) {
+            profile.loading = false;
+            profileControls();
+            if (profile.loaded) $('profileName').focus();
+        }
+    }
+}
+
+async function saveProfile(event) {
+    event.preventDefault();
+    if (profile.loading || profile.saving || !profile.loaded || !requireLogin()) return;
+    const fullName = $('profileName').value.trim();
+    if (fullName === profile.loaded.full_name) return;
+    if (fullName.length > 150) {
+        showFormError('profileError', 'Full name must be 150 characters or fewer.');
+        return;
+    }
+    const generation = profile.generation, access = getToken();
+    profile.saving = true;
+    profile.saved = false;
+    clearFormError('profileError');
+    $('profileStatus').textContent = 'Saving your profile...';
+    profileControls();
+    try {
+        const response = await apiFetch('/api/auth/me/', {
+            method: 'PATCH', body: JSON.stringify({full_name: fullName})
+        });
+        const data = await response.json();
+        if (generation !== profile.generation || access !== getToken()) return;
+        adoptProfile(data);
+        profile.saved = true;
+        $('profileStatus').textContent = '✓ Profile updated successfully. Click Done to return to your dashboard.';
+        showToast('Profile updated successfully.');
+    } catch (error) {
+        if (generation !== profile.generation || access !== getToken()) return;
+        showFormError('profileError', authErrorMessage(error.details,
+            error.status ? error.message : 'Could not save your profile. Check your connection and retry.'));
+        $('profileStatus').textContent = '';
+    } finally {
+        if (generation === profile.generation && access === getToken()) {
+            profile.saving = false;
+            profileControls();
+            if (profile.saved) $('profileCancel').focus();
+        }
+    }
+}
+
+function showAuthForm(mode) {
+    if (state.registering || state.signingIn) return;
+    const registering = mode === 'register';
+    clearFormError('loginError');
+    clearFormError('registerError');
+    $('loginPassword').value = '';
+    $('registerPassword').value = '';
+    $('registerConfirm').value = '';
+    if (registering && !$('registerEmail').value) $('registerEmail').value = $('loginEmail').value;
+    closeModal(registering ? 'loginModal' : 'registerModal');
+    openModal(registering ? 'registerModal' : 'loginModal');
+    $(registering ? 'registerName' : 'loginEmail').focus();
+}
+
+async function handleRegister(event) {
+    event.preventDefault();
+    if (state.registering) return;
+    clearFormError('registerError');
+    const password = $('registerPassword').value;
+    if (password !== $('registerConfirm').value) {
+        showFormError('registerError', 'Passwords do not match.');
+        $('registerConfirm').focus();
+        return;
+    }
+    const email = $('registerEmail').value.trim();
+    state.registering = true;
+    setButtonBusy($('registerSubmit'), true, 'Creating account...');
+    $('backToLogin').disabled = true;
+    try {
+        const response = await fetch('/api/auth/register/', {
+            method: 'POST', credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email, full_name: $('registerName').value.trim(), password}),
+        }).catch(() => { throw new Error('Could not connect. Check your connection and try again.'); });
+        let payload = {};
+        try { payload = await response.json(); } catch (_) { /* Use a readable fallback below. */ }
+        if (!response.ok) throw new Error(authErrorMessage(payload,
+            response.status === 429 ? 'Too many attempts. Please wait and try again.' : 'Unable to create your account. Please try again.'));
+        $('loginEmail').value = payload.email || email;
+        $('registerForm').reset();
+        state.registering = false;
+        showAuthForm('login');
+        showToast('Account created. Sign in to start building your CV.');
+    } catch (error) {
+        showFormError('registerError', error.message || 'Unable to create your account. Please try again.');
+    } finally {
+        state.registering = false;
+        setButtonBusy($('registerSubmit'), false);
+        $('backToLogin').disabled = false;
+    }
+}
+
 
 async function handleLogin(event) {
     event.preventDefault();
+    if (state.signingIn) return;
+    state.signingIn = true;
 
     const email = $("loginEmail").value.trim();
     const password = $("loginPassword").value;
@@ -247,6 +435,7 @@ async function handleLogin(event) {
     clearFormError("loginError");
 
     setButtonBusy(button, true, "Signing in...");
+    $('openRegister').disabled = true;
 
     try {
         const response = await fetch("/api/auth/login/", {
@@ -265,9 +454,7 @@ async function handleLogin(event) {
 
         if (!response.ok) {
             throw new Error(
-                payload.detail ||
-                payload.message ||
-                "Invalid email or password."
+                authErrorMessage(payload, "Invalid email or password.")
             );
         }
 
@@ -301,6 +488,8 @@ async function handleLogin(event) {
         );
 
     } finally {
+        state.signingIn = false;
+        $('openRegister').disabled = false;
         setButtonBusy(button, false);
     }
 }
@@ -1460,6 +1649,14 @@ function registerEvents() {
         "submit",
         handleLogin
     );
+    $('openRegister').addEventListener('click', () => showAuthForm('register'));
+    $('backToLogin').addEventListener('click', () => showAuthForm('login'));
+    $('registerForm').addEventListener('submit', handleRegister);
+    $('profileBtn').addEventListener('click', openProfile);
+    $('profileForm').addEventListener('submit', saveProfile);
+    $('profileName').addEventListener('input', profileControls);
+    $('profileCancel').addEventListener('click', closeProfile);
+    $('profileRetry').addEventListener('click', openProfile);
 
     $("createForm").addEventListener(
         "submit",
@@ -1520,6 +1717,29 @@ function registerEvents() {
     document.addEventListener(
         "keydown",
         (event) => {
+            if (!$('profileModal').classList.contains('hidden') && event.key === 'Escape') {
+                event.preventDefault();
+                closeProfile();
+                return;
+            }
+            const authModal = ['loginModal', 'registerModal', 'profileModal'].map($)
+                .find(modal => !modal.classList.contains('hidden'));
+            if (authModal && event.key === 'Tab') {
+                const controls = [...authModal.querySelectorAll('input, button')]
+                    .filter(control => !control.disabled && !control.closest('fieldset:disabled') && !control.closest('.hidden'));
+                const first = controls[0], last = controls[controls.length - 1];
+                if (!first) {
+                    event.preventDefault();
+                    authModal.focus();
+                    return;
+                }
+                if (first && ((!event.shiftKey && document.activeElement === last) ||
+                    (event.shiftKey && document.activeElement === first))) {
+                    event.preventDefault();
+                    (event.shiftKey ? last : first).focus();
+                }
+                return;
+            }
             if (event.key !== "Escape") {
                 return;
             }

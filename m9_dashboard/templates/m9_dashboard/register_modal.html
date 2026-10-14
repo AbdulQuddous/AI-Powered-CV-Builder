@@ -1,0 +1,36 @@
+<div id="registerModal" role="dialog" aria-modal="true" aria-labelledby="registerTitle"
+     class="dashboard-modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card max-w-md">
+        <div class="text-center">
+            <h2 id="registerTitle" class="text-2xl font-bold">Create your account</h2>
+            <p class="mt-2 text-sm text-slate-500">Build and manage your CVs.</p>
+        </div>
+        <form id="registerForm" class="mt-7 space-y-4">
+            <div>
+                <label for="registerName" class="form-label">Full name (optional)</label>
+                <input id="registerName" type="text" autocomplete="name" maxlength="150" class="form-input">
+            </div>
+            <div>
+                <label for="registerEmail" class="form-label">Email</label>
+                <input id="registerEmail" type="email" autocomplete="email" maxlength="254" class="form-input" required>
+            </div>
+            <div>
+                <label for="registerPassword" class="form-label">Password</label>
+                <input id="registerPassword" type="password" autocomplete="new-password" minlength="10" maxlength="128"
+                       aria-describedby="registerPasswordHelp" class="form-input" required>
+                <p id="registerPasswordHelp" class="mt-2 text-xs text-slate-500">Use at least 10 characters and avoid common passwords.</p>
+            </div>
+            <div>
+                <label for="registerConfirm" class="form-label">Confirm password</label>
+                <input id="registerConfirm" type="password" autocomplete="new-password" maxlength="128" class="form-input" required>
+            </div>
+            <p id="registerError" role="alert" class="hidden text-sm text-rose-600"></p>
+            <button id="registerSubmit" type="submit" class="primary-button w-full">Create account</button>
+        </form>
+        <p class="mt-5 text-center text-sm text-slate-500">
+            Already have an account?
+            <button id="backToLogin" type="button" class="auth-switch">Sign In</button>
+        </p>
+    </div>
+</div>

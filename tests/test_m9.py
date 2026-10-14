@@ -1,6 +1,7 @@
 from django.test import SimpleTestCase
 from django.urls import reverse
 from django.contrib.staticfiles import finders
+from unittest.mock import patch
 
 
 class M9DashboardTests(SimpleTestCase):
@@ -144,3 +145,34 @@ class M9DashboardTests(SimpleTestCase):
         self.assertContains(response, 'aria-describedby="deleteDescription"')
         self.assertContains(response, 'History is read-only')
         self.assertIsNotNone(finders.find('m9_dashboard/js/cv_operations.js'))
+
+    def test_registration_form_reuses_dashboard_authentication_interface(self):
+        response = self.client.get('/dashboard/')
+        self.assertTemplateUsed(response, 'm9_dashboard/register_modal.html')
+        for element_id in ('openRegister', 'registerModal', 'registerForm', 'registerName',
+                           'registerEmail', 'registerPassword', 'registerConfirm', 'registerError',
+                           'registerSubmit', 'backToLogin'):
+            self.assertContains(response, f'id="{element_id}"')
+        self.assertContains(response, 'aria-labelledby="registerTitle"')
+        self.assertContains(response, 'autocomplete="new-password"')
+
+    def test_dashboard_reloads_assets_after_an_update(self):
+        from m9_dashboard.views import dashboard_asset_version
+        self.assertGreater(int(dashboard_asset_version()), 0)
+        for revision in ('100', '200'):
+            with patch('m9_dashboard.views.dashboard_asset_version', return_value=revision):
+                response = self.client.get('/dashboard/')
+            self.assertContains(response, f'/static/m9_dashboard/js/dashboard.js?v={revision}')
+            self.assertContains(response, f'/static/m9_dashboard/js/cv_operations.js?v={revision}')
+            self.assertContains(response, f'/static/m9_dashboard/css/dashboard.css?v={revision}')
+            self.assertIn('no-store', response['Cache-Control'])
+
+    def test_profile_form_edits_name_and_displays_readonly_email(self):
+        response = self.client.get('/dashboard/')
+        self.assertTemplateUsed(response, 'm9_dashboard/profile_modal.html')
+        for element_id in ('profileBtn', 'profileModal', 'profileForm', 'profileEmail',
+                           'profileName', 'profileError', 'profileStatus', 'profileSubmit',
+                           'profileCancel', 'profileRetry'):
+            self.assertContains(response, f'id="{element_id}"')
+        self.assertContains(response, 'readonly aria-describedby="profileEmailHelp"')
+        self.assertContains(response, 'aria-labelledby="profileTitle"')

@@ -1,0 +1,29 @@
+<div id="profileModal" role="dialog" aria-modal="true" aria-labelledby="profileTitle" tabindex="-1"
+     class="dashboard-modal hidden">
+    <div class="modal-backdrop"></div>
+    <section class="modal-card max-w-md">
+        <h2 id="profileTitle" class="text-2xl font-bold">My Profile</h2>
+        <p class="mt-2 text-sm text-slate-500">Manage your account details.</p>
+        <p id="profileStatus" role="status" aria-live="polite" class="mt-4 text-sm text-slate-500"></p>
+        <p id="profileError" role="alert" class="hidden mt-4 text-sm text-rose-600"></p>
+        <button id="profileRetry" type="button" class="secondary-button hidden mt-3">Retry loading profile</button>
+        <form id="profileForm" class="mt-5 space-y-4">
+            <fieldset id="profileFields" class="space-y-4" disabled>
+                <div>
+                    <label for="profileEmail" class="form-label">Email</label>
+                    <input id="profileEmail" type="email" autocomplete="email" class="form-input"
+                           readonly aria-describedby="profileEmailHelp">
+                    <p id="profileEmailHelp" class="mt-2 text-xs text-slate-500">Email changes are currently unavailable.</p>
+                </div>
+                <div>
+                    <label for="profileName" class="form-label">Full name</label>
+                    <input id="profileName" type="text" autocomplete="name" maxlength="150" class="form-input">
+                </div>
+            </fieldset>
+            <div class="flex flex-wrap justify-end gap-3">
+                <button id="profileCancel" type="button" class="secondary-button">Close</button>
+                <button id="profileSubmit" type="submit" class="primary-button" disabled>Save profile</button>
+            </div>
+        </form>
+    </section>
+</div>

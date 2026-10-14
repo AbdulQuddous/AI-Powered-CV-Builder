@@ -19,10 +19,10 @@
 
     <link
         rel="stylesheet"
-        href="{% static 'm9_dashboard/css/dashboard.css' %}"
+        href="{% static 'm9_dashboard/css/dashboard.css' %}?v={{ dashboard_asset_version }}"
     >
-    <link rel="stylesheet" href="{% static 'm9_dashboard/css/import_cv.css' %}">
-    <link rel="stylesheet" href="{% static 'm9_dashboard/css/ai_review.css' %}">
+    <link rel="stylesheet" href="{% static 'm9_dashboard/css/import_cv.css' %}?v={{ dashboard_asset_version }}">
+    <link rel="stylesheet" href="{% static 'm9_dashboard/css/ai_review.css' %}?v={{ dashboard_asset_version }}">
 </head>
 
 <body class="bg-slate-50 text-slate-800 antialiased">
@@ -158,6 +158,8 @@
                 >
                     Checking session
                 </span>
+
+                <button id="profileBtn" type="button" class="secondary-button hidden">My Profile</button>
 
                 <button
                     id="logoutBtn"
@@ -556,9 +558,16 @@
 
         </form>
 
+        <p class="mt-5 text-center text-sm text-slate-500">
+            New to CV Maker?
+            <button id="openRegister" type="button" class="auth-switch">Register</button>
+        </p>
+
     </div>
 </div>
 
+{% include 'm9_dashboard/register_modal.html' %}
+{% include 'm9_dashboard/profile_modal.html' %}
 
 <!-- CREATE CV MODAL -->
 <div
@@ -794,14 +803,14 @@
 
 
 <script
-    src="{% static 'm9_dashboard/js/dashboard.js' %}"
+    src="{% static 'm9_dashboard/js/dashboard.js' %}?v={{ dashboard_asset_version }}"
     defer
 ></script>
-<script src="{% static 'm9_dashboard/js/import_cv.js' %}" defer></script>
-<script src="{% static 'm9_dashboard/js/ai_api.js' %}" defer></script>
-<script src="{% static 'm9_dashboard/js/ai_ui.js' %}" defer></script>
-<script src="{% static 'm9_dashboard/js/ai_review.js' %}" defer></script>
-<script src="{% static 'm9_dashboard/js/cv_operations.js' %}" defer></script>
+<script src="{% static 'm9_dashboard/js/import_cv.js' %}?v={{ dashboard_asset_version }}" defer></script>
+<script src="{% static 'm9_dashboard/js/ai_api.js' %}?v={{ dashboard_asset_version }}" defer></script>
+<script src="{% static 'm9_dashboard/js/ai_ui.js' %}?v={{ dashboard_asset_version }}" defer></script>
+<script src="{% static 'm9_dashboard/js/ai_review.js' %}?v={{ dashboard_asset_version }}" defer></script>
+<script src="{% static 'm9_dashboard/js/cv_operations.js' %}?v={{ dashboard_asset_version }}" defer></script>
 
 </body>
 </html>
