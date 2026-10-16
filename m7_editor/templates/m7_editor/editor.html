@@ -5,8 +5,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Edit CV · CV Maker</title>
-  <link rel="stylesheet" href="{% static 'm7_editor/css/editor.css' %}">
-  <link rel="stylesheet" href="{% static 'm7_editor/css/live_preview.css' %}">
+  <link rel="stylesheet" href="{% static 'm7_editor/css/editor.css' %}?v={{ editor_asset_version }}">
+  <link rel="stylesheet" href="{% static 'm7_editor/css/live_preview.css' %}?v={{ editor_asset_version }}">
 
   <!-- M8 preview styles are intentionally plain CSS.
        editor.css may contain only precompiled Tailwind utility classes. -->
@@ -160,9 +160,11 @@
     }
   </style>
   {{ cv_id|json_script:"m7-config" }}
-  <script defer src="{% static 'm7_editor/js/api.js' %}"></script>
-  <script defer src="{% static 'm7_editor/js/live_preview.js' %}"></script>
-  <script defer src="{% static 'm7_editor/js/editor.js' %}"></script>
+  {{ cv_schema|json_script:"m7-cv-schema" }}
+  <script defer src="{% static 'accounts/js/session.js' %}?v={{ editor_asset_version }}"></script>
+  <script defer src="{% static 'm7_editor/js/api.js' %}?v={{ editor_asset_version }}"></script>
+  <script defer src="{% static 'm7_editor/js/live_preview.js' %}?v={{ editor_asset_version }}"></script>
+  <script defer src="{% static 'm7_editor/js/editor.js' %}?v={{ editor_asset_version }}"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.4/dist/cdn.min.js"></script>
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
@@ -177,6 +179,8 @@
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+      <a href="/dashboard/" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium">Dashboard</a>
+      <a href="/dashboard/?review={{ cv_id|urlencode }}" class="rounded-lg border border-teal-300 bg-white px-3 py-2 text-sm font-semibold text-teal-800">AI Review</a>
       <span class="hidden text-sm sm:inline"
             :class="dirty ? 'text-amber-700' : 'text-slate-500'"
             x-text="dirty ? 'Unsaved changes' : (loaded ? 'All changes saved' : '')"></span>
@@ -186,7 +190,7 @@
         Export draft JSON
       </button>
 
-      <button type="button" @click="save()" :disabled="!dirty || saving || conflict"
+      <button id="save-cv-btn" type="button" @click="save()" :disabled="!dirty || saving || conflict"
         class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-40"
         x-text="saving ? 'Saving…' : 'Save changes'"></button>
 
@@ -267,7 +271,7 @@
           </div>
           <div x-show="active==='summary'">
             <label class="block text-sm font-medium text-slate-700">Professional summary
-              <textarea rows="9" class="m7-input mt-2" maxlength="3000"
+              <textarea rows="9" class="m7-input mt-2" maxlength="5000"
                 :value="value(cv.summary)" @input="setSummary($event.target.value)"
                 placeholder="Write a concise, factual summary tailored to the target role…"></textarea>
             </label>
@@ -296,7 +300,19 @@
                                   <template x-if="isMultiline(key,item[key])">
                                     <textarea class="m7-input" rows="3" :value="value(item[key])" @input="setRow(pair[0],index,key,$event.target.value)"></textarea>
                                   </template>
-                                  <template x-if="!isMultiline(key,item[key])">
+                                  <template x-if="typeof item[key]==='boolean'">
+                                    <input type="checkbox" :checked="item[key]" :aria-label="key.replaceAll('_',' ')"
+                                      @change="setRow(pair[0],index,key,$event.target.checked ? 'true' : 'false')">
+                                  </template>
+                                  <template x-if="rowChoices(pair[0],key).length">
+                                    <select class="m7-input" :aria-label="key.replaceAll('_',' ')" :value="value(item[key])"
+                                      @change="setRow(pair[0],index,key,$event.target.value)">
+                                      <template x-for="choice in rowChoices(pair[0],key)" :key="choice">
+                                        <option :value="choice" :selected="choice===item[key]" x-text="choice || 'Not specified'"></option>
+                                      </template>
+                                    </select>
+                                  </template>
+                                  <template x-if="!isMultiline(key,item[key]) && typeof item[key]!=='boolean' && !rowChoices(pair[0],key).length">
                                     <input class="m7-input" :type="isDateField(key) ? 'month' : 'text'" :aria-label="key.replaceAll('_',' ')+(isDateField(key) ? ' (year and month)' : '')" :value="value(item[key])" @input="setRow(pair[0],index,key,$event.target.value)">
                                   </template>
                                 </div>
@@ -315,7 +331,9 @@
                   </template>
                   <p x-show="list(pair[0]).length===0" class="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">No entries yet.</p>
                   <button type="button" @click="add(pair[0])"
+                    :disabled="list(pair[0]).length >= listLimit(pair[0])"
                     class="w-full rounded-xl border-2 border-dashed border-teal-200 py-3 text-sm font-semibold text-teal-800 hover:bg-teal-50">+ Add <span x-text="pair[1].toLowerCase()"></span></button>
+                  <p x-show="list(pair[0]).length >= listLimit(pair[0])" class="text-xs text-slate-500">This section has reached its supported entry limit.</p>
                 </div>
               </template>
               <template x-if="isMap(pair[0])">

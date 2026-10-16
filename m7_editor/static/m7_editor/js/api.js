@@ -183,7 +183,8 @@
     let response;
 
     try {
-      response = await fetch(url, {
+      const transport = global.M1Session && url !== '/api/auth/login/' ? global.M1Session.request : fetch;
+      response = await transport(url, {
         method,
         credentials: 'same-origin',
         headers,
@@ -193,7 +194,8 @@
             : { body: JSON.stringify(payload) }
         )
       });
-    } catch (_) {
+    } catch (error) {
+      if (error.status) throw error;
       throw Object.assign(
         new Error('Network error. Check your connection.'),
         { status: 0 }
@@ -285,15 +287,14 @@
         );
     }
 
-    sessionStorage.setItem(
-        'cv_access',
-        access
-    );
+    if (global.M1Session) global.M1Session.storeTokens({access, refresh: response?.refresh || response?.data?.refresh});
+    else sessionStorage.setItem('cv_access', access);
 
     return access;
     },
 
     logout: () => {
+      if (global.M1Session) return global.M1Session.logout();
       sessionStorage.removeItem('cv_access');
     }
   };

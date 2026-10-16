@@ -143,7 +143,7 @@ class M9DashboardTests(SimpleTestCase):
         for element_id in ('deleteModal', 'deleteCVName', 'deleteConfirm', 'deleteCancel', 'deleteError', 'versionsModal', 'versionsRows', 'versionsMore'):
             self.assertContains(response, f'id="{element_id}"')
         self.assertContains(response, 'aria-describedby="deleteDescription"')
-        self.assertContains(response, 'History is read-only')
+        self.assertContains(response, 'Restoring creates a new current version')
         self.assertIsNotNone(finders.find('m9_dashboard/js/cv_operations.js'))
 
     def test_registration_form_reuses_dashboard_authentication_interface(self):

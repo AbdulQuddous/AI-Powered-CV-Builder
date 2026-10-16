@@ -94,6 +94,61 @@ test('API error messages cover canonical documents, plain DRF fields, and non-JS
     assert.equal(h.run('apiErrorMessage({},500)'), 'Request failed (500).');
 });
 
+test('restoration requires confirmation, appends current state and updates dashboard',async()=>{
+    const h=harness({fetch:(url,options,body)=>url.endsWith('/restore/')?{
+        ok:true,status:200,json:async()=>({...sample(12,'Restored CV'),version:3})}:null});
+    h.saved.get(12).version=2;await h.load();await h.action('versions');
+    await h.click('restoreConfirm');
+    assert.equal(h.calls.filter(c=>c.method==='POST').length,0);
+    const button=h.get('versionsRows').children[1].children[3].children[0];
+    for(const fn of button.listeners.click)await fn();
+    assert.equal(h.calls.filter(c=>c.method==='POST').length,0);
+    await h.click('restoreCancel');
+    assert.equal(h.calls.filter(c=>c.method==='POST').length,0);
+    for(const fn of button.listeners.click)await fn();
+    await h.click('restoreConfirm');
+    assert.deepEqual(h.calls.find(c=>c.url.endsWith('/restore/')).body,{version:1,expected_version:2});
+    assert.equal(h.run('state.cvs[0].version'),3);
+    assert.equal(h.get('summaryTotal').textContent,2);
+    assert.match(h.get('toast').textContent,/restored as version 3/);
+});
+
+test('failed restoration keeps current CV and duplicate confirmation submits once',async()=>{
+    let finish;
+    const h=harness({fetch:url=>url.endsWith('/restore/')?new Promise(resolve=>{finish=resolve;}):null});
+    h.saved.get(12).version=2;await h.load();await h.action('versions');
+    const button=h.get('versionsRows').children[1].children[3].children[0];
+    for(const fn of button.listeners.click)await fn();
+    const pending=h.click('restoreConfirm');await h.click('restoreConfirm');
+    assert.equal(h.calls.filter(c=>c.url.endsWith('/restore/')).length,1);
+    finish(fail(409));await pending;
+    assert.equal(h.run('state.cvs[0].version'),2);
+    assert.match(h.get('restoreError').textContent,/changed elsewhere/);
+});
+
+test('checkpoint reuses M2, submits once and reloads the current dashboard version',async()=>{
+    let finish;
+    const h=harness({fetch:(url,options)=>url.endsWith('/versions/')&&options.method==='POST'
+        ?new Promise(resolve=>{finish=resolve;}):null});
+    await h.load();await h.action('versions');
+    const pending=h.click('versionsCheckpoint');await h.click('versionsCheckpoint');
+    assert.equal(h.calls.filter(c=>c.method==='POST').length,1);
+    assert.deepEqual(h.calls.find(c=>c.method==='POST').body,{expected_version:1});
+    h.saved.get(12).version=2;
+    finish({ok:true,status:201,json:async()=>({version:2})});await pending;
+    assert.equal(h.run('state.cvs[0].version'),2);
+    assert.match(h.get('toast').textContent,/Checkpoint 2 created/);
+    assert.equal(h.get('versionsCheckpoint').disabled,false);
+});
+
+test('checkpoint conflict preserves the saved CV and enables retry',async()=>{
+    const h=harness({fetch:(url,options)=>url.endsWith('/versions/')&&options.method==='POST'?fail(409):null});
+    await h.load();await h.action('versions');await h.click('versionsCheckpoint');
+    assert.equal(h.run('state.cvs[0].version'),1);
+    assert.match(h.get('versionsError').textContent,/changed elsewhere/);
+    assert.equal(h.get('versionsCheckpoint').disabled,false);
+});
+
 test('AI creation sends selected metadata to M5 and does not create an empty M2 record',async()=>{
     const id='00000000-0000-4000-8000-000000000001';
     const h=harness({fetch:url=>url==='/api/chat/sessions/'?{ok:true,status:201,json:async()=>({id,cv_id:null,status:'active',current_section:'personal',assistant_message:'What is your full name?'})}:null});
@@ -237,7 +292,7 @@ test('duplication keeps the original and identifies the returned copy',async()=>
     assert.equal(h.get('summaryTotal').textContent,3);assert.match(h.get('toast').textContent,/copy.*CV #20/);
 });
 
-test('version history is read-only and renders saved timestamps',async()=>{
+test('viewing version history makes no writes and renders saved timestamps',async()=>{
     const h=harness();await h.load();await h.action('versions');
     assert.equal(h.get('versionsRows').children.length,2);
     const first=h.get('versionsRows').children[0];assert.equal(first.children[0].textContent,'2');assert.match(first.children[2].textContent,/2026/);

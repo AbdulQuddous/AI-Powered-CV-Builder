@@ -1,78 +1,45 @@
-# M7 — CV Editor (Django Templates + Tailwind + Alpine.js)
+# M7 manual CV editor
 
-## Existing backend contract (not replaced)
-- M1 owns JWT/login and user identity.
-- M2 owns JSON, CV permissions, updates, versions, and version-conflict validation.
-- Shared schema (`shared/schemas/cv_schema.json`) is the only source of truth.
-- M5/M6 AI and M8 renderer use exactly the saved JSON; M7 does **not** transform it or generate PDFs.
-- No M7 database models, migrations, serializer, or duplicate CV endpoint.
+Open `/cvs/{id}/edit/` from the dashboard. Django serves an empty template shell;
+M1/M2 authenticate requests and authorize the saved CV. The editor uses the existing
+Django Templates, prebuilt Tailwind CSS, Alpine 3.17.4 and JavaScript architecture.
+No npm manifest or React application is part of this repository.
 
-## Install as a new app into your existing project
-Copy the `m7_editor` directory to your Django project root (beside `manage.py`).
+## Backend connections
 
-`config/settings.py` (or whichever base settings your project imports):
+- GET `/api/cvs/{id}/` loads M2's `{id, name, data, version, ...}` resource.
+- PATCH on the same URL saves `{data, expected_version}`. A stale version produces
+  HTTP 409; the editor retains the draft and offers Reload Latest or Export Draft JSON.
+- The shared `accounts/js/session.js` retains JWT access/refresh tokens in sessionStorage,
+  renews once after 401 and rotates both tokens. Inline login uses M1's `{email,password}`.
+- GET `preview/` loads M8's selected template; POST `export/pdf/` and `export/docx/`
+  download the saved document. `/dashboard/?review={id}` opens its existing AI Review.
 
-```python
-INSTALLED_APPS += ["m7_editor"]
-```
+## Editing and preview
 
-`config/urls.py`: preserve existing urlpatterns, append:
+Personal, Summary, Experience, Education, Projects, Skills, Certifications,
+Achievements and Languages are editable. Object defaults and enum/collection limits
+come from M10's canonical CV schema. Dates use `YYYY-MM` or remain blank; current
+experience is a checkbox. Arrays support add/remove/reorder and multiline items.
+The editor preserves unsaved input when validation or transport fails and presents
+M2 field errors. Five experience entries is the current shared schema limit.
 
-```python
-from django.urls import include, path
-urlpatterns += [path("", include("m7_editor.urls"))]
-```
+Saving is explicit. Local draft preview makes no AI call and writes no database data.
+The preview uses the selected M8 template CSS on an A4 sheet (210 × 297 mm), with
+Fit width, 100% and 125% zoom. Selecting a section reveals its preview heading when
+outside the visible area. Long draft content extends beneath the first page;
+WeasyPrint owns final PDF page breaks. Downloaded PDF tests verify actual text and
+A4 dimensions, rather than just the existence of a response.
 
-Django uses its default app-template loader (`APP_DIRS=True` in the DjangoTemplates backend) and `django.contrib.staticfiles`.
-
-A prebuilt Tailwind CSS file is already included at `m7_editor/static/m7_editor/css/editor.css`, so the initial page can load without npm. For rebuilding the CSS after you change template classes, copy `styles/editor.input.css` and `package.json` next to `manage.py`, then:
-
-```bash
-npm install
-npm run css:build
-```
-
-Start Django:
-
-```bash
-python manage.py runserver
-```
-
-Browse `http://127.0.0.1:8000/cvs/1/edit/` (replace `1` with a real CV id). For CSS work, run `npm run css:watch` in a second terminal. Production: include built CSS in deployment and run `python manage.py collectstatic`.
-
-## Authentication
-
-M7 initially calls the authorized M2 API with same-origin cookies and with any existing JWT in `sessionStorage` under `cv_access`, `access`, or `access_token`. If it gets a 401/403, it shows a login form that calls `POST /api/auth/login/` with `{username,password}` and reads `{access}` (or `{data:{access}}`). This is a standalone starter integration; the endpoint path/credentials keys must match your actual M1 contract.
-
-For production prefer your existing secure HttpOnly cookie / CSRF login if one exists. JavaScript-readable storage for an access token can be exposed by an XSS bug; avoid long-lived refresh tokens in browser JS, enforce a strict CSP, and do not ship the current CDN version without checking your site's CSP and asset strategy. The UI route serves an **empty shell only**; the M2 API enforces object-level ownership and actual data access.
-
-## Critical M2 adapter check
-
-Inspect `m7_editor/static/m7_editor/js/api.js`:
-- `normalizeResponse()` accepts `{data:{id,cv_data,version}}`, `{id,content,current_version}`, etc. and dynamically detects the document field.
-- `buildPatchBody()` currently sends `{[documentField]:cvJSON, expected_version: version}`; the **exact** PATCH serializer/request body was not available from the project source, so map these keys to M2's real field names **before use**. Never weaken M2's optimistic locking to make it work.
-- If M2 returns a CV as a direct JSON resource without version metadata, expose a version in the response instead of allowing blind writes.
-- If M2 uses an HTTP `If-Match` header instead, adjust `request()` and `buildPatchBody()` in this adapter, not in editor.js.
-- If M1 login URL differs, change the one `api.login()` line.
-
-## Behavior
-- Manual editing for Personal, Summary, Experience, Education, Projects, Skills, Certifications, Achievements, Languages.
-- Preserves all unknown CV keys (including `schema_version` and `meta`) without conversion.
-- `add`, `remove`, `reorder` list entries; fields are driven by the loaded row shape.
-- Empty Experience, Education, Projects, Certifications, and Languages use M10-compatible object defaults. Skills and Achievements use strings. Dates use year-and-month inputs (`YYYY-MM`) and may be left blank; validation failures display M2's field details and retain the unsaved draft.
-- Multiline arrays are edited as one item per line and kept as arrays. Nested objects not supported by scalar controls are left untouched.
-- Save is explicit, not automatic. Conflicts (HTTP 409/`version_conflict`) show Export Draft / Reload Latest, never silently overwrite.
-- The live pane loads the selected M8 template and shows an A4 sheet (210 × 297 mm), scaled to the pane width. The wider desktop preview sits beside a compact form; Fit width, 100%, and 125% controls allow larger text with horizontal scrolling. Draft edits update its content locally without saving or calling AI. Long content extends below the first sheet; M8 PDF export remains responsible for page breaks.
-- Selecting an editor section scrolls its preview heading into view when needed, at the current zoom. Empty sections are revealed once content is added. Scrolling respects reduced-motion preferences and leaves the form's position unchanged.
-
-## Run checks
+## Verification
 
 ```bash
-node --test tests/*.test.cjs
-python -m compileall -q m7_editor
-python manage.py test m7_editor --settings=config.test_settings
+.venv/bin/python manage.py test --settings=config.test_settings
+node tests/editor.test.cjs
+node tests/live_preview.test.cjs
 ```
 
-After integration, test browser: valid token -> load; change summary -> save; refresh -> persists; add/move/delete experience -> save; open same CV in two tabs, save in first, save in second -> conflict, no overwrite; another user's CV id -> M2 denies access; expired token -> sign-in; export unsaved draft; unknown JSON keys survive.
-
-**No changes to M1–M6 endpoints or migrations are required.**
+For cross-module results, opt-in browser instructions and production limitations,
+see [the final system audit](../docs/FINAL_SYSTEM_AUDIT.md). Production still needs
+an agreed HTTPS/CSP/static asset policy; template-shell accessibility does not grant
+access to CV data without a valid JWT and the owner's authorization.

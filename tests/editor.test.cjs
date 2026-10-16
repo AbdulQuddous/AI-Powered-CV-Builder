@@ -29,6 +29,26 @@ test('version omitted by backend blocks blind write', () => {
   assert.throws(() => api.buildPatchBody(got, cv), /version/);
 });
 
+test('editor public login bypasses authenticated transport and retains M1 refresh token', async () => {
+  const previous = {fetch: global.fetch, session: global.M1Session};
+  let stored;
+  global.M1Session = {request: () => { throw new Error('Login must remain public'); }, storeTokens: tokens => { stored = tokens; }};
+  global.fetch = async () => ({ok: true, headers: {get: () => 'application/json'}, json: async () => ({access: 'access', refresh: 'refresh'})});
+  try {
+    await api.login('user@example.com', 'Strong-passphrase');
+    assert.deepEqual(stored, {access: 'access', refresh: 'refresh'});
+  } finally {global.fetch = previous.fetch; global.M1Session = previous.session;}
+});
+
+test('editor uses M10 collection limits and enum choices without deleting entries', () => {
+  const component = edit.cvEditor();
+  component.cvSchema = require('../shared/schemas/cv_schema.json');
+  component.cv = {experience: []};
+  for (let index=0; index<6; index++) component.add('experience');
+  assert.equal(component.cv.experience.length, 5);
+  assert.deepEqual(component.rowChoices('languages', 'proficiency'), ['', 'basic', 'conversational', 'professional', 'fluent', 'native']);
+});
+
 test('editor changes only requested fields and preserves unknown sections', () => {
   const component = edit.cvEditor();
   component.cv = structuredClone(cv);

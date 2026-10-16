@@ -39,8 +39,10 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'config.middleware.PrivateAPIResponseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
 ]
@@ -48,18 +50,8 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'config.urls'
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# Database Configuration (Parsed from .env)
-# Force connection directly to the active 5433 port
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'cv_maker',
-        'USER': 'cv_user',
-        'PASSWORD': 'cvmaker123',
-        'HOST': '127.0.0.1',
-        'PORT': '5433',
-    }
-}
+# Database credentials are supplied by the environment.
+DATABASES = {'default': env.db('DATABASE_URL')}
 
 
 # Custom User Model

@@ -54,26 +54,77 @@
         $('aiRewritten').value = pending?.rewritten || '';
         messages($('aiChanges'), pending?.changes || [], 'No change notes returned.');
     }
-    function preview(container, cv) {
+    function preview(container, cv, {editable = false} = {}) {
         container.replaceChildren();
-        function render(value, parent) {
+        let schema = {};
+        const schemaText = $('m9-cv-schema')?.textContent;
+        if (schemaText) { try { schema = JSON.parse(schemaText); } catch (_) { /* M2 still validates on save. */ } }
+        function assign(path, value) {
+            let target = cv;
+            path.slice(0, -1).forEach(key => { target = target[key]; });
+            target[path.at(-1)] = value;
+        }
+        function blank(contract) {
+            if (contract.type === 'object') return Object.fromEntries(Object.entries(contract.properties).map(([key, child]) => [key, blank(child)]));
+            return contract.type === 'array' ? [] : contract.type === 'boolean' ? false : '';
+        }
+        function render(value, parent, path, contract = {}) {
             if (Array.isArray(value)) {
+                if (editable && contract.items?.type === 'string') {
+                    const input = node('textarea', '', parent, 'form-input');
+                    input.rows = 3; input.value = value.join('\n');
+                    input.id = 'importField-' + path.join('_');
+                    input.setAttribute('aria-label', label(path.at(-1)) + ' (one item per line)');
+                    input.addEventListener('input', () => assign(path, input.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean)));
+                    return;
+                }
+                if (editable && contract.items?.type === 'object') {
+                    value.forEach((item, index) => {
+                        const block = node('div', '', parent, 'ai-panel');
+                        render(item, block, [...path, index], contract.items);
+                        const remove = node('button', 'Remove entry', block, 'secondary-button');
+                        remove.type = 'button';
+                        remove.addEventListener('click', () => { value.splice(index, 1); preview(container, cv, {editable}); });
+                    });
+                    const add = node('button', 'Add ' + label(path.at(-1)) + ' entry', parent, 'secondary-button');
+                    add.type = 'button'; add.disabled = value.length >= (contract.maxItems ?? Infinity);
+                    add.addEventListener('click', () => { value.push(blank(contract.items)); preview(container, cv, {editable}); });
+                    return;
+                }
                 if (!value.length) return;
                 const list = node('ul', '', parent);
-                value.forEach(item => render(item, node('li', '', list)));
+                value.forEach((item, index) => render(item, node('li', '', list), [...path, index], contract.items));
             } else if (value && typeof value === 'object') {
                 Object.entries(value).forEach(([key, item]) => {
-                    if (item === '' || item === null || (Array.isArray(item) && !item.length)) return;
+                    if (editable && path[0] === 'meta' && key === 'template_id') return;
+                    if (!editable && (item === '' || item === null || (Array.isArray(item) && !item.length))) return;
                     const row = node('div', '', parent);
                     node('strong', label(key) + ': ', row);
-                    render(item, row);
+                    render(item, row, [...path, key], contract.properties?.[key]);
                 });
+            } else if (editable) {
+                const choices = contract.enum || [];
+                const input = node(choices.length ? 'select' : contract.maxLength > 255 ? 'textarea' : 'input', '', parent, 'form-input');
+                input.id = 'importField-' + path.join('_');
+                input.setAttribute('aria-label', path.map(label).join(' '));
+                if (choices.length) choices.forEach(choice => {
+                    const option = node('option', choice || 'Not specified', input);
+                    option.value = choice; option.selected = choice === value;
+                });
+                if (typeof value === 'boolean') { input.type = 'checkbox'; input.checked = value; }
+                else {
+                    if (['date', 'start_date', 'end_date'].includes(path.at(-1))) input.type = 'month';
+                    else if (path.at(-1) === 'email') input.type = 'email';
+                    input.value = value ?? '';
+                    if (contract.maxLength) input.maxLength = contract.maxLength;
+                }
+                input.addEventListener('input', () => assign(path, typeof value === 'boolean' ? input.checked : input.value));
             } else { node('span', value, parent); }
         }
         Object.entries(cv).filter(([key]) => key !== 'schema_version').forEach(([key, value]) => {
             const section = node('section', '', container, 'ai-suggestion-group');
             node('h4', key === 'meta' ? 'CV details' : label(key), section);
-            render(value, section);
+            render(value, section, [key], schema.properties?.[key]);
         });
     }
     function error(error) {

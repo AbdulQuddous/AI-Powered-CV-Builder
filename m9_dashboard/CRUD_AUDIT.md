@@ -1,5 +1,12 @@
 # Dashboard CV CRUD audit
 
+> The original CRUD implementation is documented below. The
+> [final system audit](../docs/FINAL_SYSTEM_AUDIT.md) adds version checkpoint creation
+> through existing POST `versions/` and explicit restoration through M2 POST `restore/`.
+> Restoration appends a new snapshot and retains all previous versions. JWT refresh
+> and server logout now use the shared M1 frontend transport. Earlier read-only history
+> statements and counts below describe the original stage.
+
 ## Existing functionality verified
 
 The dashboard route is `/dashboard/`, served by `m9_dashboard/views.py` and `urls.py`. Its template is `templates/m9_dashboard/dashboard.html`, and `static/m9_dashboard/js/dashboard.js` contains the existing authenticated `apiFetch` helper. JWT credentials remain in `sessionStorage.cv_access`.

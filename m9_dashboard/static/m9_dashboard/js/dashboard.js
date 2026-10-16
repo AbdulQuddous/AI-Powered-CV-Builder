@@ -21,6 +21,7 @@ const state = {
     eventsRegistered: false,
     registering: false,
     signingIn: false,
+    signingOut: false,
     createMode: 'manual',
 };
 
@@ -35,7 +36,11 @@ const $ = (id) => document.getElementById(id);
 // ======================================================
 
 function getToken() {
-    return sessionStorage.getItem(TOKEN_KEY);
+    return window.M1Session ? window.M1Session.accessToken() : sessionStorage.getItem(TOKEN_KEY);
+}
+
+function getAuthIdentity() {
+    return window.M1Session ? window.M1Session.identity() : getToken();
 }
 
 
@@ -230,7 +235,8 @@ function clearSession(preserveResume = false) {
     $('chatSessionsRows').replaceChildren();
     if (resumeURL) window.history.replaceState(null, '', resumeURL);
     sessionStorage.removeItem("m9_chat_sessions");
-    sessionStorage.removeItem(TOKEN_KEY);
+    if (window.M1Session) window.M1Session.clear();
+    else sessionStorage.removeItem(TOKEN_KEY);
 
     state.cvs = [];
 
@@ -310,7 +316,7 @@ function adoptProfile(data) {
 async function openProfile() {
     if (!requireLogin() || profile.loading || profile.saving) return;
     resetProfile();
-    const generation = profile.generation, access = getToken();
+    const generation = profile.generation, access = getAuthIdentity();
     profile.loading = true;
     $('profileStatus').textContent = 'Loading your profile...';
     profileControls();
@@ -319,17 +325,17 @@ async function openProfile() {
     try {
         const response = await apiFetch('/api/auth/me/');
         const data = await response.json();
-        if (generation !== profile.generation || access !== getToken()) return;
+        if (generation !== profile.generation || access !== getAuthIdentity()) return;
         adoptProfile(data);
         $('profileStatus').textContent = 'Change your full name to enable Save profile.';
     } catch (error) {
-        if (generation !== profile.generation || access !== getToken()) return;
+        if (generation !== profile.generation || access !== getAuthIdentity()) return;
         showFormError('profileError', authErrorMessage(error.details,
             error.status ? error.message : 'Could not load your profile. Check your connection and retry.'));
         $('profileStatus').textContent = '';
         $('profileRetry').classList.remove('hidden');
     } finally {
-        if (generation === profile.generation && access === getToken()) {
+        if (generation === profile.generation && access === getAuthIdentity()) {
             profile.loading = false;
             profileControls();
             if (profile.loaded) $('profileName').focus();
@@ -346,7 +352,7 @@ async function saveProfile(event) {
         showFormError('profileError', 'Full name must be 150 characters or fewer.');
         return;
     }
-    const generation = profile.generation, access = getToken();
+    const generation = profile.generation, access = getAuthIdentity();
     profile.saving = true;
     profile.saved = false;
     clearFormError('profileError');
@@ -357,18 +363,18 @@ async function saveProfile(event) {
             method: 'PATCH', body: JSON.stringify({full_name: fullName})
         });
         const data = await response.json();
-        if (generation !== profile.generation || access !== getToken()) return;
+        if (generation !== profile.generation || access !== getAuthIdentity()) return;
         adoptProfile(data);
         profile.saved = true;
         $('profileStatus').textContent = '✓ Profile updated successfully. Click Done to return to your dashboard.';
         showToast('Profile updated successfully.');
     } catch (error) {
-        if (generation !== profile.generation || access !== getToken()) return;
+        if (generation !== profile.generation || access !== getAuthIdentity()) return;
         showFormError('profileError', authErrorMessage(error.details,
             error.status ? error.message : 'Could not save your profile. Check your connection and retry.'));
         $('profileStatus').textContent = '';
     } finally {
-        if (generation === profile.generation && access === getToken()) {
+        if (generation === profile.generation && access === getAuthIdentity()) {
             profile.saving = false;
             profileControls();
             if (profile.saved) $('profileCancel').focus();
@@ -475,7 +481,8 @@ async function handleLogin(event) {
             );
         }
 
-        sessionStorage.setItem(TOKEN_KEY, token);
+        if (window.M1Session) window.M1Session.storeTokens({access: token, refresh: payload.refresh || payload.data?.refresh});
+        else sessionStorage.setItem(TOKEN_KEY, token);
 
         $("loginPassword").value = "";
 
@@ -502,15 +509,27 @@ async function handleLogin(event) {
 }
 
 
-function logout() {
+async function logout() {
+    if (state.signingOut) return;
+    state.signingOut = true;
+    $('logoutBtn').disabled = true;
+    const owner = getAuthIdentity();
+    let revoked = true;
+    try {
+        if (window.M1Session) revoked = await window.M1Session.logout();
+        if (getToken() && getAuthIdentity() !== owner) return;
     clearSession();
 
     closeModal("createModal");
     closeModal("previewModal");
 
-    showToast("You have signed out.");
+    showToast(revoked ? 'You have signed out.' : 'Signed out on this device. Server session revocation could not be confirmed.');
 
     openModal("loginModal");
+    } finally {
+        state.signingOut = false;
+        $('logoutBtn').disabled = false;
+    }
 }
 
 
@@ -568,11 +587,14 @@ async function apiFetch(path, options = {}) {
         );
     }
 
-    const response = await fetch(path, {
-        ...options,
-        headers,
-        credentials: "same-origin",
-    });
+    let response;
+    try {
+        const transport = window.M1Session ? window.M1Session.request : fetch;
+        response = await transport(path, {...options, headers, credentials: 'same-origin'});
+    } catch (error) {
+        if (error.status === 401) { clearSession(true); openModal('loginModal'); }
+        throw error;
+    }
 
     if (response.status === 401) {
         clearSession(true);
@@ -657,7 +679,7 @@ async function loadCVs() {
 
     state.loading = true;
     const generation = state.listGeneration;
-    const access = getToken();
+    const access = getAuthIdentity();
 
     clearFeedback();
 
@@ -724,7 +746,7 @@ async function loadCVs() {
             nextURL = page.next;
         }
 
-        if (generation !== state.listGeneration || access !== getToken()) return;
+        if (generation !== state.listGeneration || access !== getAuthIdentity()) return;
         // Each CV ID must be a valid integer.
         state.cvs = allCVs.filter((cv) => {
             return (
@@ -1150,7 +1172,7 @@ async function viewCV(id) {
 async function duplicateCV(id, button) {
     if (state.duplicating.has(id) || !requireLogin()) return;
     state.duplicating.add(id);
-    const access = getToken();
+    const access = getAuthIdentity();
     setButtonBusy(button, true, "Copying...");
 
     try {
@@ -1163,7 +1185,7 @@ async function duplicateCV(id, button) {
         );
 
         const duplicate = await response.json();
-        if (access !== getToken()) return;
+        if (access !== getAuthIdentity()) return;
         if (!Number.isSafeInteger(duplicate.id) || duplicate.id <= 0) {
             throw new Error("The copy may have been created. Refresh the dashboard to find it.");
         }
@@ -1174,7 +1196,7 @@ async function duplicateCV(id, button) {
         renderCVs();
 
         await loadCVs();
-        if (access === getToken()) {
+        if (access === getAuthIdentity()) {
             showToast(`Created “${duplicate.name}” (CV #${duplicate.id}).`);
         }
 
@@ -1312,13 +1334,13 @@ async function handleCreateCV(event) {
 
     setButtonBusy(button, true, "Creating...");
     state.creating = true;
-    const access = getToken();
+    const access = getAuthIdentity();
 
     try {
         if (state.createMode === 'ai') {
             await openAIChat(null, null, {cv_name: payload.name, target_role: payload.target_role,
                 career_level: payload.career_level, template_id: payload.template_id});
-            if (access === getToken() && chat.session) closeModal('createModal');
+            if (access === getAuthIdentity() && chat.session) closeModal('createModal');
             return;
         }
         const response = await apiFetch(
@@ -1330,7 +1352,7 @@ async function handleCreateCV(event) {
         );
 
         const result = await response.json();
-        if (access !== getToken()) return;
+        if (access !== getAuthIdentity()) return;
 
         const createdCV =
             result.data?.id
@@ -1419,6 +1441,13 @@ function onCVDeleted(id) {
     updateStatistics();
     populateTemplateFilter();
     renderCVs();
+}
+
+function onCVRestored(cv) {
+    state.listGeneration++;
+    state.cvs = state.cvs.map(item => Number(item.id) === Number(cv.id) ? cv : item);
+    window.M6Review?.observe(state.cvs);
+    updateStatistics(); populateTemplateFilter(); renderCVs();
 }
 
 
@@ -1860,7 +1889,7 @@ function registerEvents() {
     if (state.eventsRegistered) return;
     state.eventsRegistered = true;
     window.M9Crud.init({fetch: apiFetch, requireLogin, openModal, closeModal,
-        normalizeList: normalizeListResponse, onDeleted: onCVDeleted, notify: showToast});
+        normalizeList: normalizeListResponse, onDeleted: onCVDeleted, onRestored: onCVRestored, notify: showToast});
     const ai = window.M6Api.create(apiFetch);
     window.M6Review.init({fetch: apiFetch, ai, requireLogin, openModal, refresh: loadCVs});
     window.M4Import.init({ fetch: apiFetch, ai, requireLogin, openModal, refresh: loadCVs });

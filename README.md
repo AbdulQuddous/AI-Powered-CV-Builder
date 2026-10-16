@@ -1,10 +1,12 @@
 # AI-Powered CV Maker
 
 Django/DRF application with PostgreSQL, JWT accounts, CV management, templates,
-PDF/DOCX import, local Qwen conversation, optional Gemini final review, manual editing,
-rendering, and the dashboard/chat frontend. Python 3.12 is used by the current environment.
-Open `/dashboard/` after starting Django. Chatbot behavior, settings, verification and
-manual checks are in [the chatbot implementation report](docs/CHATBOT_IMPLEMENTATION_REPORT.md).
+PDF/DOCX import, local Qwen conversation, optional Gemini final review/intelligence, manual editing, rendering,
+and the dashboard/chat frontend. Python 3.12 is used by the current environment.
+Open `/dashboard/` after starting Django. The current verification results and
+deployment limitations are in [the final system audit](docs/FINAL_SYSTEM_AUDIT.md).
+Current chatbot behavior, local Ollama settings, test evidence and a manual guide are in
+[the chatbot implementation report](docs/CHATBOT_IMPLEMENTATION_REPORT.md).
 
 ## 1. Install
 ```bash
@@ -20,7 +22,7 @@ On Windows activate with `.venv\Scripts\activate` and copy with `copy`.
 ## 2. Create PostgreSQL database
 As a PostgreSQL administrator, run these SQL statements; choose your own password:
 ```sql
-CREATE USER cv_user WITH PASSWORD 'change-me';
+CREATE USER cv_user WITH PASSWORD 'your-database-password';
 CREATE DATABASE cv_maker OWNER cv_user;
 ```
 Set DATABASE_URL in .env to match. URL-encode special characters in credentials.
@@ -80,8 +82,11 @@ Run `python manage.py flushexpiredtokens` daily using your host scheduler.
 Run `python manage.py check --deploy` with production settings. Configure HSTS for your
 actual domain and infrastructure. Local-memory throttling needs a shared cache or edge
 rate limiting before multi-worker public deployment. Redis is not required for this module.
-This increment does not include email verification, password recovery, an admin UI,
-automatic deployment or CV business services.
+Email verification, password recovery and automatic deployment are not implemented.
+Raw uploaded documents must remain private; do not expose the media directory through
+the production web server. Apply migrations, including the built-in template catalogue,
+and collect static files when deploying. Configure `GEMINI_API_KEY`, `GEMINI_MODEL`
+and `M6_GEMINI_MODEL` for explicit AI actions; automated tests mock AI providers.
 
 ## References
 - https://docs.djangoproject.com/en/5.2/topics/auth/customizing/

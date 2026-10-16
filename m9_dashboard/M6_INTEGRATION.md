@@ -1,5 +1,10 @@
 # M6 dashboard integration
 
+Current cross-module verification is in [the final system audit](../docs/FINAL_SYSTEM_AUDIT.md).
+Import review now supports schema-driven corrections before explicit M2 creation.
+M7 includes an AI Review link back to the dashboard. Real PDF output and real browser
+workflows are tested in the final audit with mocked AI; live Gemini remains untested.
+
 AI Review loads the selected CV through M2 and sends the complete `data` document to M6. AI proposals are never saved automatically.
 
 ## Files changed for this integration

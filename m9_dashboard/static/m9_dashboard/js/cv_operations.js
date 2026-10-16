@@ -1,9 +1,10 @@
-/* M9 deletion and read-only history. M2 remains responsible for persistence. */
+/* M9 deletion, history and explicitly confirmed restoration through M2. */
 (function (global) {
     'use strict';
     const $ = id => document.getElementById(id);
     let api, generation = 0, deleteCV = null, deleting = false, deleteTrigger = null;
     let historyCV = null, historyBusy = false, historyTrigger = null, nextURL = null, seen = new Set();
+    let restoreVersion = null, restoring = false;
     const title = cv => cv.name || `CV #${cv.id}`;
     const visible = id => !$(id).classList.contains('hidden');
     function message(error, operation) {
@@ -20,6 +21,9 @@
         deleteCV = historyCV = null; deleting = historyBusy = false;
         deleteTrigger = historyTrigger = null;
         nextURL = null; seen = new Set();
+        restoreVersion = null; restoring = false;
+        $('restorePanel').classList.add('hidden');
+        ['versionsClose','versionsCheckpoint','restoreConfirm','restoreCancel'].forEach(id => { $(id).disabled = false; });
         api.closeModal('deleteModal'); api.closeModal('versionsModal');
         $('deleteCVName').textContent = $('versionsCVName').textContent = '';
         $('versionsRows').replaceChildren();
@@ -82,14 +86,17 @@
         return Number.isNaN(date.getTime()) ? 'Not available' : new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(date);
     }
     function closeHistory() {
+        if (restoring) return;
         historyCV = null;
         historyBusy = false;
         api.closeModal('versionsModal');
         focusBack(historyTrigger);
     }
     async function openHistory(cv, trigger) {
-        if (!api.requireLogin()) return;
-        historyCV = {id:Number(cv.id),name:title(cv)};
+        if (restoring || !api.requireLogin()) return;
+        historyCV = {id:Number(cv.id),name:title(cv),version:cv.version};
+        restoreVersion = null;
+        $('restorePanel').classList.add('hidden');
         historyTrigger = trigger;
         historyBusy = false; nextURL = null; seen = new Set();
         $('versionsRows').replaceChildren();
@@ -102,6 +109,7 @@
         if (historyBusy || !historyCV || !api.requireLogin()) return;
         const run = generation, cv = historyCV, target = nextURL || historyPath();
         historyBusy = true;
+        $('versionsCheckpoint').disabled = true;
         $('versionsMore').disabled = true;
         $('versionsModal').setAttribute('aria-busy','true');
         $('versionsError').classList.add('hidden');
@@ -121,6 +129,20 @@
                     const cell = document.createElement('td');
                     cell.textContent = String(value ?? ''); row.appendChild(cell);
                 }
+                const action = document.createElement('td');
+                const restore = document.createElement('button');
+                restore.type = 'button'; restore.className = 'secondary-button';
+                restore.textContent = Number(version.version) === cv.version ? 'Current' : 'Restore';
+                restore.disabled = Number(version.version) === cv.version;
+                restore.addEventListener('click', () => {
+                    if (restoring || historyCV !== cv) return;
+                    restoreVersion = Number(version.version);
+                    $('restoreDescription').textContent = `Restore version ${restoreVersion} of “${cv.name}” as a new version? Later history will be kept.`;
+                    $('restoreError').classList.add('hidden');
+                    $('restorePanel').classList.remove('hidden');
+                    $('restoreCancel').focus();
+                });
+                action.appendChild(restore); row.appendChild(action);
                 $('versionsRows').appendChild(row);
             }
             seen.add(path); nextURL = page.next;
@@ -137,7 +159,47 @@
         } finally {
             if (run === generation && historyCV === cv) {
                 historyBusy = false;
+                $('versionsCheckpoint').disabled = restoring;
                 $('versionsMore').disabled = false;
+                $('versionsModal').setAttribute('aria-busy','false');
+            }
+        }
+    }
+    async function writeHistory(version) {
+        if (restoring || historyBusy || !historyCV || (version !== null && !Number.isInteger(version)) || !api.requireLogin()) return;
+        const run = generation, cv = historyCV, checkpoint = version === null;
+        restoring = true;
+        ['versionsClose','versionsCheckpoint','versionsMore','restoreConfirm','restoreCancel'].forEach(id => { $(id).disabled = true; });
+        $('versionsModal').focus();
+        $('versionsModal').setAttribute('aria-busy','true');
+        $('versionsStatus').textContent = checkpoint ? 'Creating checkpoint...' : 'Restoring selected version...';
+        try {
+            const response = await api.fetch(`/api/cvs/${cv.id}/${checkpoint ? 'versions' : 'restore'}/`, {
+                method: 'POST', body: JSON.stringify(checkpoint ? {expected_version: cv.version} : {version, expected_version: cv.version})
+            });
+            const result = await response.json();
+            const restored = checkpoint ? await (await api.fetch(`/api/cvs/${cv.id}/`)).json() : result;
+            if (run !== generation || historyCV !== cv) return;
+            cv.version = restored.version; cv.name = title(restored);
+            api.onRestored(restored);
+            $('versionsCVName').textContent = cv.name;
+            $('restorePanel').classList.add('hidden'); restoreVersion = null;
+            $('versionsRows').replaceChildren(); nextURL = null; seen = new Set();
+            await loadHistory();
+            api.notify(checkpoint ? `Checkpoint ${result.version} created.` : `Version ${version} restored as version ${restored.version}.`);
+            $('versionsClose').focus();
+        } catch (error) {
+            if (run !== generation || historyCV !== cv) return;
+            const errorNode = $(checkpoint ? 'versionsError' : 'restoreError');
+            errorNode.textContent = error.status === 409
+                ? 'The CV changed elsewhere. Close history, refresh the dashboard, and review the current version before retrying.'
+                : 'Could not confirm the version change. Refresh to verify the saved version before retrying.';
+            errorNode.classList.remove('hidden');
+            $('versionsStatus').textContent = 'Version change did not complete.';
+        } finally {
+            if (run === generation && historyCV === cv) {
+                restoring = false;
+                ['versionsClose','versionsCheckpoint','versionsMore','restoreConfirm','restoreCancel'].forEach(id => { $(id).disabled = false; });
                 $('versionsModal').setAttribute('aria-busy','false');
             }
         }
@@ -149,6 +211,15 @@
         $('deleteConfirm').addEventListener('click',confirmDelete);
         $('versionsClose').addEventListener('click',closeHistory);
         $('versionsMore').addEventListener('click',loadHistory);
+        $('restoreConfirm').addEventListener('click', () => {
+            if (Number.isInteger(restoreVersion)) return writeHistory(restoreVersion);
+        });
+        $('versionsCheckpoint').addEventListener('click', () => writeHistory(null));
+        $('restoreCancel').addEventListener('click', () => {
+            if (restoring) return;
+            restoreVersion = null; $('restorePanel').classList.add('hidden');
+            $('versionsClose').focus();
+        });
         document.addEventListener('keydown',event => {
             const id = visible('deleteModal') ? 'deleteModal' : visible('versionsModal') ? 'versionsModal' : null;
             if (!id) return;

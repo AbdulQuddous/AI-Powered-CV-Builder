@@ -1,6 +1,7 @@
 import re
 
 from django.template.loader import render_to_string
+from django.template import TemplateDoesNotExist
 from rest_framework.exceptions import ValidationError
 
 from templates_app.services import TemplateService
@@ -67,7 +68,7 @@ class CVRenderer:
 
         context = build_context(cv_data)
 
-        return render_to_string(
-            template_path,
-            context,
-        )
+        try:
+            return render_to_string(template_path, context)
+        except TemplateDoesNotExist as exc:
+            raise ValidationError({'code': 'template_unavailable', 'detail': 'The selected template is unavailable.'}) from exc

@@ -19,6 +19,7 @@ function harness(overrides={}) {
         };
     };
     const get=id=>{if(!elements.has(id))elements.set(id,nodes());return elements.get(id);};
+    get('m9-cv-schema').textContent=fs.readFileSync('shared/schemas/cv_schema.json','utf8');
     const storage=new Map([['cv_access','jwt']]);
     const window={location:{href:'http://localhost/dashboard/',origin:'http://localhost',search:''},history:{replaceState() {}}};
     const c=vm.createContext({window,console,URL,URLSearchParams,Headers,FormData,AbortController,setTimeout,clearTimeout,
@@ -51,7 +52,8 @@ function harness(overrides={}) {
     vm.runInContext('window.M6Review.init({fetch:apiFetch,ai:window.M6Api.create(apiFetch),requireLogin,openModal,refresh:async()=>{}});window.M4Import.init({fetch:apiFetch,ai:window.M6Api.create(apiFetch),requireLogin,openModal,refresh:async()=>{}})',c);
     return {c,get,calls,saved,open:id=>vm.runInContext(`window.M6Review.open(${id})`,c),click:id=>get(id).listeners.click(),change:id=>get(id).listeners.input()};
 }
-const text=node=>node.textContent+' '+node.children.map(text).join(' ');
+const text=node=>node.textContent+' '+(node.value || '')+' '+node.children.map(text).join(' ');
+const find=(node,id)=>node.id===id?node:node.children.map(child=>find(child,id)).find(Boolean);
 
 test('selection only loads M2; health check sends use_ai=false and complete JSON',async()=>{
     const h=harness();assert.equal(h.calls.length,0);await h.open(12);
@@ -132,6 +134,22 @@ test('import AI extraction is explicit; M2 creation only follows confirmation',a
     await h.click('importConfirm');await h.click('importConfirm');
     assert.equal(h.calls.filter(x=>x.url==='/api/cvs/'&&x.method==='POST').length,1);
     assert.equal(h.saved.get(14).data.meta.template_id,'modern');assert.equal(h.get('importEditor').href,'/cvs/14/edit/');
+});
+
+test('import review corrections are submitted to M2 without another AI call',async()=>{
+    const h=harness();
+    vm.runInContext('window.location.search="?import=7";window.M4Import.init({fetch:apiFetch,ai:window.M6Api.create(apiFetch),requireLogin,openModal,refresh:async()=>{}})',h.c);
+    await vm.runInContext('window.M4Import.resume()',h.c);await h.click('importParse');
+    const name=find(h.get('importCVPreview'),'importField-personal_full_name');
+    name.value='Ali Corrected';name.listeners.input();
+    const skills=find(h.get('importCVPreview'),'importField-skills');
+    skills.value='Python\nDjango\nPostgreSQL';skills.listeners.input();
+    h.get('importCVTitle').value='Corrected CV';h.get('importTemplate').value='modern';
+    await h.click('importConfirm');
+    const saved=h.calls.find(call=>call.url==='/api/cvs/'&&call.method==='POST');
+    assert.equal(saved.body.data.personal.full_name,'Ali Corrected');
+    assert.deepEqual(saved.body.data.skills,['Python','Django','PostgreSQL']);
+    assert.equal(h.calls.filter(call=>call.url==='/api/ai/extract/').length,1);
 });
 
 test('missing score is never rendered as a fabricated quality score',async()=>{

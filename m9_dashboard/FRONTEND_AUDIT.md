@@ -1,5 +1,10 @@
 # Frontend connection audit — 14 October 2026
 
+> Historical baseline. The [final system audit](../docs/FINAL_SYSTEM_AUDIT.md)
+> supersedes the results and limitations below. Refresh/server logout, checkpoints,
+> version restoration, editable import review and server-side chat discovery are now
+> connected. The earlier counts below describe the previous audit only.
+
 The dashboard's main CV workflows are connected to the existing backend. This audit did not change application behavior or introduce endpoints. Registration and asset-versioning changes from the preceding task remain in the working tree.
 
 ## Connections verified

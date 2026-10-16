@@ -26,6 +26,7 @@
         if (error.status === 429) return "Too many requests. Wait a moment, then try again.";
         const detail = error.details?.error?.details || error.details;
         if ([400, 422].includes(error.status)) {
+            if (Array.isArray(detail?.data)) return detail.data.map(item => typeof item === 'string' ? item : `${item.path}: ${item.message}`).join(' · ');
             const message = detail?.detail || detail?.file;
             if (typeof message === "string") return message;
             if (Array.isArray(message)) return message.filter(item => typeof item === "string").join(" ");
@@ -41,6 +42,7 @@
     }
 
     function view(state, message) {
+        $('importEditFields').disabled = busy || Boolean(createdId);
         $("importModal").dataset.state = state;
         $("importStatus").textContent = message;
         $("importModal").setAttribute("aria-busy", String(busy));
@@ -123,7 +125,7 @@
                 parsed = result; parsedText = raw;
             }
             proposal = JSON.parse(JSON.stringify(parsed.cv));
-            global.M6UI.preview($("importCVPreview"), proposal);
+            global.M6UI.preview($("importCVPreview"), proposal, {editable: true});
             $("importAIWarnings").textContent = (parsed.warnings || []).map(item => typeof item === "string" ? item : item.message).join(" ");
             $("importCVTitle").value = `${proposal.personal?.full_name || proposal.meta?.target_role || 'Imported'} CV`;
             $("importStructured").classList.remove("hidden");
@@ -141,7 +143,7 @@
             if (run !== generation) return;
             busy = false;
             view("parsing_error", "Could not complete AI extraction. You can retry.");
-            showError(global.M6UI.error(error));
+            showError(error.status === 400 ? errorMessage(error, 'create') : global.M6UI.error(error));
         }
     }
 
@@ -171,7 +173,7 @@
             if (run !== generation) return;
             busy = false;
             view("save_error", "Could not confirm the save. Refresh the dashboard to check for the CV before retrying.");
-            showError(global.M6UI.error(error));
+            showError(error.status === 400 ? errorMessage(error, 'create') : global.M6UI.error(error));
         }
     }
 

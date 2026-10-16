@@ -165,7 +165,50 @@ class BrowserJourneys(StaticLiveServerTestCase):
         self.browser.get(self.live_server_url + '/dashboard/')
         self.browser.wait("typeof state!=='undefined' && !state.loading && !document.getElementById('loginModal').classList.contains('hidden')===false")
 
+    def test_profile_refresh_and_server_logout(self):
+        self.browser.click('#profileBtn'); self.browser.wait("!profile.loading && profile.loaded!==null")
+        self.browser.value('#profileName', 'Browser Updated'); self.browser.click('#profileSubmit')
+        self.browser.wait("profile.saved && !profile.saving")
+        self.assertEqual(self.browser.js("return document.getElementById('profileCancel').textContent"), 'Done')
+        self.user.refresh_from_db(); self.assertEqual(self.user.full_name, 'Browser Updated')
+        self.browser.click('#profileCancel')
+        self.browser.js("sessionStorage.setItem('cv_access','expired-test-token')")
+        self.browser.click('#refreshBtn'); self.browser.wait("!state.loading && !state.signingIn")
+        self.assertNotEqual(self.browser.js("return sessionStorage.getItem('cv_access')"), 'expired-test-token')
+        self.browser.click('#logoutBtn')
+        self.browser.wait("!state.signingOut && !document.getElementById('loginModal').classList.contains('hidden')")
+        self.assertIsNone(self.browser.js("return sessionStorage.getItem('cv_refresh')"))
+        from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+        self.assertGreaterEqual(BlacklistedToken.objects.count(), 2)
 
+    def test_manual_editor_pdf_restore_duplicate_and_delete(self):
+        self.browser.click('#heroCreate'); self.browser.wait("document.getElementById('templateId').options.length>=3")
+        for field, value in [('cvName', 'Manual browser CV'), ('targetRole', 'Backend Developer'), ('careerLevel', 'fresher'), ('templateId', 'classic')]:
+            self.browser.value('#' + field, value)
+        self.browser.click('#createSubmit'); self.browser.wait("location.pathname.includes('/edit/') && typeof Alpine!=='undefined'")
+        self.browser.wait("document.querySelector('[x-data]') && Alpine.$data(document.querySelector('[x-data]')).loaded!==null")
+        self.browser.js("const input=[...document.querySelectorAll('.m7-edit-form label')].find(label=>label.textContent.includes('full name')).querySelector('input');input.value='Browser Candidate';input.dispatchEvent(new Event('input',{bubbles:true}));")
+        self.browser.click('#save-cv-btn'); self.browser.wait("!Alpine.$data(document.querySelector('[x-data]')).dirty")
+        cv = CV.objects.get(owner=self.user); self.assertEqual(cv.data['personal']['full_name'], 'Browser Candidate')
+        self.browser.click('#export-pdf-btn')
+        target = Path(self.files.name) / f'cv-{cv.id}.pdf'
+        deadline = time.monotonic() + 15
+        while not target.exists() and time.monotonic() < deadline: time.sleep(.1)
+        self.assertIn('Browser Candidate', ''.join(page.extract_text() for page in PdfReader(target).pages))
+        self.reload_dashboard(); self.browser.click('[data-action="versions"]')
+        self.browser.wait("document.getElementById('versionsRows').children.length===2")
+        self.browser.click('#versionsRows tr:last-child button'); self.browser.click('#restoreConfirm')
+        self.browser.wait("document.getElementById('versionsStatus').textContent==='Saved versions loaded.' && document.getElementById('restorePanel').classList.contains('hidden')")
+        cv.refresh_from_db(); self.assertEqual(cv.version, 3); self.assertEqual(cv.data['personal']['full_name'], '')
+        self.assertEqual(cv.versions.count(), 3)
+        self.browser.click('#versionsCheckpoint')
+        self.browser.wait("document.getElementById('toast').textContent==='Checkpoint 4 created.'")
+        cv.refresh_from_db(); self.assertEqual(cv.version, 4); self.assertEqual(cv.versions.count(), 4)
+        self.browser.click('#versionsClose'); self.browser.click('[data-action="duplicate"]')
+        self.browser.wait("state.cvs.length===2 && !state.loading")
+        self.browser.click('[data-action="delete"]'); self.browser.click('#deleteConfirm')
+        self.browser.wait("state.cvs.length===1")
+        self.assertEqual(CV.objects.filter(owner=self.user).count(), 1)
 
     def test_creation_shows_validation_then_accepts_canonical_career_levels(self):
         from chatbot.models import ChatSession
@@ -276,7 +319,32 @@ class BrowserJourneys(StaticLiveServerTestCase):
         self.assertEqual(cv.data['summary'], 'Software Engineering graduate with Python and Django skills.')
         self.assertEqual(cv.data['personal']['email'], 'corrected@example.org')
 
+    def test_docx_import_review_correction_and_save(self):
+        file = Path(self.files.name) / 'browser.docx'
+        document = Document(); document.add_paragraph(json.dumps(SAMPLE_CV)); document.save(file)
+        self.browser.click('#importCV'); self.browser.upload('#importFile', file); self.browser.click('#importUpload')
+        self.browser.wait("document.getElementById('importModal').dataset.state==='uploaded'")
+        self.browser.click('#importExtract'); self.browser.wait("document.getElementById('importModal').dataset.state==='extracted'")
+        self.browser.click('#importParse'); self.browser.wait("document.getElementById('importModal').dataset.state==='review'")
+        self.browser.value('#importField-personal_full_name', 'Corrected Candidate')
+        self.browser.value('#importTemplate', 'developer'); self.browser.click('#importConfirm')
+        self.browser.wait("document.getElementById('importModal').dataset.state==='saved'")
+        cv = CV.objects.get(owner=self.user)
+        self.assertEqual(cv.data['personal']['full_name'], 'Corrected Candidate')
+        self.assertEqual(cv.data['meta']['template_id'], 'developer')
+        self.browser.click('#importEditor'); self.browser.wait("location.pathname.includes('/edit/')")
+        self.browser.wait("typeof Alpine!=='undefined' && Alpine.$data(document.querySelector('[x-data]')).loaded!==null")
+        self.assertEqual(self.browser.js("return Alpine.$data(document.querySelector('[x-data]')).cv.personal.full_name"), 'Corrected Candidate')
 
+    def test_ai_rewrite_discard_approve_and_persistence(self):
+        cv = self.saved_cv(summary='I made APIs using Django.')
+        self.reload_dashboard(); self.browser.click('[data-action="intelligence"]')
+        self.browser.wait("!document.getElementById('aiRewrite').disabled")
+        self.browser.click('#aiRewrite'); self.browser.wait("!document.getElementById('aiApply').disabled")
+        self.browser.click('#aiDiscard'); cv.refresh_from_db(); self.assertEqual(cv.data['summary'], 'I made APIs using Django.')
+        self.browser.click('#aiRewrite'); self.browser.wait("!document.getElementById('aiApply').disabled")
+        self.browser.click('#aiApply'); self.browser.wait("document.getElementById('aiStatus').textContent.includes('saved')")
+        cv.refresh_from_db(); self.assertEqual(cv.data['summary'], 'Developed APIs using Django.')
 
     def test_grouped_education_and_explicit_dates_preserve_the_university(self):
         self.browser.click('#createAI'); self.browser.wait("document.getElementById('templateId').options.length>=3")

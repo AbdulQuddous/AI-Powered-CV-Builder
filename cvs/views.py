@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from .models import CV
 from .serializers import (CVReadSerializer, CVWriteSerializer, CVPatchSerializer,
                           CVVersionSerializer, CheckpointSerializer, DuplicateSerializer, ChatImportSerializer)
+from .serializers import RestoreSerializer
 from . import services
 
 class CVPagination(PageNumberPagination):
@@ -58,3 +59,11 @@ class CVViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Gener
         serializer.is_valid(raise_exception=True)
         version = services.checkpoint_cv(user=request.user, cv_id=pk, **serializer.validated_data)
         return Response(CVVersionSerializer(version).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def restore(self, request, pk=None):
+        self.get_object()
+        serializer = RestoreSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        cv = services.restore_cv(user=request.user, cv_id=pk, **serializer.validated_data)
+        return Response(CVReadSerializer(cv).data)

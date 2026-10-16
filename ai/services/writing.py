@@ -83,7 +83,7 @@ def improve_text(
         source_numbers = set(
             re.findall(
                 r"\b\d+(?:[.,]\d+)*%?",
-                text + " " + target_role,
+                text,
             )
         )
 

@@ -49,6 +49,17 @@ def checkpoint_cv(*, user, cv_id, expected_version=None):
     return snapshot(cv)
 
 @transaction.atomic
+def restore_cv(*, user, cv_id, version, expected_version):
+    cv = owned(user=user, cv_id=cv_id, lock=True)
+    check_version(cv, expected_version)
+    source = get_object_or_404(CVVersion, cv=cv, version=version)
+    # The existing update service validates the restored document, advances the
+    # current version, and snapshots it. Older and later snapshots are retained.
+    return update_cv(user=user, cv_id=cv.id, values={
+        'name': source.name, 'data': deepcopy(source.data), 'expected_version': expected_version,
+    })
+
+@transaction.atomic
 def duplicate_cv(*, user, cv_id, name=None):
     source = owned(user=user, cv_id=cv_id, lock=True)
     return create_cv(user=user, values={'name':name or source.name[:248]+' (copy)', 'data':deepcopy(source.data)})

@@ -38,6 +38,10 @@ class CheckpointSerializer(StrictSerializer):
 class DuplicateSerializer(StrictSerializer):
     name = serializers.CharField(max_length=255, required=False)
 
+class RestoreSerializer(StrictSerializer):
+    version = serializers.IntegerField(min_value=1)
+    expected_version = serializers.IntegerField(min_value=1)
+
 class CVReadSerializer(serializers.ModelSerializer):
     target_role = serializers.CharField(source='data.meta.target_role', read_only=True)
     career_level = serializers.CharField(source='data.meta.career_level', read_only=True)

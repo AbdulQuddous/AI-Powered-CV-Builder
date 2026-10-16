@@ -11,19 +11,31 @@
         </div>
     </section>
 </div>
-<div id="versionsModal" class="dashboard-modal hidden" role="dialog" aria-modal="true" aria-labelledby="versionsTitle">
+<div id="versionsModal" class="dashboard-modal hidden" role="dialog" aria-modal="true" aria-labelledby="versionsTitle" tabindex="-1">
     <div class="modal-backdrop"></div>
     <section class="modal-card max-w-3xl">
         <header class="flex flex-wrap items-center justify-between gap-3">
             <div><h2 id="versionsTitle" class="text-xl font-bold">Version history</h2><p id="versionsCVName" class="mt-2"></p></div>
-            <button id="versionsClose" type="button" class="secondary-button">Close</button>
+            <div class="flex flex-wrap gap-3">
+                <button id="versionsCheckpoint" type="button" class="secondary-button">Create checkpoint</button>
+                <button id="versionsClose" type="button" class="secondary-button">Close</button>
+            </div>
         </header>
         <p id="versionsStatus" class="mt-4" role="status" aria-live="polite"></p>
         <p id="versionsError" class="hidden mt-4 text-rose-700" role="alert"></p>
         <div class="mt-5 overflow-x-auto">
-            <table class="versions-table"><caption class="sr-only">Saved CV versions</caption><thead><tr><th scope="col">Version</th><th scope="col">CV title</th><th scope="col">Saved at</th></tr></thead><tbody id="versionsRows"></tbody></table>
+            <table class="versions-table"><caption class="sr-only">Saved CV versions</caption><thead><tr><th scope="col">Version</th><th scope="col">CV title</th><th scope="col">Saved at</th><th scope="col">Action</th></tr></thead><tbody id="versionsRows"></tbody></table>
         </div>
         <button id="versionsMore" type="button" class="secondary-button hidden mt-5">Load older versions</button>
-        <p class="mt-4 text-sm text-slate-500">History is read-only. Viewing it does not change or remove saved versions.</p>
+        <section id="restorePanel" class="hidden mt-5 rounded-xl border border-indigo-200 p-4">
+            <h3 class="font-semibold">Restore this version?</h3>
+            <p id="restoreDescription" class="mt-2"></p>
+            <p id="restoreError" role="alert" class="hidden mt-3 text-rose-700"></p>
+            <div class="mt-4 flex gap-3">
+                <button id="restoreCancel" type="button" class="secondary-button">Cancel</button>
+                <button id="restoreConfirm" type="button" class="primary-button">Restore version</button>
+            </div>
+        </section>
+        <p class="mt-4 text-sm text-slate-500">Viewing history does not change saved versions. Restoring creates a new current version and preserves all previous versions.</p>
     </section>
 </div>

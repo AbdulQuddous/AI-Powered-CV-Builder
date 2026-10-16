@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 from django.shortcuts import render
 from django.views.decorators.cache import never_cache
@@ -9,8 +10,9 @@ from shared.enums.career_level import CareerLevel
 def dashboard_asset_version():
     """Refresh browser assets whenever a dashboard script or stylesheet changes."""
     root = Path(__file__).resolve().parent / 'static' / 'm9_dashboard'
-    return str(max((asset.stat().st_mtime_ns for directory in ('js', 'css')
-                    for asset in (root / directory).glob('*') if asset.is_file()), default=0))
+    assets = [asset for directory in ('js', 'css') for asset in (root / directory).glob('*') if asset.is_file()]
+    assets.append(root.parents[2] / 'accounts' / 'static' / 'accounts' / 'js' / 'session.js')
+    return str(max(asset.stat().st_mtime_ns for asset in assets))
 
 
 @require_GET
@@ -33,5 +35,6 @@ def dashboard_page(request):
         request,
         "m9_dashboard/dashboard.html",
         {'dashboard_asset_version': dashboard_asset_version(),
-         'career_levels': [{'value': level.value, 'label': level.value.title()} for level in CareerLevel]},
+         'career_levels': [{'value': level.value, 'label': level.value.title()} for level in CareerLevel],
+         'cv_schema': json.loads((Path(__file__).resolve().parent.parent / 'shared' / 'schemas' / 'cv_schema.json').read_text())},
     )

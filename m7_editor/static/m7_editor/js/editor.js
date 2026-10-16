@@ -154,6 +154,7 @@
 
       id: '',
       cv: {},
+      cvSchema: null,
       loaded: null,
       initial: '',
 
@@ -205,6 +206,11 @@
       // --------------------------------
 
       init() {
+        const schemaNode = global.document.getElementById('m7-cv-schema');
+        if (schemaNode) {
+          const schema = JSON.parse(schemaNode.textContent);
+          if (schema && typeof schema === 'object') this.cvSchema = schema;
+        }
         const requestedSection = (global.location?.hash || '').slice(1);
         if (SECTIONS.some(([key]) => key === requestedSection)) {
           this.active = requestedSection;
@@ -311,6 +317,13 @@
         } catch (e) {
           this.authRequired = e.status === 401;
           this.error = e.message;
+          if ([401, 403, 404].includes(e.status)) {
+            this.loaded = null;
+            this.cv = {};
+            this.initial = '';
+            this._livePreview?.destroy();
+            this.closeM8Preview();
+          }
 
         } finally {
           this.loading = false;
@@ -462,7 +475,8 @@
         const url =
           `/api/cvs/${encodeURIComponent(this.id)}/${action}`;
 
-        const response = await global.fetch(
+        const transport = global.M1Session ? global.M1Session.request : global.fetch;
+        const response = await transport(
           url,
           {
             method,
@@ -796,11 +810,20 @@
         return ['date', 'start_date', 'end_date'].includes(key);
       },
 
+      rowChoices(section, field) {
+        return this.cvSchema?.properties?.[section]?.items?.properties?.[field]?.enum || [];
+      },
+
+      listLimit(section) {
+        return this.cvSchema?.properties?.[section]?.maxItems ?? Infinity;
+      },
+
       // --------------------------------
       // ADD SECTION ENTRY
       // --------------------------------
 
       add(section) {
+        if (this.list(section).length >= this.listLimit(section)) return;
 
         if (this.cv[section] == null) {
           this.cv[section] = [];

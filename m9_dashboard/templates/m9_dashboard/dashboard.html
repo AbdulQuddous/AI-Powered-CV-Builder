@@ -12,6 +12,7 @@
     >
 
     <title>My CVs | CV Maker</title>
+    {{ cv_schema|json_script:"m9-cv-schema" }}
 
     <script
         src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4">
@@ -814,6 +815,7 @@
 ></div>
 
 
+<script src="{% static 'accounts/js/session.js' %}?v={{ dashboard_asset_version }}" defer></script>
 <script
     src="{% static 'm9_dashboard/js/dashboard.js' %}?v={{ dashboard_asset_version }}"
     defer
