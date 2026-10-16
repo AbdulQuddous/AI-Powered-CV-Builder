@@ -11,7 +11,7 @@ from chatbot.services.local_extractor import is_finish_command, normalize_text
 
 MODE = 'edit_existing'
 INTRO = 'What would you like to add or edit in your existing CV?'
-NEXT_EDIT = 'What else would you like to add or change in your CV?'
+NEXT_EDIT = 'What else would you like to add or change in your CV? Say "finish" or "nothing else" when you are done.'
 FIELDS = {
     'projects': ('name', 'description', 'technologies'),
     'experience': ('company', 'role', 'responsibilities'),

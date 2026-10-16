@@ -10,8 +10,7 @@ from chatbot.services.response_validator import (
 )
 
 
-class AIServiceError(Exception):
-    pass
+from chatbot.services.errors import AIServiceError
 
 
 class GroqClient:
@@ -69,13 +68,6 @@ class GroqClient:
             ) from exc
 
         except Exception as exc:
-            print("\n==============================")
-            print("GROQ REAL ERROR")
-            print("==============================")
-            print(type(exc).__name__)
-            print(str(exc))
-            print("==============================\n")
-
             raise AIServiceError(
-                f"Groq API request failed: {exc}"
+                "Groq API request failed."
             ) from exc

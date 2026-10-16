@@ -1,0 +1,175 @@
+{
+  "model": "qwen3.5:4b",
+  "models_installed": [
+    "qwen3.5:4b",
+    "qwen3:8b"
+  ],
+  "results": [
+    {
+      "message": "My name is Ali Khan.",
+      "seconds": 22.492,
+      "structured": true,
+      "intent": "answer",
+      "expected_facts": true,
+      "extracted": {
+        "personal": {
+          "full_name": "Ali Khan"
+        }
+      },
+      "control": {
+        "intent": "answer",
+        "skip_fields": [],
+        "uncertain_fields": [],
+        "requires_clarification": false
+      },
+      "validation_errors": [],
+      "evidence_warning": null
+    },
+    {
+      "message": "My email is ali@gmail.com.",
+      "seconds": 23.78,
+      "structured": true,
+      "intent": "answer",
+      "expected_facts": true,
+      "extracted": {
+        "personal": {
+          "email": "ali@gmail.com"
+        }
+      },
+      "control": {
+        "intent": "answer",
+        "skip_fields": [],
+        "uncertain_fields": [],
+        "requires_clarification": false
+      },
+      "validation_errors": [],
+      "evidence_warning": null
+    },
+    {
+      "message": "I worked at ABC for six months.",
+      "seconds": 28.368,
+      "structured": true,
+      "intent": "answer",
+      "expected_facts": true,
+      "extracted": {
+        "experience": [
+          {
+            "company": "ABC"
+          }
+        ]
+      },
+      "control": {
+        "intent": "answer",
+        "skip_fields": [],
+        "uncertain_fields": [],
+        "requires_clarification": false
+      },
+      "validation_errors": [],
+      "evidence_warning": null
+    },
+    {
+      "message": "I made a Django project using PostgreSQL.",
+      "seconds": 26.208,
+      "structured": true,
+      "intent": "answer",
+      "expected_facts": true,
+      "extracted": {
+        "projects": [
+          {
+            "name": "Django project",
+            "technologies": [
+              "Django",
+              "PostgreSQL"
+            ]
+          }
+        ]
+      },
+      "control": {
+        "intent": "answer",
+        "skip_fields": [],
+        "uncertain_fields": [],
+        "requires_clarification": false
+      },
+      "validation_errors": [],
+      "evidence_warning": null
+    },
+    {
+      "message": "I want to add Urdu to my CV.",
+      "seconds": 23.56,
+      "structured": true,
+      "intent": "answer",
+      "expected_facts": true,
+      "extracted": {
+        "languages": [
+          {
+            "name": "Urdu"
+          }
+        ]
+      },
+      "control": {
+        "intent": "answer",
+        "skip_fields": [],
+        "uncertain_fields": [],
+        "requires_clarification": false
+      },
+      "validation_errors": [],
+      "evidence_warning": null
+    },
+    {
+      "message": "Change my email to ali@outlook.com.",
+      "seconds": 23.68,
+      "structured": true,
+      "intent": "answer",
+      "expected_facts": true,
+      "extracted": {
+        "personal": {
+          "email": "ali@outlook.com"
+        }
+      },
+      "control": {
+        "intent": "answer",
+        "skip_fields": [],
+        "uncertain_fields": [],
+        "requires_clarification": false
+      },
+      "validation_errors": [],
+      "evidence_warning": null
+    },
+    {
+      "message": "Who won the cricket match?",
+      "seconds": 22.71,
+      "structured": true,
+      "intent": "off_topic",
+      "expected_facts": true,
+      "extracted": {},
+      "control": {
+        "intent": "off_topic",
+        "skip_fields": [],
+        "uncertain_fields": [],
+        "requires_clarification": false
+      },
+      "validation_errors": [],
+      "evidence_warning": null
+    }
+  ],
+  "writes": 0,
+  "gemini_calls": 0,
+  "project_title_guard_recheck": {
+    "message": "I made a Django project using PostgreSQL.",
+    "seconds": 24.763,
+    "extracted": [
+      {
+        "technologies": [
+          "Django",
+          "PostgreSQL"
+        ]
+      }
+    ],
+    "validation_errors": [],
+    "evidence_warning": "Please confirm extracted details that were not explicit in your answer: projects.name (please confirm the actual title).",
+    "expected_facts": true,
+    "writes": 0,
+    "gemini_calls": 0
+  },
+  "note": "Synthetic local-only examples; the project-title guard was tightened and rechecked after the seven-example pass. No application data was written; no Gemini calls were made."
+}

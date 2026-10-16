@@ -11,14 +11,7 @@ from chatbot.services.response_validator import (
     InvalidAIResponse,
     validate_ai_response,
 )
-
-
-class AIServiceError(Exception):
-    pass
-
-
-class AIRateLimitError(AIServiceError):
-    pass
+from chatbot.services.errors import AIServiceError, AIRateLimitError
 
 
 class GeminiClient:
@@ -31,6 +24,8 @@ class GeminiClient:
         self.client = OpenAI(
             api_key=settings.GEMINI_API_KEY,
             base_url=settings.GEMINI_BASE_URL,
+            timeout=settings.M5_TIMEOUT_SECONDS,
+            max_retries=0,
         )
 
         self.model = settings.GEMINI_MODEL
@@ -41,6 +36,7 @@ class GeminiClient:
                 self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
+                    max_tokens=4096,
                     response_format={
                         "type": "json_schema",
                         "json_schema": {

@@ -81,6 +81,8 @@ def collected_updates(session):
         if session.conversation_state.get('edit_new_projects'):
             updates.setdefault('projects', [])
         return updates
+    if 'collected_data' in session.conversation_state:
+        return deepcopy(session.conversation_state['collected_data'])
     result = {"personal": {}}
     messages = session.messages.filter(role=ChatMessage.Role.ASSISTANT).exclude(intent="irrelevant").order_by("created_at", "id")
     for message in messages:
@@ -144,6 +146,11 @@ def canonical_entry(section, item, warnings):
     entry = {key: text(item.get(key)) for key in fields}
     for key in ("start_date", "end_date", "date"):
         if key in entry:
+            if section == 'experience' and key == 'end_date' and (
+                item.get('is_current') or text(item.get('end_date')).lower() in ('present', 'current', 'ongoing')
+            ):
+                entry[key] = ''
+                continue
             entry[key] = date(item.get(key), section, key, warnings)
     if section == "experience":
         entry["job_title"] = text(item.get("role") or item.get("job_title"))
@@ -190,6 +197,23 @@ def build_chat_document(session, current=None):
             entries = merge_entries(existing + deepcopy(additions), value, section)
             document[section] = [canonical_entry(section, item, warnings) for item in entries]
     state = session.conversation_state or {}
+    for patch in state.get('entry_patches', []):
+        section, index = patch['section'], patch['index']
+        if section not in ('education', 'experience', 'projects') or type(index) is not int or not 0 <= index < len(document[section]):
+            raise ValidationError({'detail': 'The selected entry is no longer available. Reopen the latest CV.'})
+        raw = deepcopy(document[section][index])
+        if section == 'experience':
+            raw['role'] = raw['job_title']
+            raw['responsibilities'] = raw['highlights']
+        raw.update(patch['updates'])
+        document[section][index] = canonical_entry(section, raw, warnings)
+    removed = {item.casefold() for item in state.get('removed_skills', [])}
+    document['skills'] = [skill for skill in document['skills'] if skill.casefold() not in removed]
+    indexes = state.get('display_experience_indexes')
+    if indexes is not None:
+        if not (0 < len(indexes) <= 5 and all(type(i) is int and 0 <= i < len(document['experience']) for i in indexes)):
+            raise ValidationError({'detail': 'Please select up to five valid experiences.'})
+        document['experience'] = [document['experience'][i] for i in indexes]
     if state.get('mode') == 'edit_existing':
         state = state.get('edit_metadata_updates') or {}
     for key in ("target_role", "career_level"):
@@ -200,7 +224,16 @@ def build_chat_document(session, current=None):
                 warnings.append("M2 stores student career level as 'other'; your education is preserved.")
             document["meta"][key] = value
     if not document["meta"]["template_id"]:
-        document["meta"]["template_id"] = "modern"
+        document["meta"]["template_id"] = session.conversation_state.get('template_id') or 'modern'
+    changes = session.conversation_state.get('approved_review_changes', [])
+    if changes:
+        from ai.services.final_review import fingerprint
+        if fingerprint(document) != session.conversation_state.get('review_decisions', {}).get('fingerprint'):
+            raise ValidationError({'detail': 'The draft changed after review approval. Review the latest draft again.'})
+    for change in changes:
+        # Server-created, fingerprint-bound proposals; never arbitrary paths from the browser.
+        from ai.services.final_review import apply_change
+        apply_change(document, change)
     return validate_document(document), list(dict.fromkeys(warnings))
 
 
@@ -218,16 +251,20 @@ def save_chat_cv(*, user, session_id, expected_version=None):
     document, warnings = build_chat_document(session, current=cv.data if cv else None)
     if cv:
         if document == cv.data:
+            session.conversation_state['chat_saved_cv_id'] = cv.id
+            session.save(update_fields=['conversation_state', 'updated_at'])
             return cv, warnings
         if expected_version is None:
             raise ChatImportConflict("Retrieve the saved CV's current version before saving these details.")
         cv = services.update_cv(user=user, cv_id=cv.id, values={"data": document, "expected_version": expected_version})
     else:
-        name = (document["meta"]["target_role"] or "AI-assisted") + " CV"
+        name = session.conversation_state.get('cv_name') or (document["meta"]["target_role"] or "AI-assisted") + " CV"
         cv = services.create_cv(user=user, values={"name": name[:255], "data": document})
         session.cv_id = cv.id
         session.save(update_fields=["cv_id", "updated_at"])
     if editing:
         session.conversation_state['edit_saved_cv_id'] = cv.id
         session.save(update_fields=['conversation_state', 'updated_at'])
+    session.conversation_state['chat_saved_cv_id'] = cv.id
+    session.save(update_fields=['conversation_state', 'updated_at'])
     return cv, warnings

@@ -33,10 +33,10 @@ class TemplateService:
     @staticmethod
     def is_compatible(template, level=None, role=None):
 
-        if level and level not in template.supported_levels:
+        if level and template.supported_levels and level not in template.supported_levels:
             return False
 
-        if role and role not in template.supported_roles:
+        if role and template.supported_roles and role not in template.supported_roles:
             return False
 
         return True

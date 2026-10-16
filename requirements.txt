@@ -31,6 +31,7 @@ nodejs==0.1.1
 openai==3.26.0
 optional-django==0.1.0
 pillow==12.3.0
+phonenumbers==9.0.41
 psycopg==3.3.6
 psycopg-binary==3.3.6
 pyasn1==0.6.4

@@ -7,7 +7,7 @@ This module must NOT try to understand arbitrary natural language.
 It only handles values/commands that can be interpreted
 with very high confidence.
 
-Everything else must fall back to Gemini.
+Everything else must fall back to the local provider.
 """
 
 import re
@@ -53,7 +53,7 @@ def extract_exact_career_level(text):
     """
     Only handles very obvious career-level answers.
 
-    Anything more complicated should go to Gemini.
+    Anything more complicated should go to the local provider.
     """
 
     normalized = normalize_text(text)
@@ -69,6 +69,9 @@ def extract_exact_career_level(text):
 
 FINISH_COMMANDS = {
     "finish",
+    "fnish",
+    "finsh",
+    "finsih",
     "finished",
     "complete",
     "complete cv",
@@ -99,7 +102,7 @@ EXACT_SKIP_COMMANDS = {
 
 
 def is_finish_command(text):
-    normalized = normalize_text(text)
+    normalized = normalize_text(text).rstrip('.!')
 
     return normalized in FINISH_COMMANDS
 
@@ -115,7 +118,7 @@ def is_exact_skip_command(text):
     But:
         "I have LinkedIn but no GitHub and portfolio"
         -> NOT handled locally
-        -> Gemini
+        -> the local provider
     """
 
     normalized = normalize_text(text)
@@ -128,12 +131,12 @@ def is_exact_skip_command(text):
 # ============================================================
 #
 # NOTE: This module no longer tries to parse arbitrary URLs.
-# URL/link parsing is intentionally delegated to Gemini.
+# URL/link parsing is intentionally delegated to the local provider.
 #
 # The only link-related logic kept here is explicit NEGATION
 # detection ("no github", "I don't have a portfolio"),
 # because that is a closed set of phrases we can match with
-# very high confidence and it must not cost a Gemini call.
+# very high confidence and it must not cost a the local provider call.
 # ============================================================
 
 PROFILE_FIELDS = {
@@ -227,7 +230,7 @@ def extract_profile_information(text):
     Return only NEGATION information about profile links.
 
     Provided links are NOT parsed locally — those go to
-    Gemini, which is far better at recognizing URLs.
+    the local provider, which is far better at recognizing URLs.
 
     Returns:
         {

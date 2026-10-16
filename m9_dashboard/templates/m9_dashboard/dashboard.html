@@ -149,6 +149,7 @@
 
                 <button id="importCV" type="button" class="secondary-button">Import Existing CV</button>
                 <button id="createAI" type="button" class="primary-button">Create CV with AI</button>
+                <button id="resumeChat" type="button" class="secondary-button">Resume AI chat</button>
 
                 <span
                     id="authStatus"
@@ -568,6 +569,7 @@
 
 {% include 'm9_dashboard/register_modal.html' %}
 {% include 'm9_dashboard/profile_modal.html' %}
+{% include 'm9_dashboard/chat_sessions_modal.html' %}
 
 <!-- CREATE CV MODAL -->
 <div
@@ -651,17 +653,9 @@
                     id="careerLevel"
                     class="form-input"
                 >
-                    <option value="fresher">
-                        Fresher
-                    </option>
-
-                    <option value="junior">
-                        Junior
-                    </option>
-
-                    <option value="mid">
-                        Mid-Level
-                    </option>
+                    {% for level in career_levels %}
+                    <option value="{{ level.value }}">{{ level.label }}</option>
+                    {% endfor %}
                 </select>
             </div>
 
@@ -782,7 +776,25 @@
             <label for="chatInput" class="form-label">Your message</label>
             <div class="chat-input-row"><input id="chatInput" class="form-input" maxlength="10000" autocomplete="off" placeholder="Type your answer…" required><button id="chatSend" class="primary-button" type="submit">Send</button></div>
         </form>
+        <div class="chat-controls">
+            <button id="chatSkip" type="button" class="secondary-button">Skip optional question</button>
+            <button id="chatBack" type="button" class="secondary-button">Undo last change</button>
+            <button id="chatProgress" type="button" class="secondary-button">Show collected information</button>
+        </div>
         <p id="chatComplete" class="hidden">Information collection is complete. Save the collected details to include them in your CV preview.</p>
+        <button id="chatDraft" type="button" class="secondary-button hidden">Review collected draft</button>
+        <button id="chatReopen" type="button" class="secondary-button hidden">Correct collected details</button>
+        <button id="chatLatest" type="button" class="secondary-button hidden">Open latest CV in a new chat</button>
+        <section id="chatDraftPanel" class="hidden" aria-label="Draft review">
+            <div id="chatDraftDetails"></div>
+            <p>Optional: Gemini can review your wording. Your contact details are excluded. You can save without this review.</p>
+            <label><input id="chatExternalApproval" type="checkbox"> I approve sending this draft to Gemini for review.</label>
+            <button id="chatFinalReview" type="button" class="secondary-button">Request Gemini review</button>
+            <div id="chatReviewSuggestions"></div>
+            <button id="chatApplyReview" type="button" class="secondary-button hidden">Approve selected wording changes</button>
+            <button id="chatDiscardReview" type="button" class="secondary-button hidden">Reject all wording changes</button>
+            <p id="chatReviewStatus" role="status"></p>
+        </section>
         <button id="chatSave" type="button" class="primary-button hidden">Save collected details to CV</button>
         <p id="chatSaveStatus" role="status" class="hidden"></p>
         <a id="chatEditor" class="primary-button hidden">Open CV Editor</a>

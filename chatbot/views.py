@@ -13,15 +13,18 @@ from chatbot.serializers import (
     ChatSessionCreateResponseSerializer,
     ChatSessionCreateSerializer,
     ChatSessionDetailSerializer,
+    ChatSessionListSerializer,
 )
+from rest_framework.pagination import PageNumberPagination
 from chatbot.services.conversation_service import (
     create_chat_session,
     process_user_message,
 )
 from chatbot.services.existing_cv_conversation import prepare_existing_session
-from chatbot.services.groq_client import (
-    AIServiceError,
-)
+from chatbot.services.content_handling import repair_hostile_experience
+from chatbot.services.optional_section_recovery import repair_optional_answers
+from chatbot.services.project_recovery import repair_project_profile_split
+from chatbot.services.errors import AIServiceError, AIRateLimitError
 from chatbot.services.response_validator import (
     InvalidAIResponse,
 )
@@ -31,6 +34,12 @@ class ChatSessionCreateView(APIView):
     permission_classes = [
         IsAuthenticated
     ]
+
+    def get(self, request):
+        paginator = PageNumberPagination()
+        paginator.page_size = 20
+        page = paginator.paginate_queryset(ChatSession.objects.filter(user=request.user).order_by('-updated_at', '-id'), request)
+        return paginator.get_paginated_response(ChatSessionListSerializer(page, many=True).data)
 
     def post(self, request):
         serializer = (
@@ -48,6 +57,7 @@ class ChatSessionCreateView(APIView):
             cv_id=serializer.validated_data.get(
                 "cv_id"
             ),
+            initial_values={key: value for key, value in serializer.validated_data.items() if key != 'cv_id'},
         )
 
         output = (
@@ -80,6 +90,9 @@ class ChatSessionDetailView(APIView):
             session_id,
         )
         prepare_existing_session(session)
+        repair_hostile_experience(session)
+        repair_optional_answers(session)
+        repair_project_profile_split(session)
 
         serializer = (
             ChatSessionDetailSerializer(
@@ -94,6 +107,7 @@ class ChatSessionDetailView(APIView):
 
 
 class ChatMessageCreateView(APIView):
+    throttle_scope = 'm5_chat'
     permission_classes = [
         IsAuthenticated
     ]
@@ -133,6 +147,8 @@ class ChatMessageCreateView(APIView):
             assistant_message = (
                 process_user_message(
                     session=session,
+                    request_id=input_serializer.validated_data.get('request_id'),
+                    expected_updated_at=input_serializer.validated_data.get('expected_updated_at'),
                     user_message=(
                         input_serializer
                         .validated_data[
@@ -170,13 +186,16 @@ class ChatMessageCreateView(APIView):
                 ),
             )
 
+        except AIRateLimitError:
+            return Response({'code': 'ai_rate_limit', 'detail': 'The AI service is busy. Please retry shortly.'}, status=429)
+
         except AIServiceError:
             return Response(
                 {
                     "code": "ai_service_error",
                     "detail": (
-                        "The AI service is "
-                        "temporarily unavailable."
+                        "Local Qwen is unavailable. Check Ollama and the installed model, "
+                        "then retry. Simple field answers still work."
                     ),
                 },
                 status=(
@@ -204,3 +223,75 @@ class ChatMessageCreateView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class ChatDraftView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        from ai.services.final_review import draft_for_review, fingerprint
+        session = get_object_or_404(ChatSession, pk=session_id, user=request.user)
+        repair_optional_answers(session)
+        repair_project_profile_split(session)
+        document = draft_for_review(session)
+        return Response({'draft': document, 'fingerprint': fingerprint(document),
+                         'recommendations': session.conversation_state.get('recommendations', [])})
+
+
+class ChatReopenView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, session_id):
+        from django.db import transaction
+        from chatbot.models import ChatMessage
+        from chatbot.services.question_engine import question
+        with transaction.atomic():
+            session = get_object_or_404(ChatSession.objects.select_for_update(), pk=session_id, user=request.user)
+            repair_optional_answers(session)
+            repair_project_profile_split(session)
+            if session.conversation_state.get('chat_saved_cv_id') or session.conversation_state.get('edit_saved_cv_id'):
+                return Response({'detail': 'This draft has been saved. Use Continue with AI on the saved CV.'}, status=409)
+            if session.status == 'archived':
+                return Response({'detail': 'Archived conversations cannot be reopened.'}, status=409)
+            if session.status == 'completed':
+                session.status = 'active'
+                session.conversation_state.pop('approved_review_changes', None)
+                session.conversation_state.pop('review_decisions', None)
+                session.save(update_fields=['status', 'conversation_state', 'updated_at'])
+                ChatMessage.objects.create(session=session, role='assistant', intent='collect_information',
+                    section=session.current_section, next_action='ask_question',
+                    content='You can correct collected details, then finish again. ' + question(session.conversation_state))
+        return Response(ChatSessionDetailSerializer(session).data)
+
+
+class ChatFinalReviewView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_scope = 'm6_ai'
+
+    def post(self, request, session_id):
+        from chatbot.serializers import FinalReviewRequestSerializer
+        from ai.services.final_review import request_review
+        from ai.exceptions import AIError
+        serializer = FinalReviewRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # Owner check occurs before entering the service or calling a provider.
+        get_object_or_404(ChatSession, pk=session_id, user=request.user)
+        try:
+            return Response(request_review(user=request.user, session_id=session_id,
+                approved_external_processing=serializer.validated_data['approved_external_processing'],
+                expected_fingerprint=serializer.validated_data['fingerprint']))
+        except AIError:
+            return Response({'code': 'final_review_unavailable', 'detail': 'Gemini review is unavailable. You can retry or save your validated CV without suggestions.'}, status=502)
+
+
+class ChatFinalReviewDecisionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, session_id):
+        from chatbot.serializers import FinalReviewDecisionSerializer
+        from ai.services.final_review import decide_review
+        serializer = FinalReviewDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(decide_review(user=request.user, session_id=session_id,
+            expected_fingerprint=serializer.validated_data['fingerprint'],
+            accepted_indexes=serializer.validated_data['accepted_indexes']))

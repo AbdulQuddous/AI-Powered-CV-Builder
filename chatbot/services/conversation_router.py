@@ -53,7 +53,7 @@ def try_local_extraction(
         response dict -> handled locally
 
         None -> message is not safe to understand
-                locally, so Gemini must handle it.
+                locally, so the local provider must handle it.
     """
 
     section = required_step[
@@ -155,7 +155,7 @@ def try_local_extraction(
         return response
 
     # ========================================================
-    # Everything else -> Gemini
+    # Everything else -> the local provider
     # ========================================================
 
     return None

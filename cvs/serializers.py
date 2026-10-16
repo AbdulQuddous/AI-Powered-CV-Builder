@@ -2,6 +2,13 @@ from rest_framework import serializers
 from shared.enums.career_level import CareerLevel
 from .models import CV, CVVersion
 
+class CareerLevelField(serializers.ChoiceField):
+    """Accept values from older dashboard forms, keeping canonical CV data unchanged."""
+    def to_internal_value(self, data):
+        if isinstance(data, str):
+            data = {'junior': 'experienced', 'mid': 'experienced'}.get(data, data)
+        return super().to_internal_value(data)
+
 class StrictSerializer(serializers.Serializer):
     def to_internal_value(self, data):
         if isinstance(data, dict):
@@ -13,7 +20,7 @@ class StrictSerializer(serializers.Serializer):
 class CVWriteSerializer(StrictSerializer):
     name = serializers.CharField(max_length=255)
     target_role = serializers.CharField(max_length=255, allow_blank=True, required=False)
-    career_level = serializers.ChoiceField(choices=['']+[v.value for v in CareerLevel], required=False)
+    career_level = CareerLevelField(choices=['']+[v.value for v in CareerLevel], required=False)
     template_id = serializers.CharField(max_length=255, allow_blank=True, required=False)
     data = serializers.JSONField(required=False)
 

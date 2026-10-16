@@ -41,7 +41,7 @@ class ExistingCVChatTests(APITestCase):
         response['cv_updates'][section] = value
         return response
 
-    @patch('chatbot.services.conversation_service.GeminiClient.generate')
+    @patch('chatbot.services.conversation_service.QwenClient.generate')
     def test_populated_cv_starts_with_edit_request_and_known_context(self, gemini):
         session, data = self.start()
         self.assertEqual(data['assistant_message'], INTRO)
@@ -55,7 +55,7 @@ class ExistingCVChatTests(APITestCase):
         self.cv.refresh_from_db()
         self.assertEqual(self.cv.version, 1)
 
-    @patch('chatbot.services.conversation_service.GeminiClient.generate')
+    @patch('chatbot.services.conversation_service.QwenClient.generate')
     def test_add_project_collects_only_requested_details_and_preserves_saved_cv(self, gemini):
         session, _ = self.start()
         requested = self.send(session, 'I want to enter another project')
@@ -86,12 +86,12 @@ class ExistingCVChatTests(APITestCase):
         self.assertEqual(document['projects'][1]['technologies'], ['Django'])
         self.assertEqual(document['personal'], self.document['personal'])
         self.assertEqual(document['meta'], self.document['meta'])
-        self.assertEqual(gemini.call_count, 3)
+        gemini.assert_not_called()  # Simple project fields now use deterministic extraction.
         again = self.client.post('/api/cvs/from-chat/', {'session_id': str(session.id), 'expected_version': 2}, format='json')
         self.assertEqual(again.data['cv']['version'], 2)
         self.assertEqual(len(again.data['cv']['data']['projects']), 2)
 
-    @patch('chatbot.services.conversation_service.GeminiClient.generate')
+    @patch('chatbot.services.conversation_service.QwenClient.generate')
     def test_correction_updates_requested_field_without_collecting_whole_profile(self, gemini):
         session, _ = self.start()
         gemini.return_value = self.extracted('personal', {'full_name':None,'email':None,'phone':None,'location':'Islamabad','linkedin':None,'github':None,'portfolio':None})
@@ -104,7 +104,7 @@ class ExistingCVChatTests(APITestCase):
         self.assertEqual(saved.data['cv']['data']['personal']['location'], 'Islamabad')
         self.assertEqual(saved.data['cv']['data']['projects'], self.document['projects'])
 
-    @patch('chatbot.services.conversation_service.GeminiClient.generate')
+    @patch('chatbot.services.conversation_service.QwenClient.generate')
     def test_edit_saved_project_does_not_require_its_unchanged_fields(self, gemini):
         session, _ = self.start()
         self.send(session, 'edit a project')
@@ -123,7 +123,7 @@ class ExistingCVChatTests(APITestCase):
         self.assertEqual(saved.data['cv']['data']['projects'][0]['technologies'], ['Python'])
         self.assertEqual(saved.data['cv']['data']['projects'][0]['description'], 'Updated project description.')
 
-    @patch('chatbot.services.conversation_service.GeminiClient.generate')
+    @patch('chatbot.services.conversation_service.QwenClient.generate')
     def test_irrelevant_input_cannot_change_edit_proposals_or_advance_project(self, gemini):
         session, _ = self.start()
         self.send(session, 'add another project')
@@ -163,7 +163,7 @@ class ExistingCVChatTests(APITestCase):
         self.client.get(f'/api/chat/sessions/{session.id}/')
         self.assertEqual(session.messages.count(), 2)
 
-    @patch('chatbot.services.conversation_service.GeminiClient.generate')
+    @patch('chatbot.services.conversation_service.QwenClient.generate')
     def test_second_project_request_starts_a_new_draft(self, gemini):
         session, _ = self.start()
         gemini.side_effect = [self.extracted('projects',[{'name':name,'description':'A project.','technologies':['Django'],'url':None}]) for name in ('First New','Second New')]
@@ -177,7 +177,7 @@ class ExistingCVChatTests(APITestCase):
         self.assertEqual(saved.status_code, 200, saved.data)
         self.assertEqual([item['name'] for item in saved.data['cv']['data']['projects']], ['Saved Project','First New','Second New'])
 
-    @patch('chatbot.services.conversation_service.GeminiClient.generate')
+    @patch('chatbot.services.conversation_service.QwenClient.generate')
     def test_adding_project_preserves_metadata_changed_later_in_editor(self, gemini):
         session, _ = self.start()
         gemini.return_value = self.extracted('projects',[{'name':'New Project','description':'Builds CVs.','technologies':['Django'],'url':None}])
@@ -204,7 +204,7 @@ class ExistingCVChatTests(APITestCase):
         self.assertEqual(saved.data['cv']['data']['personal']['location'], 'Islamabad')
         self.assertEqual(saved.data['cv']['data']['projects'], self.document['projects'])
 
-    @patch('chatbot.services.conversation_service.GeminiClient.generate')
+    @patch('chatbot.services.conversation_service.QwenClient.generate')
     def test_grouped_skills_and_partial_project_stay_on_project_followup(self, gemini):
         session, _ = self.start()
         response = self.extracted('projects',[{'name':'New Project','description':None,'technologies':None,'url':None}])
@@ -217,7 +217,7 @@ class ExistingCVChatTests(APITestCase):
         self.assertEqual(session.conversation_state['edit_updates']['skills'], ['Django'])
         self.assertNotIn('technologies', session.conversation_state['edit_draft'][0])
 
-    @patch('chatbot.services.conversation_service.GeminiClient.generate')
+    @patch('chatbot.services.conversation_service.QwenClient.generate')
     def test_explicit_new_project_does_not_replace_existing_project_with_same_name(self, gemini):
         session, _ = self.start()
         self.send(session, 'I want to enter another project')
@@ -232,7 +232,7 @@ class ExistingCVChatTests(APITestCase):
         self.assertEqual(again.data['cv']['version'], 2)
         self.assertEqual(len(again.data['cv']['data']['projects']), 2)
 
-    @patch('chatbot.services.conversation_service.GeminiClient.generate')
+    @patch('chatbot.services.conversation_service.QwenClient.generate')
     def test_separate_add_requests_keep_projects_separate_even_with_same_name(self, gemini):
         session, _ = self.start()
         gemini.side_effect = [self.extracted('projects',[{'name':'Saved Project','description':description,'technologies':['Django'],'url':None}]) for description in ('First new project.','Second new project.')]

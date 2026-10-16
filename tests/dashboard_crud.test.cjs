@@ -11,9 +11,10 @@ function harness(overrides={}) {
     let document;
     function element() {
         const classes=new Set(['hidden']);
-        const node={value:'',textContent:'',disabled:false,children:[],options:[],listeners:{},attributes:{},dataset:{},isConnected:true,
+        const node={style:{},value:'',textContent:'',disabled:false,children:[],options:[],listeners:{},attributes:{},dataset:{},isConnected:true,
             classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),contains:x=>classes.has(x),toggle(x,on){if(on)classes.add(x);else classes.delete(x);}},
             addEventListener(event,fn){(this.listeners[event]||=[]).push(fn);},
+            append(...children){this.children.push(...children);},
             appendChild(child){this.children.push(child);return child;},replaceChildren(){this.children=[];this.options=[];this.value='';},
             add(option){this.options.push(option);if(this.options.length===1)this.value=option.value;},
             setAttribute(k,v){this.attributes[k]=v;},removeAttribute(k){delete this.attributes[k];},
@@ -25,7 +26,7 @@ function harness(overrides={}) {
         return node;
     }
     const get=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);};
-    document={getElementById:get,createElement:element,body:{style:{}},querySelector:()=>null,querySelectorAll:()=>[],
+    document={getElementById:get,createElement:element,createTextNode:text=>({textContent:text,querySelectorAll:()=>[]}),body:{style:{}},querySelector:()=>null,querySelectorAll:()=>[],
         addEventListener(name,fn){const list=documentListeners.get(name)||[];list.push(fn);documentListeners.set(name,list);}};
     const storage=new Map([['cv_access','jwt']]);
     const location={href:'http://localhost/dashboard/',origin:'http://localhost',search:''};
@@ -67,6 +68,106 @@ test('manual creation sends all selected fields and opens the existing editor',a
     await h.run('handleCreateCV({preventDefault(){}})');
     assert.deepEqual(h.calls.find(x=>x.method==='POST').body,{name:'My CV',target_role:'Backend Developer',career_level:'experienced',template_id:'modern',data:{}});
     assert.equal(h.c.window.location.href,'/cvs/20/edit/');
+});
+
+test('creation displays wrapped API field errors and preserves form values for retry',async()=>{
+    const h=harness({fetch:(url,options)=>url==='/api/cvs/'&&options.method==='POST'
+        ? {ok:false,status:400,json:async()=>({error:{code:'validation_error',details:{
+            career_level:['"junior" is not a valid choice.'],template_id:['The selected template is unavailable.']}}})}
+        : null});
+    h.get('cvName').value='My CV';h.get('targetRole').value='Backend';
+    h.get('careerLevel').value='junior';h.get('templateId').value='modern';
+    await h.run('handleCreateCV({preventDefault(){}})');
+    assert.match(h.get('createError').textContent,/Career level:.*junior.*not a valid choice/);
+    assert.match(h.get('createError').textContent,/Template: The selected template is unavailable/);
+    assert.equal(h.get('createError').classList.contains('hidden'),false);
+    assert.equal(h.get('cvName').value,'My CV');assert.equal(h.get('createSubmit').disabled,false);
+    assert.equal(h.run('state.creating'),false);assert.equal(h.saved.size,2);
+});
+
+test('API error messages cover canonical documents, plain DRF fields, and non-JSON failures',async()=>{
+    const h=harness();
+    assert.equal(h.run('apiErrorMessage({error:{details:{data:[{path:"education/0/end_date",message:"Invalid date."}]}}},400)'),
+        'education/0/end_date: Invalid date.');
+    assert.equal(h.run('apiErrorMessage({name:["This field is required."]},400)'), 'CV name: This field is required.');
+    assert.equal(h.run('apiErrorMessage({detail:"Try again later."},429)'), 'Try again later.');
+    assert.equal(h.run('apiErrorMessage({},500)'), 'Request failed (500).');
+});
+
+test('AI creation sends selected metadata to M5 and does not create an empty M2 record',async()=>{
+    const id='00000000-0000-4000-8000-000000000001';
+    const h=harness({fetch:url=>url==='/api/chat/sessions/'?{ok:true,status:201,json:async()=>({id,cv_id:null,status:'active',current_section:'personal',assistant_message:'What is your full name?'})}:null});
+    h.c.document.createTextNode=text=>text;
+    for(const element of ['chatHistory'])h.get(element).appendChild=child=>h.get(element).children.push(child);
+    // Chat bubbles use the native append API.
+    const create=h.c.document.createElement;
+    h.c.document.createElement=()=>{const node=create();node.append=(...items)=>node.children.push(...items);return node;};
+    await h.run("openCreateCV('ai')");
+    h.get('cvName').value='AI CV';h.get('targetRole').value='Backend';h.get('careerLevel').value='fresher';h.get('templateId').value='modern';
+    await h.run('handleCreateCV({preventDefault(){}})');
+    assert.deepEqual(h.calls.find(c=>c.url==='/api/chat/sessions/').body,{cv_id:null,cv_name:'AI CV',target_role:'Backend',career_level:'fresher',template_id:'modern'});
+    assert.equal(h.calls.some(c=>c.url==='/api/cvs/'&&c.method==='POST'),false);
+    assert.equal(h.get('chatModal').classList.contains('hidden'),false);
+});
+
+test('AI startup validation returns to the creation form with the actual field error',async()=>{
+    const h=harness({fetch:url=>url==='/api/chat/sessions/'
+        ? {ok:false,status:400,json:async()=>({error:{code:'validation_error',details:{career_level:['Choose a supported career level.']}}})}
+        : null});
+    await h.run("openCreateCV('ai')");
+    h.get('cvName').value='My AI CV';h.get('targetRole').value='Backend';
+    h.get('careerLevel').value='junior';h.get('templateId').value='classic';
+    await h.run('handleCreateCV({preventDefault(){}})');
+    assert.match(h.get('createError').textContent,/Career level: Choose a supported career level/);
+    assert.equal(h.get('createModal').classList.contains('hidden'),false);
+    assert.equal(h.get('chatModal').classList.contains('hidden'),true);
+    assert.equal(h.get('chatRetry').classList.contains('hidden'),true);
+    assert.equal(h.get('cvName').value,'My AI CV');assert.equal(h.get('templateId').value,'classic');
+    assert.equal(h.get('createSubmit').disabled,false);
+});
+
+test('AI startup Retry retains all creation metadata after a service failure',async()=>{
+    let posts=0;
+    const id='00000000-0000-4000-8000-000000000009';
+    const h=harness({fetch:url=>url==='/api/chat/sessions/'
+        ? (++posts===1 ? fail(502) : {ok:true,status:201,json:async()=>({id,cv_id:null,status:'active',current_section:'personal',assistant_message:'What is your full name?'})})
+        :null});
+    await h.run("openCreateCV('ai')");
+    h.get('cvName').value='Retry AI CV';h.get('targetRole').value='Backend';
+    h.get('careerLevel').value='experienced';h.get('templateId').value='classic';
+    await h.run('handleCreateCV({preventDefault(){}})');
+    assert.equal(h.get('chatRetry').classList.contains('hidden'),false);
+    await h.click('chatRetry');
+    const attempts=h.calls.filter(c=>c.url==='/api/chat/sessions/');
+    assert.equal(attempts.length,2);assert.deepEqual(attempts[1].body,attempts[0].body);
+    assert.deepEqual(attempts[1].body,{cv_id:null,cv_name:'Retry AI CV',target_role:'Backend',career_level:'experienced',template_id:'classic'});
+    assert.equal(h.run('chat.session.id'),id);
+    assert.equal(h.get('createModal').classList.contains('hidden'),true);
+    assert.ok(h.calls.every(c=>!(c.url==='/api/cvs/'&&c.method==='POST')));
+});
+
+test('retrying an explicit conversation resume keeps its session ID without creating another chat',async()=>{
+    let reads=0;
+    const id='00000000-0000-4000-8000-000000000010';
+    const h=harness({fetch:url=>url===`/api/chat/sessions/${id}/`
+        ? (++reads===1 ? fail(502) : {ok:true,status:200,json:async()=>({id,cv_id:null,status:'active',current_section:'personal',messages:[]})})
+        : null});
+    await h.run(`openAIChat(null,'${id}')`);await h.click('chatRetry');
+    assert.equal(reads,2);assert.equal(h.run('chat.session.id'),id);
+    assert.ok(h.calls.every(c=>c.method==='GET'));
+});
+
+test('chat validation preserves the message and shows a correction instead of network Retry',async()=>{
+    const h=harness({fetch:url=>url.endsWith('/messages/')
+        ? {ok:false,status:400,json:async()=>({error:{details:{message:['Ensure this field has no more than 10000 characters.']}}})}
+        : null});
+    h.run('chat.session={id:"11111111-1111-1111-1111-111111111111",status:"active",current_section:"summary",messages:[]}');
+    h.get('chatInput').value='A message needing correction';await h.run('sendChatMessage()');
+    assert.match(h.get('chatError').textContent,/10000 characters/);
+    assert.doesNotMatch(h.get('chatError').textContent,/Unable to reach/);
+    assert.equal(h.get('chatInput').value,'A message needing correction');
+    assert.equal(h.get('chatRetry').classList.contains('hidden'),true);
+    assert.equal(h.get('chatSend').disabled,false);
 });
 
 test('listing preserves search/filter/sort, shows career level, and Edit/View retain existing routes',async()=>{
@@ -198,4 +299,113 @@ test('deleting a CV closes its active chat UI without deleting its chat session'
     const h=harness();await h.load();h.run('chat.cvId=12;chat.session={id:"session-12",cv_id:12};');
     await h.action('delete');await h.click('deleteConfirm');assert.equal(h.run('chat.session'),null);
     assert.equal(h.get('chatModal').classList.contains('hidden'),true);assert.ok(h.calls.every(x=>!x.url.startsWith('/api/chat/')));
+});
+
+function completedChat(h) {
+    h.run('chat.session={id:"11111111-1111-1111-1111-111111111111",cv_id:12,status:"completed",messages:[],conversation_state:{existing_cv_version:1}}');
+}
+const jsonResult=value=>({ok:true,status:200,json:async()=>clone(value)});
+const draftResult=()=>({draft:sample(12).data,fingerprint:'a'.repeat(64),recommendations:[]});
+const reviewResult=()=>({fingerprint:'a'.repeat(64),cached:false,result:{overall_feedback:'Clear CV',suggestions:[],missing_information:[],warnings:[],proposed_changes:[{path:'/summary',original:'Original',replacement:'Improved',reason:'Clarity'}]}});
+
+test('chat draft can be inspected without an external AI call',async()=>{
+    const h=harness({fetch:url=>url.endsWith('/draft/')?jsonResult(draftResult()):null});completedChat(h);
+    await h.click('chatDraft');
+    assert.equal(h.calls.length,1);assert.ok(h.calls[0].url.endsWith('/draft/'));
+    assert.equal(h.get('chatDraftPanel').classList.contains('hidden'),false);
+    assert.equal(h.get('chatExternalApproval').checked,false);
+    assert.equal(h.run('chat.draft.fingerprint'),'a'.repeat(64));
+});
+
+test('final Gemini review requires the consent checkbox',async()=>{
+    const h=harness();completedChat(h);h.run('chat.draft={fingerprint:"draft"}');
+    await h.click('chatFinalReview');
+    assert.equal(h.calls.length,0);assert.match(h.get('chatReviewStatus').textContent,/approve external processing/);
+});
+
+test('final review sends consent and fingerprint without saving changes',async()=>{
+    const h=harness({fetch:url=>url.endsWith('/final-review/')?jsonResult(reviewResult()):null});completedChat(h);
+    h.run('chat.draft={fingerprint:"'+'a'.repeat(64)+'"}');h.get('chatExternalApproval').checked=true;
+    await h.click('chatFinalReview');
+    assert.deepEqual(h.calls[0].body,{approved_external_processing:true,fingerprint:'a'.repeat(64)});
+    assert.ok(h.calls.every(c=>!c.url.startsWith('/api/cvs/')));
+    assert.equal(h.get('chatReviewSuggestions').children[1].children[0].checked,undefined);
+    assert.equal(h.get('chatApplyReview').classList.contains('hidden'),false);
+});
+
+test('approving selected changes submits only server proposal indexes',async()=>{
+    const h=harness({fetch:url=>url.endsWith('/decisions/')?jsonResult({approved_changes:[{}]}):null});completedChat(h);
+    h.run('chat.review={fingerprint:"'+'a'.repeat(64)+'"}');
+    h.get('chatReviewSuggestions').querySelectorAll=()=>[{checked:true,dataset:{reviewIndex:'0'}},{checked:false,dataset:{reviewIndex:'1'}}];
+    await h.click('chatApplyReview');
+    assert.deepEqual(h.calls[0].body,{fingerprint:'a'.repeat(64),accepted_indexes:[0]});
+    assert.match(h.get('chatReviewStatus').textContent,/Save your CV/);
+});
+
+test('reject all leaves no approved wording changes',async()=>{
+    const h=harness({fetch:url=>url.endsWith('/decisions/')?jsonResult({approved_changes:[]}):null});completedChat(h);
+    h.run('chat.review={fingerprint:"'+'a'.repeat(64)+'"}');
+    await h.click('chatDiscardReview');assert.deepEqual(h.calls[0].body.accepted_indexes,[]);
+    assert.match(h.get('chatReviewStatus').textContent,/rejected/);
+});
+
+test('Gemini failure leaves save enabled and offers save without review',async()=>{
+    const h=harness({fetch:url=>url.endsWith('/final-review/')?fail(502):null});completedChat(h);
+    h.run('chat.draft={fingerprint:"draft"}');h.get('chatExternalApproval').checked=true;
+    await h.click('chatFinalReview');assert.equal(h.get('chatSave').disabled,false);
+    assert.match(h.get('chatReviewStatus').textContent,/save your CV without/);
+});
+
+test('saved-CV chat supplies the version originally reviewed rather than a newer version',async()=>{
+    const h=harness({fetch:url=>url==='/api/cvs/from-chat/'?fail(409):null});completedChat(h);
+    h.saved.get(12).version=4;
+    await h.click('chatSave');
+    assert.equal(h.calls.find(c=>c.url==='/api/cvs/from-chat/').body.expected_version,1);
+    assert.match(h.get('chatSaveStatus').textContent,/saved CV changed/);
+});
+
+test('completed collected draft can be reopened for corrections without a provider call',async()=>{
+    const h=harness({fetch:url=>url.endsWith('/reopen/')?jsonResult({id:'11111111-1111-1111-1111-111111111111',cv_id:12,status:'active',current_section:'review',messages:[]}):null});
+    completedChat(h);await h.click('chatReopen');
+    assert.equal(h.run('chat.session.status'),'active');assert.equal(h.get('chatInput').disabled,false);
+    assert.ok(h.calls.every(c=>c.url.endsWith('/reopen/')));
+});
+
+test('retrying an ambiguous message keeps the same idempotency receipt',async()=>{
+    let posts=0,ids=0;
+    const session={id:'11111111-1111-1111-1111-111111111111',cv_id:12,status:'active',current_section:'personal',messages:[],updated_at:'2026-10-16T10:00:00Z'};
+    const h=harness({fetch:(url,options)=>url.startsWith('/api/chat/sessions/')
+        ? options.method==='POST'
+            ? (++posts===1?fail(502):jsonResult({assistant_message:'What email?',intent:'update_cv',section:'personal',cv_updates:{personal:{full_name:'Ali'}},next_action:'ask_question'}))
+            :jsonResult(session)
+        :null});
+    h.c.window.crypto={randomUUID:()=>`00000000-0000-4000-8000-${String(++ids).padStart(12,'0')}`};
+    h.run('chat.session='+JSON.stringify(session));h.get('chatInput').value='Ali';
+    await h.run('sendChatMessage()');await h.run('sendChatMessage()');
+    const sent=h.calls.filter(c=>c.method==='POST');assert.equal(sent.length,2);
+    assert.equal(sent[0].body.request_id,sent[1].body.request_id);assert.equal(ids,1);
+});
+
+test('field validation appears once in the chat history without a duplicate error below',async()=>{
+    const session={id:'11111111-1111-1111-1111-111111111111',cv_id:null,status:'active',current_section:'education',messages:[]};
+    const message='Please enter a date as YYYY-MM, or a year if the month is unknown.';
+    const h=harness({fetch:(url,options)=>url.startsWith('/api/chat/sessions/')
+        ? jsonResult(options.method==='POST'
+            ? {assistant_message:message,intent:'clarify_information',section:'education',cv_updates:{},next_action:'ask_question'}
+            : {...session,messages:[{id:1,role:'user',content:'graduate'},{id:2,role:'assistant',content:message}]})
+        :null});
+    h.run('chat.session='+JSON.stringify(session));h.get('chatInput').value='graduate';
+    await h.run('sendChatMessage()');
+    assert.equal(h.get('chatError').classList.contains('hidden'),true);
+    assert.equal(h.run('chat.session.messages.filter(m=>m.role==="assistant").length'),1);
+    assert.equal(h.get('chatHistory').children.length,2);
+});
+
+test('provider errors remain visible below the chat and allow retry',async()=>{
+    const h=harness({fetch:url=>url.endsWith('/messages/')?fail(502):null});
+    h.run('chat.session={id:"11111111-1111-1111-1111-111111111111",status:"active",current_section:"education",messages:[]}');
+    h.get('chatInput').value='I need help with these dates';await h.run('sendChatMessage()');
+    assert.equal(h.get('chatError').classList.contains('hidden'),false);
+    assert.equal(h.get('chatRetry').classList.contains('hidden'),false);
+    assert.equal(h.get('chatInput').value,'I need help with these dates');
 });

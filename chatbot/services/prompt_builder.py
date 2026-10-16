@@ -1,3 +1,4 @@
+"""Legacy prompt contract retained for compatibility. Active chat uses qwen_client.build_qwen_messages."""
 import json
 
 from chatbot.prompts.cv_assistant import (

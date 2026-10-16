@@ -48,4 +48,9 @@ def build_document(values, current=None):
             if 'data' in values and data['meta'][key] not in ('', values[key]):
                 raise ValidationError({key:['Conflicts with data.meta.' ]})
             data['meta'][key] = values[key]
-    return validate_document(data)
+    validate_document(data)
+    if data['meta']['template_id']:
+        from templates_app.services import TemplateService
+        if not TemplateService.template_exists(data['meta']['template_id']):
+            raise ValidationError({'template_id': ['The selected template does not exist or is unavailable.']})
+    return data

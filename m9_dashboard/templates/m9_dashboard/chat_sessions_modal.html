@@ -1,0 +1,13 @@
+<div id="chatSessionsModal" class="dashboard-modal hidden" role="dialog" aria-modal="true" aria-labelledby="chatSessionsTitle" tabindex="-1">
+    <div class="modal-backdrop"></div>
+    <section class="modal-card max-w-lg">
+        <header class="flex items-center justify-between gap-3">
+            <h2 id="chatSessionsTitle" class="text-xl font-bold">Your AI conversations</h2>
+            <button id="chatSessionsClose" type="button" class="secondary-button" data-close="chatSessionsModal">Close</button>
+        </header>
+        <p id="chatSessionsStatus" role="status" class="mt-4"></p>
+        <p id="chatSessionsError" role="alert" class="hidden mt-4 text-rose-700"></p>
+        <div id="chatSessionsRows"></div>
+        <button id="chatSessionsMore" type="button" class="secondary-button hidden mt-4">Load more conversations</button>
+    </section>
+</div>

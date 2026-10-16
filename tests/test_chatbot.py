@@ -183,7 +183,7 @@ class ChatbotTests(APITestCase):
     @patch(
         "chatbot.services."
         "conversation_service."
-        "GeminiClient.generate"
+        "QwenClient.generate"
     )
     def test_send_message(
         self,
@@ -265,7 +265,7 @@ class ChatbotTests(APITestCase):
     @patch(
         "chatbot.services."
         "conversation_service."
-        "GeminiClient.generate"
+        "QwenClient.generate"
     )
     def test_cv_updates_are_stored(
         self,
@@ -359,7 +359,7 @@ class ChatbotTests(APITestCase):
     @patch(
         "chatbot.services."
         "conversation_service."
-        "GeminiClient.generate"
+        "QwenClient.generate"
     )
     def test_ai_service_failure(
         self,
@@ -414,7 +414,7 @@ class ChatbotTests(APITestCase):
     @patch(
         "chatbot.services."
         "conversation_service."
-        "GeminiClient.generate"
+        "QwenClient.generate"
     )
     def test_complete_response_completes_session(
         self,
@@ -478,7 +478,7 @@ class ChatbotTests(APITestCase):
     @patch(
         "chatbot.services."
         "conversation_service."
-        "GeminiClient.generate"
+        "QwenClient.generate"
     )
     def test_completed_session_rejects_messages(
         self,

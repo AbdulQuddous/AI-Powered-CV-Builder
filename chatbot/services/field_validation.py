@@ -1,0 +1,266 @@
+"""Conversational field rules. M10 remains the persisted document authority."""
+import re
+import unicodedata
+import phonenumbers
+from copy import deepcopy
+
+from django.core.exceptions import ValidationError
+from django.core.validators import EmailValidator, URLValidator
+
+from chatbot.services.conversation_router import empty_ai_response
+from cvs.validation import validator
+
+
+ALIASES = {'drf': 'Django REST Framework', 'js': 'JavaScript', 'javascript': 'JavaScript', 'nodejs': 'Node.js',
+           'node.js': 'Node.js', 'nextjs': 'Next.js', 'next.js': 'Next.js',
+           'postgres': 'PostgreSQL', 'postgresql': 'PostgreSQL', 'restapi': 'REST APIs',
+           'restapis': 'REST APIs', 'rest api': 'REST APIs', 'rest apis': 'REST APIs',
+           'django restframework': 'Django REST Framework', 'django/drf': 'Django REST Framework'}
+KNOWN_SKILLS = ['Django REST Framework', 'REST APIs', 'Python', 'Django', 'PostgreSQL',
+                'JavaScript', 'TypeScript', 'HTML', 'CSS', 'React', 'MySQL', 'Git',
+                'C++', 'C#', 'Node.js', '.NET', 'DRF', 'JS', 'Bootstrap', 'Docker',
+                'Next.js', 'NextJS', 'Flask', 'JWT', 'Whisper', 'MediaPipe', 'Sentence Transformers',
+                'Postman', 'Java', 'SQL', 'AWS', 'Linux', 'Excel', 'Communication']
+
+
+def find_technologies(text):
+    """Find literal technology mentions in prose; a title/framework never implies a stack."""
+    terms = {value.casefold(): value for value in KNOWN_SKILLS if value not in ('Communication', 'Excel')}
+    terms.update(ALIASES)
+    spans, matches = [], []
+    for term in sorted(terms, key=len, reverse=True):
+        pattern = r'(?<![\w+#])' + re.escape(term) + r'(?![\w+#])'
+        for match in re.finditer(pattern, text, re.I):
+            if any(match.start() < end and match.end() > start for start, end in spans):
+                continue
+            spans.append(match.span()); matches.append((match.start(), terms[term]))
+    return unique_skills([value for _, value in sorted(matches)])
+
+
+def unique_skills(values):
+    result, seen = [], set()
+    for raw in values:
+        value = ALIASES.get(raw.strip().casefold(), raw.strip())
+        if value and value.casefold() not in seen:
+            result.append(value)
+            seen.add(value.casefold())
+    return result
+
+
+def extract_skills(text):
+    """Accept lists; parse prose only when every listed skill is explicitly named."""
+    text = text.strip().rstrip('.')
+    text = re.sub(r'^(?:i\s+(?:would\s+)?like\s+to\s+(?:highlight|include|add)|'
+                  r'(?:my\s+)?(?:technical\s+)?skills\s+(?:are|include)|'
+                  r'i\s+want\s+to\s+highlight)\s*:?\s*', '', text, flags=re.I)
+    if text.casefold() in ('next', 'node'):
+        return [{'next': 'Next.js', 'node': 'Node.js'}[text.casefold()]]
+    if ',' in text and not re.search(r'\b(?:I|my|worked|know|using)\b', text, re.I):
+        # Bare Next/Node are framework names only in an explicit skills list.
+        listed = re.split(r',|;|\band\b', text)
+        listed = [{'next': 'Next.js', 'node': 'Node.js'}.get(item.strip().casefold(), item) for item in listed]
+        return unique_skills(listed)
+    found = []
+    remaining = text
+    terms = {value.casefold(): value for value in KNOWN_SKILLS}
+    terms.update(ALIASES)
+    for skill in sorted(terms, key=len, reverse=True):
+        pattern = r'(?<![\w+#.])' + re.escape(skill) + r'(?![\w+#.])'
+        matches = list(re.finditer(pattern, remaining, re.I))
+        if matches:
+            found.extend((match.start(), terms[skill]) for match in matches)
+            remaining = re.sub(pattern, lambda match: ' ' * len(match[0]), remaining, flags=re.I)
+    if not remaining.strip(' ,;') or re.fullmatch(
+            r'[\s,;]*(?:(?:I|know|and|worked|with|have|experience|in|also|use|using|skills|include|am|skilled|at|the|following)[\s,;]*)+', remaining, re.I):
+        # Preserve the user's order instead of the vocabulary order.
+        return unique_skills([value for _, value in sorted(found)])
+    return None
+
+
+def validate_value(field, value):
+    if not isinstance(value, str):
+        raise ValidationError('Please provide text for this field.')
+    value = value.strip()
+    if not value:
+        raise ValidationError('Please provide a value, or skip this optional field.')
+    if len(value) > (5000 if field in ('summary', 'description', 'responsibilities', 'highlights', 'achievements') else 255):
+        raise ValidationError('Please shorten this answer before continuing.')
+    if field == 'full_name':
+        if not any(c.isalpha() for c in value) or any(
+                not (unicodedata.category(c).startswith(('L', 'M')) or c in " -'’.·") for c in value):
+            raise ValidationError("Please enter your name using letters, spaces, hyphens or apostrophes.")
+    elif field == 'email':
+        if value.endswith('@'):
+            raise ValidationError('Your email appears incomplete. Please enter the part after @.')
+        try:
+            EmailValidator()(value)
+        except ValidationError:
+            raise ValidationError("That doesn't look like a valid email address. Include @ and a valid domain, for example name@gmail.com.")
+    elif field == 'phone':
+        # Conservative international format check; no claim of number ownership.
+        # National numbers outside the explicitly supported PK mobile format need a country code.
+        if not re.fullmatch(r'\+?[0-9][0-9 ()-]*', value):
+            raise ValidationError('Please enter a phone number with digits and, for international numbers, a +country code.')
+        digits = re.sub(r'\D', '', value)
+        if not (re.fullmatch(r'03\d{9}', digits) or (value.startswith('+') and 8 <= len(digits) <= 15 and digits[0] != '0')):
+            raise ValidationError('Please include your country code (for example +923001234567), or a Pakistani mobile such as 03001234567.')
+        try:
+            parsed = phonenumbers.parse(value, None if value.startswith('+') else 'PK')
+            if not phonenumbers.is_valid_number(parsed):
+                raise phonenumbers.NumberParseException(0, 'Invalid number')
+        except phonenumbers.NumberParseException:
+            raise ValidationError('That phone number is not valid for its country. Please check the number and country code.')
+    elif field in ('url', 'linkedin', 'github', 'portfolio'):
+        try:
+            URLValidator(schemes=['http', 'https'])(value)
+        except ValidationError:
+            raise ValidationError('Please provide a complete http:// or https:// URL, or skip it.')
+    elif field in ('degree', 'institution', 'field_of_study'):
+        if not any(character.isalpha() for character in value):
+            raise ValidationError('Please provide the academic name or title; give dates as start date and graduation date.')
+        if field == 'institution':
+            from chatbot.services.education_answers import parse_education
+            parsed = parse_education(value)
+            if parsed and set(parsed) <= {'start_date', 'end_date'}:
+                raise ValidationError('Please provide the institution or university name. Dates are collected separately.')
+    elif field in ('start_date', 'end_date', 'date'):
+        if field == 'end_date' and value.lower() in ('present', 'current', 'ongoing'):
+            return 'present'
+        if not re.fullmatch(r'(?:19|20)\d{2}(?:-(?:0[1-9]|1[0-2]))?', value):
+            raise ValidationError('Please enter a date as YYYY-MM (for example 2026-06), or a year if the month is unknown.')
+    elif field == 'grade':
+        match = re.fullmatch(r'(-?\d+(?:\.\d+)?)\s*/\s*(-?\d+(?:\.\d+)?)', value)
+        if match:
+            score, scale = map(float, match.groups())
+            if scale <= 0 or score < 0 or score > scale:
+                raise ValidationError('Your grade exceeds its scale. Please check it, or omit the optional grade.')
+        elif re.fullmatch(r'\d+(?:\.\d+)?', value):
+            raise ValidationError('What grading scale does this use? Enter, for example, 3.5/4.0, or skip the optional grade.')
+        elif value.endswith('%'):
+            try:
+                if not 0 <= float(value[:-1]) <= 100:
+                    raise ValueError
+            except ValueError:
+                raise ValidationError('Please enter a percentage between 0 and 100, or omit the grade.')
+    return value
+
+
+def validated_updates(response, state):
+    """Keep valid sibling fields; reject unknown keys, invalid dates and contacts.
+
+    This also runs after local extraction, so provider output never bypasses rules.
+    Returns response, friendly errors, and field status paths.
+    """
+    response = deepcopy(response)
+    errors, statuses = [], {}
+    schema = validator().schema['properties']
+    accepted = state.get('collected_data') or state.get('edit_updates') or {}
+    for section, value in list(response.get('cv_updates', {}).items()):
+        if value is None:
+            continue
+        if section not in schema or section in ('schema_version', 'meta'):
+            response['cv_updates'].pop(section)
+            errors.append('The extracted section is unsupported. Please clarify your answer.')
+            continue
+        if section == 'personal':
+            entries = [value] if isinstance(value, dict) else []
+        elif section in ('education', 'experience', 'projects', 'languages', 'certifications'):
+            entries = value if isinstance(value, list) else []
+        else:
+            entries = None
+        if entries is not None:
+            clean_entries = []
+            for index, item in enumerate(entries):
+                if isinstance(item, str) and section in ('languages', 'certifications'):
+                    item = {'name': item}
+                if not isinstance(item, dict):
+                    errors.append(f'Please clarify the {section} entry.')
+                    continue
+                clean = {}
+                allowed = set(schema[section].get('properties', {}) if section == 'personal' else schema[section]['items']['properties'])
+                if section == 'experience':
+                    allowed |= {'role', 'responsibilities', 'duration', 'employment_type', 'technologies'}
+                if section == 'projects':
+                    allowed |= {'contribution', 'features', 'github_url', 'live_demo'}
+                if section == 'education':
+                    allowed.add('is_current')  # Source state only: M10 has no study-status field.
+                for field, raw in item.items():
+                    path = f'{section}.{index}.{field}' if section != 'personal' else f'personal.{field}'
+                    if raw in (None, '', []):
+                        continue
+                    try:
+                        if field not in allowed:
+                            raise ValidationError('The extracted field is unsupported. Please clarify it.')
+                        if field == 'is_current':
+                            if type(raw) is not bool:
+                                raise ValidationError('Please confirm whether this is current.')
+                            clean[field] = raw
+                        elif isinstance(raw, list):
+                            if field not in ('responsibilities', 'highlights', 'technologies', 'features'):
+                                raise ValidationError('Please provide a single text value for this field.')
+                            clean[field] = [validate_value(field, entry) for entry in raw]
+                        else:
+                            clean[field] = validate_value(field, raw)
+                        if field == 'proficiency' and clean[field] not in ('basic', 'conversational', 'professional', 'fluent', 'native'):
+                            raise ValidationError('Choose basic, conversational, professional, fluent or native proficiency.')
+                        statuses[path] = 'answered'
+                    except ValidationError as exc:
+                        clean.pop(field, None)
+                        statuses[path] = 'invalid'
+                        errors.extend(exc.messages)
+                previous = accepted.get(section) or []
+                old = previous[index] if isinstance(previous, list) and len(previous) > index else {}
+                # Existing focus is the reliable context for anonymous followups.
+                if state.get('edit_focus') == section and state.get('edit_draft'):
+                    old = state['edit_draft'][-1]
+                if state.get('pending_entry', {}).get('section') == section:
+                    old = state['pending_entry']['draft']
+                pending = state.get('pending_field') or {}
+                if pending.get('section') == section and 'index' in pending:
+                    existing = state.get('existing_cv', {}).get(section) or []
+                    if 0 <= pending['index'] < len(existing):
+                        old = existing[pending['index']]
+                merged = {**old, **clean}
+                start, end = merged.get('start_date'), merged.get('end_date')
+                if start and end and end != 'present' and start > end:
+                    for date_field in ('start_date', 'end_date'):
+                        if date_field in clean:
+                            clean.pop(date_field)
+                            statuses[f'{section}.{index}.{date_field}'] = 'invalid'
+                    errors.append('Your ending date is earlier than your starting date. Could you check the dates?')
+                if merged.get('is_current') and end and end != 'present':
+                    clean.pop('end_date', None)
+                    statuses[f'{section}.{index}.end_date'] = 'invalid'
+                    errors.append('Current work or study cannot also have a completion date. Please clarify.')
+                if clean:
+                    clean_entries.append(clean)
+            response['cv_updates'][section] = (clean_entries[0] if clean_entries else None) if section == 'personal' else (clean_entries or None)
+        elif section in ('skills', 'achievements'):
+            try:
+                if not isinstance(value, list):
+                    raise ValidationError('Please provide a list.')
+                response['cv_updates'][section] = [validate_value(section, item) for item in value]
+                if section == 'skills':
+                    response['cv_updates'][section] = unique_skills(response['cv_updates'][section])
+                    if len(response['cv_updates'][section]) > 100:
+                        raise ValidationError('M10 supports 100 skills. Please choose which skills to display; your source message is retained.')
+            except ValidationError as exc:
+                response['cv_updates'][section] = None
+                errors.extend(exc.messages)
+        elif section == 'summary':
+            try:
+                response['cv_updates'][section] = validate_value('summary', value)
+            except ValidationError as exc:
+                response['cv_updates'][section] = None
+                errors.extend(exc.messages)
+    metadata = response.get('state_updates') or {}
+    if metadata.get('career_level') not in (None, '', 'student', 'fresher', 'experienced', 'other'):
+        metadata['career_level'] = None
+        errors.append('Please choose a supported career level.')
+    if metadata.get('target_role'):
+        try:
+            metadata['target_role'] = validate_value('target_role', metadata['target_role'])
+        except ValidationError as exc:
+            metadata['target_role'] = None
+            errors.extend(exc.messages)
+    return response, list(dict.fromkeys(errors)), statuses

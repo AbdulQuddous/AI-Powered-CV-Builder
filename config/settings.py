@@ -183,3 +183,12 @@ M6_TIMEOUT_MS = 30000
 # Limit consumption through authenticated endpoints.
 REST_FRAMEWORK.setdefault("DEFAULT_THROTTLE_RATES", {})
 REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["m6_ai"] = "20/hour"
+# Bound chat requests and authenticated conversation consumption.
+M5_TIMEOUT_SECONDS = 30
+CHAT_LLM_PROVIDER = env('CHAT_LLM_PROVIDER', default='qwen_local')
+# Dedicated Ollama settings preserve older OpenAI-compatible QWEN_* configuration.
+CHAT_QWEN_BASE_URL = env('CHAT_QWEN_BASE_URL', default='http://127.0.0.1:11434')
+CHAT_QWEN_MODEL = env('CHAT_QWEN_MODEL', default='qwen3.5:4b')
+QWEN_TIMEOUT = env.int('QWEN_TIMEOUT', default=60)
+FINAL_REVIEW_PROVIDER = env('FINAL_REVIEW_PROVIDER', default='gemini')
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["m5_chat"] = "30/min"

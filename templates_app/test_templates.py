@@ -12,8 +12,9 @@ class TemplateAPITests(TestCase):
 
         self.client = APIClient()
 
-        self.modern = CVTemplate.objects.create(
-            id="modern",
+        CVTemplate.objects.all().update(is_available=False)
+        self.modern, _ = CVTemplate.objects.update_or_create(
+            id="modern", defaults=dict(
             name="Modern",
             description="Modern professional template",
             category="modern",
@@ -31,7 +32,7 @@ class TemplateAPITests(TestCase):
                 "cv_templates/previews/modern.png"
             ),
             template_path="cv_templates/modern.html",
-            is_available=True
+            is_available=True)
         )
 
         self.disabled = CVTemplate.objects.create(

@@ -1,8 +1,10 @@
-# CV Maker — M10 and M1
+# AI-Powered CV Maker
 
-Runnable Django backend foundation for a new project. Python 3.12 recommended.
-Includes shared JSON contracts, email-based accounts, JWT authentication, PostgreSQL
-configuration, initial migration, API tests and contract tests. No frontend is included.
+Django/DRF application with PostgreSQL, JWT accounts, CV management, templates,
+PDF/DOCX import, local Qwen conversation, optional Gemini final review, manual editing,
+rendering, and the dashboard/chat frontend. Python 3.12 is used by the current environment.
+Open `/dashboard/` after starting Django. Chatbot behavior, settings, verification and
+manual checks are in [the chatbot implementation report](docs/CHATBOT_IMPLEMENTATION_REPORT.md).
 
 ## 1. Install
 ```bash
@@ -58,7 +60,7 @@ Substitute real tokens locally. After refresh, use the new pair.
 python manage.py test tests --settings=config.test_settings
 python manage.py makemigrations --check --dry-run --settings=config.test_settings
 ```
-Test settings default to in-memory SQLite. To exercise PostgreSQL, pass a DATABASE_URL
+Test settings default to in-memory SQLite. To exercise PostgreSQL, pass a TEST_DATABASE_URL
 for a dedicated test database user with CREATEDB permission. Do not use production data.
 
 ## Next-module handoff
@@ -85,3 +87,15 @@ automatic deployment or CV business services.
 - https://docs.djangoproject.com/en/5.2/topics/auth/customizing/
 - https://django-rest-framework-simplejwt.readthedocs.io/en/stable/settings.html
 - https://django-rest-framework-simplejwt.readthedocs.io/en/stable/blacklist_app.html
+
+## Local conversational AI
+
+Chat defaults to `CHAT_LLM_PROVIDER=qwen_local`,
+`CHAT_QWEN_BASE_URL=http://127.0.0.1:11434`, `CHAT_QWEN_MODEL=qwen3.5:4b`,
+and `QWEN_TIMEOUT=60`. Dedicated chat variables preserve older `QWEN_*`
+OpenAI-compatible configuration. No model download is automatic.
+Simple field validation/extraction avoids AI. Ambiguous language uses local Ollama;
+Gemini is used only for an explicitly approved final chat review through M6.
+The user approves proposed wording and saves through existing M2 versioning.
+`manage.py qwen_smoke` is an opt-in local test using synthetic facts, with no CV writes
+or Gemini requests. See the implementation report for complete verification and limitations.

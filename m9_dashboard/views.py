@@ -3,6 +3,7 @@ from pathlib import Path
 from django.shortcuts import render
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
+from shared.enums.career_level import CareerLevel
 
 
 def dashboard_asset_version():
@@ -31,5 +32,6 @@ def dashboard_page(request):
     return render(
         request,
         "m9_dashboard/dashboard.html",
-        {'dashboard_asset_version': dashboard_asset_version()},
+        {'dashboard_asset_version': dashboard_asset_version(),
+         'career_levels': [{'value': level.value, 'label': level.value.title()} for level in CareerLevel]},
     )

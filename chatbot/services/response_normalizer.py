@@ -27,15 +27,12 @@ QUESTION_MAP = {
 
     # --- grouped contact first ---
     ("personal", "email"): (
-        "Please share your contact information: "
-        "your email address, phone number, "
-        "and current city."
+        "What email address would you like to include in your CV?"
     ),
 
     # --- targeted follow-ups if email alone was given ---
     ("personal", "phone"): (
-        "Please also share your phone number "
-        "and current city."
+        "What phone number would you like to include in your CV?"
     ),
 
     ("personal", "location"): (
@@ -44,16 +41,11 @@ QUESTION_MAP = {
 
     # --- grouped professional links first ---
     ("personal", "linkedin"): (
-        "Please share your LinkedIn, GitHub, "
-        "and portfolio links if you have them. "
-        "You can also tell me which ones "
-        "you don't have."
+        "What is your LinkedIn profile URL, or would you like to skip it?"
     ),
 
     ("personal", "github"): (
-        "Please share your GitHub and portfolio "
-        "links if available, or tell me which "
-        "ones you don't have."
+        "What is your GitHub profile URL, or would you like to skip it?"
     ),
 
     ("personal", "portfolio"): (
@@ -67,11 +59,7 @@ QUESTION_MAP = {
 
     # --- grouped education first ---
     ("education", "degree"): (
-        "Please share your education details: "
-        "degree, field of study, university, "
-        "and graduation year. You can also "
-        "include your start year and grade "
-        "or CGPA if available."
+        "What degree did you complete or are you currently studying?"
     ),
 
     # --- targeted follow-ups ---
@@ -104,10 +92,7 @@ QUESTION_MAP = {
 
     # --- grouped experience first ---
     ("experience", "company"): (
-        "Please tell me about your most relevant "
-        "job or internship: company, role, "
-        "dates or location if available, and "
-        "your main responsibilities."
+        "Which company did you work or intern at?"
     ),
 
     # --- targeted follow-ups ---
@@ -126,9 +111,7 @@ QUESTION_MAP = {
 
     # --- grouped project first ---
     ("projects", "name"): (
-        "Tell me about a project you'd like "
-        "to include: its name, what it does, "
-        "and the main technologies you used."
+        "What is the name of the project you would like to include?"
     ),
 
     # --- targeted follow-ups ---
@@ -147,8 +130,7 @@ QUESTION_MAP = {
     # ========================================================
 
     ("summary", "summary"): (
-        "Please provide a brief professional "
-        "summary for your CV."
+        "What professional summary would you like to include in your CV?"
     ),
 }
 
@@ -177,7 +159,7 @@ def sanitize_ai_response_for_state(
     """
     Irrelevant messages must never change CV state.
 
-    Gemini may occasionally return unwanted updates even
+    the local provider may occasionally return unwanted updates even
     when intent is irrelevant, so the backend enforces
     this rule.
     """
@@ -215,7 +197,7 @@ def normalize_ai_response(
     new_state,
 ):
     """
-    Gemini extracts information.
+    the local provider extracts information.
     M5 state machine determines what comes next.
     """
     if isinstance(new_state, dict) and new_state.get('mode') == 'edit_existing':
@@ -308,7 +290,7 @@ def normalize_ai_response(
             "next_action"
         ] = "complete"
 
-        # Keep Gemini's completion message.
+        # Keep the local provider's completion message.
         return ai_response
 
     # ========================================================
