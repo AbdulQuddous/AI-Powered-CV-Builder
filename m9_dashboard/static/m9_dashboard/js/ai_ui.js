@@ -49,10 +49,47 @@
         if (!groups.size) node('p', 'No suggestions returned.', $('aiSuggestions'));
     }
     function comparison(pending) {
-        $('aiComparison').classList.toggle('hidden', !pending);
+        $('aiSingleComparison').classList.toggle('hidden', !pending);
         $('aiOriginal').value = pending?.original || '';
         $('aiRewritten').value = pending?.rewritten || '';
         messages($('aiChanges'), pending?.changes || [], 'No change notes returned.');
+    }
+    function tailoring(proposal, selectionChanged) {
+        $('aiWholeComparison').classList.toggle('hidden', !proposal);
+        $('aiTailorChanges').replaceChildren();
+        $('aiTailorSuggestions').replaceChildren();
+        $('aiTailorWarnings').replaceChildren();
+        $('aiTailorSummary').textContent = proposal?.summary || '';
+        if (!proposal) return;
+        for (const warning of proposal.warnings || []) node('p', warning, $('aiTailorWarnings'));
+        if (!proposal.changes.length) node('p', 'No wording changes suggested. You can review the advice below or edit your CV manually.', $('aiTailorChanges'));
+        proposal.changes.forEach((change, index) => {
+            const card = node('article', '', $('aiTailorChanges'), 'ai-change-card');
+            const label = node('label', '', card, 'ai-change-label');
+            const check = node('input', '', label, 'ai-change-check');
+            check.type = 'checkbox'; check.checked = change.accepted;
+            check.id = `aiChange-${index}`;
+            node('span', change.label, label);
+            check.addEventListener('change', () => {
+                change.accepted = check.checked;
+                selectionChanged();
+            });
+            const columns = node('div', '', card, 'ai-columns');
+            for (const [heading, text, className] of [
+                ['Current wording', change.original, 'ai-change-text'],
+                ['Suggested wording', change.rewritten, 'ai-change-text ai-suggested']
+            ]) {
+                const column = node('div', '', columns, className);
+                node('h4', heading, column);
+                node('p', text, column);
+            }
+            node('p', change.reason, card, 'ai-change-reason');
+        });
+        if (proposal.suggestions?.length) {
+            node('h4', 'Other ways to strengthen your CV', $('aiTailorSuggestions'));
+            const list = node('ul', '', $('aiTailorSuggestions'));
+            proposal.suggestions.forEach(text => node('li', text, list));
+        }
     }
     function preview(container, cv, {editable = false} = {}) {
         container.replaceChildren();
@@ -128,14 +165,32 @@
         });
     }
     function error(error) {
-        return ({400: 'Please check the supplied CV information and supported text length.',
+        if (error.status === 400) {
+            const message = error.userMessage || error.details?.error?.message || error.message;
+            if (typeof message === 'string' && message && message !== 'Request failed (400).') return message;
+        }
+        if (error.status === 502) {
+            const reasons = {
+                factual_validation: 'AI suggested changes that could not be verified against your CV. Your saved CV is unchanged. Try again for a fresh review.',
+                source_mismatch: 'AI could not match its changes to your saved wording. Try again to request a fresh review.',
+                response_truncated: 'The AI response was cut short. Try again to request a complete review.',
+                response_blocked: 'AI could not generate a review for this request. Adjust the job description or choose a part to rewrite.',
+                response_invalid_json: 'AI returned an incomplete review. Try again to request a fresh review.',
+                schema_invalid: 'AI returned an incomplete review. Try again to request a fresh review.',
+            };
+            const message = reasons[error.details?.error?.reason];
+            if (message) return message;
+        }
+        return ({400: 'Check the target role, job description and selected text, then try again.',
             401: 'Your session expired. Please sign in again.', 403: 'You cannot access this CV.',
             404: 'This CV is unavailable or does not belong to your account.',
             409: 'The CV changed elsewhere. Reload it and generate a new suggestion before applying.',
             429: 'You have reached the current AI request limit. Please try again later.',
-            502: 'AI could not produce a valid response. Your CV has not been changed.',
-            503: 'AI assistance is temporarily unavailable. You can continue editing manually.'})[error.status] ||
-            (error.name === 'AbortError' ? 'The request timed out. Please retry.' : 'The request failed. Check your connection and refresh the saved CV before retrying.');
+            500: 'The service could not complete this request. Try again shortly or edit your CV manually.',
+            502: 'AI could not produce a usable suggestion. Try again, or choose a smaller part to rewrite.',
+            503: 'AI assistance is temporarily unavailable. Try again shortly, or edit your CV manually.'})[error.status] ||
+            (error.name === 'AbortError' ? 'AI took too long to respond. Try again; your job details are still here.'
+                : 'Could not connect to the service. Check your connection and try again; your job details are still here.');
     }
-    global.M6UI = {node, health, analysis, comparison, preview, error};
+    global.M6UI = {node, health, analysis, comparison, tailoring, preview, error};
 })(window);

@@ -153,6 +153,8 @@ WRITING_SCHEMA = {
     "properties": {
         "rewritten": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 5000,
         },
         "changes": {
             "type": "array",

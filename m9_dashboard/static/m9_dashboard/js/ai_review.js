@@ -1,64 +1,119 @@
-/* Coordinates M2 reads/saves and M6 proposals. No conversation or AI logic. */
+/* Review AI proposals, then save approved wording through the existing CV API. */
 (function (global) {
     'use strict';
     const $ = id => document.getElementById(id);
     const copy = value => JSON.parse(JSON.stringify(value));
-    let api, selected = null, generation = 0, busy = false;
-    let validation = null, analysis = null, fingerprint = null, pending = null, fields = [];
-    const ui = () => global.M6UI;
     const at = (data, path) => path.reduce((value, key) => value?.[key], data);
+    const ui = () => global.M6UI;
     const role = () => $('aiRole').value.trim();
     const job = () => $('aiJob').value.trim();
+    const invalid = message => Object.assign(new Error(message), {status: 400, userMessage: message});
+    const conflict = () => Object.assign(new Error('Saved CV changed'), {status: 409});
+    const badResponse = () => Object.assign(new Error('Invalid AI response'), {status: 502});
+    let api, selected = null, generation = 0, busy = false, mode = 'whole', loadingId = null;
+    let validation = null, analysis = null, fingerprint = null, pending = null, tailored = null, fields = [], retry = null;
+    const active = () => mode === 'whole' ? tailored : pending;
+    const approved = () => mode === 'whole' ? (tailored?.changes || []).filter(change => change.accepted) : pending ? [pending] : [];
     const key = () => JSON.stringify([selected.id, selected.version, selected.data, role(), job()]);
 
-    function setBusy(value, status) {
+    function status(message) {
+        $('aiStatus').textContent = message;
+        $('aiStatus').classList.toggle('hidden', !message);
+    }
+    function clearError() {
+        retry = null;
+        $('aiError').textContent = '';
+        $('aiError').classList.add('hidden');
+        $('aiRetry').classList.add('hidden');
+    }
+    function setBusy(value, message) {
         busy = value;
-        if (status) $('aiStatus').textContent = status;
+        if (message) status(message);
         $('aiModal').setAttribute('aria-busy', String(value));
-        ['aiValidate','aiOptimize','aiViewSuggestions','aiRewrite','aiImprove','aiApply','aiDiscard','aiReload','aiField','aiRole','aiJob','aiPDF'].forEach(id => { $(id).disabled = value || !selected; });
-        $('aiApply').disabled = value || !pending;
-        $('aiRewrite').disabled = $('aiImprove').disabled = value || !fields.length;
+        for (const id of ['aiValidate','aiOptimize','aiTailor','aiRewrite','aiDiscard','aiReload','aiField','aiRole','aiJob','aiPDF','aiModeWhole','aiModePart']) {
+            $(id).disabled = value || !selected;
+        }
+        $('aiRetry').disabled = value;
+        $('aiApply').disabled = value || !approved().length;
+        $('aiDiscard').disabled = value || !active();
+        $('aiRewrite').disabled = value || !selected || !fields.length;
+        const count = approved().length;
+        $('aiApply').textContent = mode === 'part' ? 'Save this change' : `Save ${count} ${count === 1 ? 'change' : 'changes'}`;
+        for (const check of $('aiTailorChanges').querySelectorAll('input[type="checkbox"]')) check.disabled = value;
+    }
+    function renderProposal() {
+        const proposal = active();
+        ui().comparison(mode === 'part' ? pending : null);
+        ui().tailoring(mode === 'whole' ? tailored : null, () => setBusy(busy));
+        $('aiComparison').classList.toggle('hidden', !proposal);
+        $('aiComparisonTitle').textContent = mode === 'whole' ? 'Review the whole-CV improvements' : 'Review the rewrite';
+        setBusy(busy);
     }
     function invalidate(message = '') {
-        validation = analysis = fingerprint = pending = null;
-        ui().health(null); ui().analysis(null); ui().comparison(null);
-        if (message) $('aiStatus').textContent = message;
+        validation = analysis = fingerprint = pending = tailored = null;
+        ui().health(null); ui().analysis(null);
+        renderProposal();
+        if (message) status(message);
+    }
+    function switchMode(next, focus = false) {
+        if (busy) return;
+        mode = next;
+        const whole = mode === 'whole';
+        for (const [id, chosen] of [['aiModeWhole', whole], ['aiModePart', !whole]]) {
+            $(id).setAttribute('aria-selected', String(chosen));
+            $(id).tabIndex = chosen ? 0 : -1;
+        }
+        $('aiWholeMode').classList.toggle('hidden', !whole);
+        $('aiPartMode').classList.toggle('hidden', whole);
+        $('aiJobHelp').textContent = whole
+            ? 'Paste a job description or enter a target role to focus the improvements.'
+            : 'A target role or job description is optional. Add one to guide the rewrite.';
+        clearError();
+        renderProposal();
+        if (selected) status(active() ? 'Your suggestions are ready to review.' : whole
+            ? 'Add a target role or job description, then request improvements.'
+            : 'Choose a part of your CV, then request a rewrite.');
+        if (focus) $(whole ? 'aiModeWhole' : 'aiModePart').focus();
     }
     function fieldChanged() {
-        pending = null; ui().comparison(null);
+        if (busy) return;
+        pending = null;
         const field = fields[Number($('aiField').value)];
         $('aiSource').value = field && selected ? at(selected.data, field.path) : '';
-        setBusy(busy);
+        renderProposal();
     }
     function populateFields() {
         fields = [];
         function add(section, path, label) {
             const value = at(selected.data, path);
-            if (typeof value === 'string' && value.trim()) fields.push({section, path, label});
+            if (typeof value === 'string' && value.trim()) fields.push({section, path, pointer: '/' + path.join('/'), label});
         }
         add('summary', ['summary'], 'Professional summary');
-        ['experience','projects'].forEach(section => {
+        for (const section of ['experience', 'projects']) {
             (selected.data[section] || []).forEach((item, index) => {
-                const name = item.name || item.company || `${section} ${index+1}`;
+                const name = item.name || item.company || `${section === 'experience' ? 'Work experience' : 'Project'} ${index + 1}`;
                 if (section === 'projects') add(section, [section,index,'description'], `${name} — description`);
-                (item.highlights || []).forEach((_, bullet) => add(section, [section,index,'highlights',bullet], `${name} — bullet ${bullet+1}`));
+                (item.highlights || []).forEach((_, bullet) => add(section, [section,index,'highlights',bullet], `${name} — bullet ${bullet + 1}`));
             });
-        });
-        (selected.data.achievements || []).forEach((_, index) => add('achievements',['achievements',index],`Achievement ${index+1}`));
+        }
+        (selected.data.achievements || []).forEach((_, index) => add('achievements', ['achievements',index], `Achievement ${index + 1}`));
         $('aiField').replaceChildren();
-        fields.forEach((field,index) => $('aiField').add(new Option(field.label,String(index))));
-        if (!fields.length) $('aiField').add(new Option('No saved prose to improve. Add it in the editor.', ''));
-        fieldChanged();
+        fields.forEach((field, index) => $('aiField').add(new Option(field.label, String(index))));
+        if (!fields.length) $('aiField').add(new Option('Add a summary, work bullet or project description in the editor first.', ''));
+        const first = fields[0];
+        $('aiSource').value = first ? at(selected.data, first.path) : '';
     }
     function adopt(cv) {
-        if (!cv?.data || !Number.isSafeInteger(cv.id) || !Number.isInteger(cv.version)) throw new Error('Invalid saved CV response');
-        if (!selected || selected.id !== cv.id || selected.version !== cv.version || JSON.stringify(selected.data) !== JSON.stringify(cv.data)) {
-            invalidate('Saved CV changed. Run a new review.');
-            selected = cv;
+        if (!cv?.data || !Number.isSafeInteger(cv.id) || !Number.isInteger(cv.version)) throw badResponse();
+        const changed = !selected || selected.id !== cv.id || selected.version !== cv.version || JSON.stringify(selected.data) !== JSON.stringify(cv.data);
+        selected = cv;
+        if (changed) {
+            invalidate();
             populateFields();
-        } else selected = cv;
+        }
         $('aiCVName').textContent = cv.name;
         $('aiEditor').href = `/cvs/${cv.id}/edit/`;
+        $('aiEditor').removeAttribute('aria-disabled');
     }
     async function fresh(run) {
         const response = await api.fetch(`/api/cvs/${selected.id}/`);
@@ -69,28 +124,41 @@
     }
     function reset() {
         generation++;
-        selected = null; fields = [];
+        selected = loadingId = null; fields = [];
+        busy = false;
+        clearError();
         invalidate();
         $('aiSource').value = '';
         $('aiCVName').textContent = '';
-        $('aiError').classList.add('hidden');
-        setBusy(false);
+        $('aiEditor').removeAttribute('href');
+        $('aiEditor').setAttribute('aria-disabled', 'true');
+        $('aiMoreTools').open = false;
+        switchMode('whole');
+        status('Select a saved CV to begin.');
+    }
+    function showError(error, action) {
+        $('aiError').textContent = ui().error(error);
+        $('aiError').classList.remove('hidden');
+        status('');
+        retry = [400, 401, 403, 404, 409].includes(error.status) ? null : action;
+        $('aiRetry').classList.toggle('hidden', !retry);
     }
     async function open(id) {
         if (!api.requireLogin()) return;
         reset();
+        loadingId = id;
         const run = generation;
         $('aiRole').value = ''; $('aiJob').value = '';
         api.openModal('aiModal');
-        setBusy(true, 'Loading selected CV…');
+        setBusy(true, 'Loading your saved CV…');
         try {
             const response = await api.fetch(`/api/cvs/${id}/`);
             const cv = await response.json();
             if (run !== generation) return;
             adopt(cv);
             $('aiRole').value = cv.data.meta?.target_role || '';
-            $('aiStatus').textContent = 'Run a health check or request AI analysis.';
-        } catch(error) { if (run === generation) showError(error); }
+            status('Add a target role or job description, then request improvements.');
+        } catch (error) { if (run === generation) showError(error, () => open(id)); }
         finally {
             if (run === generation) {
                 setBusy(false);
@@ -98,22 +166,17 @@
             }
         }
     }
-    function showError(error) {
-        $('aiError').textContent = ui().error(error);
-        $('aiError').classList.remove('hidden');
-        $('aiStatus').textContent = 'The operation did not complete. You can retry.';
-    }
-    async function operation(message, action) {
+    async function operation(message, action, retryAction) {
         if (busy || !selected || !api.requireLogin()) return;
         const run = generation;
-        $('aiError').classList.add('hidden');
+        clearError();
         setBusy(true, message);
         try { await action(run); }
-        catch(error) { if (run === generation) showError(error); }
+        catch (error) { if (run === generation) showError(error, retryAction); }
         finally { if (run === generation) setBusy(false); }
     }
     function health() {
-        return operation('Checking CV structure and completeness…', async run => {
+        return operation('Checking for missing CV details…', async run => {
             if (!await fresh(run)) return;
             if (!validation) {
                 const result = await api.ai.validate(selected.data, role());
@@ -121,123 +184,181 @@
                 validation = result;
             }
             ui().health(validation);
-            $('aiStatus').textContent = 'Health check complete. No AI request was used.';
-        });
+            status('Check complete. Review any missing details below.');
+        }, health);
     }
-    function analyze(mode = 'optimize') {
-        return operation('Analyzing your CV…', async run => {
+    function analyze() {
+        return operation('Reviewing how your CV matches the job…', async run => {
+            if (!role() && !job()) throw invalid('Enter a target role or paste a job description first.');
             if (!await fresh(run)) return;
-            if (mode === 'optimize' && !role()) { throw Object.assign(new Error('Target role required'), {status:400}); }
             const signature = key();
             if (!analysis || fingerprint !== signature) {
-                const result = await api.ai[mode](selected.data, role(), job());
+                const result = role()
+                    ? await api.ai.optimize(selected.data, role(), job())
+                    : await api.ai.suggestions(selected.data, role(), job());
                 if (run !== generation) return;
                 analysis = result; fingerprint = signature;
             }
             validation = analysis;
-            ui().health(validation); ui().analysis(analysis,selected.id);
-            $('aiStatus').textContent = 'Analysis ready. All insights and suggestions use this result.';
-        });
+            ui().health(validation); ui().analysis(analysis, selected.id);
+            status('Job-fit advice is ready below. Use Improve whole CV to request wording changes.');
+        }, analyze);
     }
-    function write(mode) {
-        return operation(mode === 'improve' ? 'Improving selected text…' : 'Rewriting selected text…', async run => {
+    function tailor() {
+        return operation('Improving your CV for this job. This may take a moment…', async run => {
+            if (!role() && !job()) throw invalid('Enter a target role or paste a job description first.');
+            if (!await fresh(run)) return;
+            if (!fields.length) throw invalid('Add a summary, work bullet or project description in the CV editor first.');
+            const source = copy(selected);
+            const signature = key();
+            const result = await api.ai.tailor(source.id, source.version, role(), job());
+            if (run !== generation || signature !== key()) return;
+            if (result.cv_id !== source.id || result.version !== source.version || typeof result.summary !== 'string' || !Array.isArray(result.changes) || !Array.isArray(result.suggestions) || (result.warnings !== undefined && (!Array.isArray(result.warnings) || !result.warnings.every(item => typeof item === 'string')))) throw badResponse();
+            const seen = new Set();
+            const changes = result.changes.map(change => {
+                const field = fields.find(item => item.pointer === change.path);
+                if (!field || seen.has(change.path) || change.original !== at(source.data, field.path) || typeof change.rewritten !== 'string' || !change.rewritten.trim() || change.rewritten.length > 5000 || typeof change.reason !== 'string') throw badResponse();
+                seen.add(change.path);
+                return {...change, label: field.label, path: field.path.slice(), accepted: true};
+            });
+            tailored = {...result, changes, cvId: source.id, version: source.version, document: source.data};
+            renderProposal();
+            status(changes.length ? 'Improvements are ready. Review each change, then save the ones you want.' : 'Review complete. No wording changes were suggested.');
+            $('aiComparison').scrollIntoView?.({behavior: 'smooth', block: 'nearest'});
+        }, tailor);
+    }
+    function write() {
+        return operation('Rewriting your selected text…', async run => {
             const requested = fields[Number($('aiField').value)];
-            if (!requested) return;
+            if (!requested) throw invalid('Choose some saved CV text first.');
             const path = requested.path.slice();
-            const original = at(selected.data,path);
+            const original = at(selected.data, path);
             const version = selected.version;
             const document = JSON.stringify(selected.data);
             if (!await fresh(run)) return;
-            if (selected.version !== version || JSON.stringify(selected.data) !== document || at(selected.data,path) !== original) {
-                throw Object.assign(new Error('Field changed'),{status:409});
-            }
-            if (!original.trim() || original.length > 3000) { throw Object.assign(new Error('Unsupported text length'),{status:400}); }
-            pending = null; ui().comparison(null);
-            const result = await api.ai[mode](original,requested.section,role());
+            if (selected.version !== version || JSON.stringify(selected.data) !== document || at(selected.data,path) !== original) throw conflict();
+            if (!original.trim() || original.length > 5000) throw invalid('Choose text with between 1 and 5,000 characters.');
+            pending = null;
+            renderProposal();
+            const result = await api.ai.rewrite(original, requested.section, role(), job());
             if (run !== generation) return;
-            if (typeof result.rewritten !== 'string' || !result.rewritten.trim()) throw new Error('Invalid rewritten text');
-            pending = {...result, original, path, cvId:selected.id, version:selected.version, document:copy(selected.data)};
-            ui().comparison(pending);
-            $('aiStatus').textContent = 'Compare the wording. Apply saves only this field; Discard leaves the CV unchanged.';
-        });
+            if (typeof result.rewritten !== 'string' || !result.rewritten.trim() || result.rewritten.length > 5000) throw badResponse();
+            pending = {...result, original, path, cvId: selected.id, version: selected.version, document: copy(selected.data)};
+            renderProposal();
+            status('Compare the wording below. Save it if you like it, or discard it.');
+            $('aiComparison').scrollIntoView?.({behavior: 'smooth', block: 'nearest'});
+        }, write);
     }
     function apply() {
-        return operation('Saving approved wording…', async run => {
-            if (!pending || pending.cvId !== selected.id || pending.version !== selected.version) return;
-            const proposal = pending;
+        return operation('Saving your approved changes…', async run => {
+            const proposal = active();
+            const changes = approved();
+            if (!proposal || !changes.length) return;
+            if (proposal.cvId !== selected.id || proposal.version !== selected.version || JSON.stringify(proposal.document) !== JSON.stringify(selected.data)) {
+                invalidate();
+                throw conflict();
+            }
             const document = copy(proposal.document);
-            const parent = at(document,proposal.path.slice(0,-1));
-            parent[proposal.path.at(-1)] = proposal.rewritten;
+            for (const change of changes) {
+                const parent = at(document, change.path.slice(0, -1));
+                if (parent[change.path.at(-1)] !== change.original) throw conflict();
+                parent[change.path.at(-1)] = change.rewritten;
+            }
             try {
-                const response = await api.fetch(`/api/cvs/${proposal.cvId}/`, {method:'PATCH', body:JSON.stringify({data:document, expected_version:proposal.version})});
+                const response = await api.fetch(`/api/cvs/${proposal.cvId}/`, {method: 'PATCH', body: JSON.stringify({data: document, expected_version: proposal.version})});
                 const saved = await response.json();
                 if (run !== generation) return;
                 adopt(saved);
-                $('aiStatus').textContent = 'Approved wording saved. Previous analysis is stale; run a new review.';
-                await api.refresh();
-            } catch(error) {
+                status(mode === 'whole' ? `Saved ${changes.length} ${changes.length === 1 ? 'change' : 'changes'} to your CV. You can download the updated PDF below.` : 'Saved this change to your CV. You can download the updated PDF below.');
+                // Saving succeeded even if refreshing the dashboard list is unavailable.
+                try { await api.refresh(); } catch (_) { /* The approved CV is already saved. */ }
+            } catch (error) {
                 if (error.status === 409 && run === generation) { invalidate(); await fresh(run); }
                 throw error;
             }
-        });
+        }, apply);
     }
     function observe(cvs) {
         if (!selected) return;
         const latest = cvs.find(cv => cv.id === selected.id);
         if (!latest || latest.version !== selected.version || JSON.stringify(latest.data) !== JSON.stringify(selected.data)) {
             generation++;
-            invalidate('Saved CV changed. Reload the CV before reviewing it again.');
+            busy = false;
+            invalidate('Saved CV changed. Refresh the CV before requesting new improvements.');
+            clearError();
             setBusy(false);
         }
     }
     function roleChanged() {
-        analysis = fingerprint = pending = null;
-        ui().analysis(null); ui().comparison(null);
-        $('aiStatus').textContent = 'Analysis cleared because the target role or job description changed.';
-        setBusy(busy);
+        if (busy) return;
+        invalidate();
+        clearError();
+        status('Job details updated. Request new suggestions for this job.');
     }
-    async function downloadPDF() {
-        return operation('Generating PDF from the saved CV…', async run => {
-            const response = await api.fetch(`/api/cvs/${selected.id}/export/pdf/`, {method:'POST'});
+    function discard() {
+        if (busy) return;
+        if (mode === 'whole') tailored = null;
+        else pending = null;
+        clearError();
+        renderProposal();
+        status('Suggestions discarded. Your saved CV is unchanged.');
+    }
+    function reload() {
+        if (!selected) return loadingId ? open(loadingId) : null;
+        return operation('Refreshing your saved CV…', async run => {
+            if (await fresh(run)) status('Your saved CV is up to date.');
+        }, reload);
+    }
+    function downloadPDF() {
+        return operation('Preparing your saved CV as a PDF…', async run => {
+            const response = await api.fetch(`/api/cvs/${selected.id}/export/pdf/`, {method: 'POST'});
             const blob = await response.blob();
             if (run !== generation) return;
             const url = URL.createObjectURL(blob);
-            const link = ui().node('a',''); link.href=url; link.download=`cv-${selected.id}.pdf`; link.click();
-            setTimeout(() => URL.revokeObjectURL(url),1000);
-            $('aiStatus').textContent = 'PDF downloaded from the saved CV.';
-        });
+            const link = ui().node('a', ''); link.href = url; link.download = `cv-${selected.id}.pdf`; link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            status('Your saved CV has been downloaded.');
+        }, downloadPDF);
     }
     function init(dependencies) {
         api = dependencies;
         $('aiModal').addEventListener('keydown', event => {
             if (event.key !== 'Tab') return;
-            const controls = [...$('aiModal').querySelectorAll('button, input, textarea, select, a[href]')]
+            const controls = [...$('aiModal').querySelectorAll('button, input, textarea, select, a[href], summary')]
                 .filter(element => !element.disabled && element.getClientRects().length);
             const first = controls[0], last = controls.at(-1);
-            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
         });
-        $('aiValidate').addEventListener('click',health);
-        $('aiOptimize').addEventListener('click',() => analyze());
-        $('aiViewSuggestions').addEventListener('click',() => analyze('suggestions'));
-        $('aiRewrite').addEventListener('click',() => write('rewrite'));
-        $('aiImprove').addEventListener('click',() => write('improve'));
-        $('aiApply').addEventListener('click',apply);
-        $('aiPDF').addEventListener('click',downloadPDF);
-        $('aiDiscard').addEventListener('click',() => { pending=null; ui().comparison(null); setBusy(false); $('aiStatus').textContent='Suggestion discarded. Your CV is unchanged.'; });
-        $('aiField').addEventListener('change',fieldChanged);
-        ['aiRole','aiJob'].forEach(id => $(id).addEventListener('input',roleChanged));
-        $('aiReload').addEventListener('click',() => selected ? open(selected.id) : null);
-        global.addEventListener?.('focus', () => {
-            if (!selected || busy || $('aiModal').classList.contains('hidden')) return;
-            operation('Checking current saved CV…', async run => {
-                const previousVersion = selected.version;
-                if (await fresh(run) && selected.version === previousVersion) {
-                    $('aiStatus').textContent = 'Saved CV is current.';
+        for (const [id, next] of [['aiModeWhole', 'whole'], ['aiModePart', 'part']]) {
+            $(id).addEventListener('click', () => switchMode(next));
+            $(id).addEventListener('keydown', event => {
+                if (['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) {
+                    event.preventDefault();
+                    switchMode(event.key === 'Home' ? 'whole' : event.key === 'End' ? 'part' : mode === 'whole' ? 'part' : 'whole', true);
                 }
             });
+        }
+        $('aiTailor').addEventListener('click', tailor);
+        $('aiValidate').addEventListener('click', health);
+        $('aiOptimize').addEventListener('click', analyze);
+        $('aiRewrite').addEventListener('click', write);
+        $('aiApply').addEventListener('click', apply);
+        $('aiDiscard').addEventListener('click', discard);
+        $('aiPDF').addEventListener('click', downloadPDF);
+        $('aiRetry').addEventListener('click', () => retry?.());
+        $('aiField').addEventListener('change', fieldChanged);
+        for (const id of ['aiRole','aiJob']) $(id).addEventListener('input', roleChanged);
+        $('aiReload').addEventListener('click', reload);
+        global.addEventListener?.('focus', () => {
+            if (!selected || busy || $('aiModal').classList.contains('hidden')) return;
+            operation('Checking your saved CV…', async run => {
+                const previousVersion = selected.version;
+                if (await fresh(run) && selected.version === previousVersion) status(active() ? 'Your suggestions are ready to review.' : 'Your saved CV is up to date.');
+            });
         });
+        switchMode('whole');
         setBusy(false);
     }
-    global.M6Review = {init,open,reset,observe};
+    global.M6Review = {init, open, reset, observe};
 })(window);

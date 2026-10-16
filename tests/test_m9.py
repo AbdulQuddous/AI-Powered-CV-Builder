@@ -129,10 +129,13 @@ class M9DashboardTests(SimpleTestCase):
 
     def test_ai_intelligence_controls_and_assets(self):
         response = self.client.get('/dashboard/')
-        for element_id in ('aiModal', 'aiRole', 'aiValidate', 'aiOptimize', 'aiViewSuggestions', 'aiRewrite', 'aiImprove', 'aiApply', 'aiDiscard', 'importParse', 'importConfirm'):
+        for element_id in ('aiModal', 'aiRole', 'aiJob', 'aiModeWhole', 'aiModePart', 'aiTailor',
+                           'aiValidate', 'aiOptimize', 'aiRewrite', 'aiApply', 'aiDiscard',
+                           'aiRetry', 'aiTailorChanges', 'importParse', 'importConfirm'):
             self.assertContains(response, f'id="{element_id}"')
-        self.assertContains(response, 'Role')
-        self.assertContains(response, 'not a certified ATS score')
+        self.assertContains(response, 'Improve whole CV')
+        self.assertContains(response, 'Rewrite one part')
+        self.assertContains(response, "not an employer's ATS score")
         self.assertTemplateUsed(response, 'm9_dashboard/ai_review.html')
         for asset in ('js/ai_api.js', 'js/ai_ui.js', 'js/ai_review.js', 'css/ai_review.css'):
             self.assertIsNotNone(finders.find('m9_dashboard/' + asset))

@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -13,10 +15,15 @@ from ai.serializers import (
     ExtractionSerializer,
     CVAnalysisSerializer,
     WritingSerializer,
+    CVTailoringSerializer,
 )
 from ai.services.extraction import extract_cv
 from ai.services.analysis import analyze_cv
 from ai.services.writing import improve_text
+from ai.services.tailoring import tailor_cv
+
+
+logger = logging.getLogger(__name__)
 
 
 class BaseAIAPIView(APIView):
@@ -52,16 +59,19 @@ class BaseAIAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        except AIStructuredOutputError:
+        except AIStructuredOutputError as exc:
+            logger.warning(
+                "M6 AI structured output rejected. operation=%s reason=%s",
+                type(self).__name__, exc.reason,
+            )
+            error = {
+                "code": "ai_output_invalid",
+                "message": "AI returned an invalid response.",
+            }
+            if exc.reason != "ai_output_invalid":
+                error["reason"] = exc.reason
             return Response(
-                {
-                    "error": {
-                        "code": "ai_output_invalid",
-                        "message": (
-                            "AI returned an invalid response."
-                        ),
-                    }
-                },
+                {"error": error},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
@@ -178,6 +188,7 @@ class RewriteView(BaseAIAPIView):
                 text=data["text"],
                 section=data["section"],
                 target_role=data["target_role"],
+                job_description=data["job_description"],
                 user_id=request.user.pk,
                 mode="rewrite",
             ),
@@ -194,7 +205,17 @@ class ImproveView(BaseAIAPIView):
                 text=data["text"],
                 section=data["section"],
                 target_role=data["target_role"],
+                job_description=data["job_description"],
                 user_id=request.user.pk,
                 mode="improve",
             ),
+        )
+
+
+class TailorCVView(BaseAIAPIView):
+    def post(self, request):
+        return self.execute(
+            CVTailoringSerializer,
+            request,
+            lambda data: tailor_cv(user=request.user, **data),
         )

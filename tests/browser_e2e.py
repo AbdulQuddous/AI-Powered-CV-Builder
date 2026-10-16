@@ -111,6 +111,19 @@ class ChatProvider:
 class IntelligenceProvider:
     def generate_structured(self, **kwargs):
         properties = kwargs['schema']['properties']
+        if 'summary' in properties and 'changes' in properties:
+            return {
+                'summary': 'Clearer wording for the saved CV and target role.',
+                'changes': [
+                    {'path': '/summary', 'original': SAMPLE_CV['summary'],
+                     'rewritten': 'Software Engineering graduate building applications with Python and Django.',
+                     'reason': 'Focus the summary on the supported development skills.'},
+                    {'path': '/projects/0/description', 'original': SAMPLE_CV['projects'][0]['description'],
+                     'rewritten': 'Built an employee management system with Django.',
+                     'reason': 'Use direct wording for the existing project.'},
+                ],
+                'suggestions': ['Only include skills you can support.'],
+            }
         if 'overall_feedback' in properties:
             return {'overall_feedback': 'Clear and relevant.', 'suggestions': ['Keep the CV concise.'],
                 'proposed_changes': [{'path': '/summary', 'original': SAMPLE_CV['summary'],
@@ -147,7 +160,7 @@ class BrowserJourneys(StaticLiveServerTestCase):
         self.user = get_user_model().objects.create_user('browser@example.com', 'Browser-Strong-735!')
         self.patchers = [patch('chatbot.services.conversation_service.QwenClient', ChatProvider)] + [
             patch(f'ai.services.{service}.get_llm_provider', return_value=IntelligenceProvider())
-            for service in ('extraction', 'analysis', 'writing', 'final_review')]
+            for service in ('extraction', 'analysis', 'writing', 'final_review', 'tailoring')]
         for patcher in self.patchers: patcher.start(); self.addCleanup(patcher.stop)
         self.browser.get(self.live_server_url + '/dashboard/')
         self.browser.wait("document.getElementById('loginModal') && !document.getElementById('loginModal').classList.contains('hidden')")
@@ -155,9 +168,9 @@ class BrowserJourneys(StaticLiveServerTestCase):
         self.browser.click('#loginSubmit')
         self.browser.wait("document.getElementById('loginModal').classList.contains('hidden') && !state.loading")
 
-    def saved_cv(self, name='Browser CV', summary=None):
+    def saved_cv(self, name='Browser CV', summary=None, data=None):
         from cvs.services import create_cv
-        data = deepcopy(SAMPLE_CV)
+        data = deepcopy(SAMPLE_CV if data is None else data)
         if summary: data['summary'] = summary
         return create_cv(user=self.user, values={'name': name, 'data': data})
 
@@ -339,12 +352,139 @@ class BrowserJourneys(StaticLiveServerTestCase):
     def test_ai_rewrite_discard_approve_and_persistence(self):
         cv = self.saved_cv(summary='I made APIs using Django.')
         self.reload_dashboard(); self.browser.click('[data-action="intelligence"]')
+        self.browser.wait("!document.getElementById('aiModePart').disabled")
+        self.browser.click('#aiModePart')
         self.browser.wait("!document.getElementById('aiRewrite').disabled")
         self.browser.click('#aiRewrite'); self.browser.wait("!document.getElementById('aiApply').disabled")
+        self.assertEqual(self.browser.js("return document.getElementById('aiOriginal').value"), 'I made APIs using Django.')
+        self.assertEqual(self.browser.js("return document.getElementById('aiRewritten').value"), 'Developed APIs using Django.')
         self.browser.click('#aiDiscard'); cv.refresh_from_db(); self.assertEqual(cv.data['summary'], 'I made APIs using Django.')
         self.browser.click('#aiRewrite'); self.browser.wait("!document.getElementById('aiApply').disabled")
-        self.browser.click('#aiApply'); self.browser.wait("document.getElementById('aiStatus').textContent.includes('saved')")
+        self.browser.click('#aiApply'); self.browser.wait("/saved/i.test(document.getElementById('aiStatus').textContent)")
         cv.refresh_from_db(); self.assertEqual(cv.data['summary'], 'Developed APIs using Django.')
+        self.assertEqual(cv.version, 2); self.assertEqual(cv.versions.count(), 2)
+
+    def test_whole_cv_tailoring_reviews_every_change_and_saves_one_version(self):
+        cv = self.saved_cv(); original = deepcopy(cv.data)
+        self.reload_dashboard(); self.browser.click('[data-action="intelligence"]')
+        self.browser.wait("!document.getElementById('aiTailor').disabled")
+        self.assertEqual(self.browser.js("return document.getElementById('aiModeWhole').getAttribute('aria-selected')"), 'true')
+        self.browser.value('#aiRole', 'Python Django Developer')
+        self.browser.value('#aiJob', 'Build maintainable Django applications with Python and PostgreSQL.')
+        self.browser.click('#aiTailor')
+        self.browser.wait("document.querySelectorAll('#aiTailorChanges .ai-change-card').length===2 && !document.getElementById('aiApply').disabled")
+        cv.refresh_from_db(); self.assertEqual(cv.data, original)
+        self.assertEqual(cv.version, 1); self.assertEqual(cv.versions.count(), 1)
+        comparison = self.browser.js("return document.getElementById('aiTailorChanges').textContent")
+        for text in [original['summary'], original['projects'][0]['description'],
+                     'Software Engineering graduate building applications with Python and Django.',
+                     'Built an employee management system with Django.']:
+            self.assertIn(text, comparison)
+        self.assertIn('Only include skills you can support.', self.browser.js("return document.getElementById('aiTailorSuggestions').textContent"))
+        self.assertEqual(self.browser.js("return [...document.querySelectorAll('#aiTailorChanges .ai-change-check')].every(input=>input.checked)"), True)
+        self.browser.click('#aiApply')
+        self.browser.wait("/saved 2 changes/i.test(document.getElementById('aiStatus').textContent)")
+        cv.refresh_from_db()
+        self.assertEqual(cv.data['summary'], 'Software Engineering graduate building applications with Python and Django.')
+        self.assertEqual(cv.data['projects'][0]['description'], 'Built an employee management system with Django.')
+        self.assertEqual(cv.version, 2); self.assertEqual(cv.versions.count(), 2)
+        for section in ('personal', 'skills', 'education', 'experience', 'certifications', 'achievements', 'languages', 'meta'):
+            self.assertEqual(cv.data[section], original[section])
+        self.assertEqual(cv.data['projects'][0]['highlights'], original['projects'][0]['highlights'])
+
+    def test_whole_cv_provider_retry_preserves_inputs_and_saves_only_selected_change(self):
+        from ai.exceptions import AIProviderError
+        cv = self.saved_cv(); original = deepcopy(cv.data)
+        self.reload_dashboard(); self.browser.click('[data-action="intelligence"]')
+        self.browser.wait("!document.getElementById('aiTailor').disabled")
+        role = 'Django Application Developer'
+        job = 'Use Python and Django to maintain employee applications. Retry journey.'
+        self.browser.value('#aiRole', role); self.browser.value('#aiJob', job)
+        with patch.object(IntelligenceProvider, 'generate_structured', side_effect=AIProviderError('Test provider unavailable.')):
+            self.browser.click('#aiTailor')
+            self.browser.wait("!document.getElementById('aiError').classList.contains('hidden') && !document.getElementById('aiRetry').disabled")
+        error = self.browser.js("return document.getElementById('aiError').textContent")
+        self.assertIn('temporarily unavailable', error)
+        self.assertNotIn('connection', error.lower())
+        self.assertTrue(self.browser.js("return document.getElementById('aiStatus').classList.contains('hidden') || document.getElementById('aiStatus').textContent.trim()===''"))
+        self.assertEqual(self.browser.js("return document.getElementById('aiRole').value"), role)
+        self.assertEqual(self.browser.js("return document.getElementById('aiJob').value"), job)
+        cv.refresh_from_db(); self.assertEqual(cv.data, original); self.assertEqual(cv.version, 1)
+        self.browser.click('#aiRetry')
+        self.browser.wait("document.querySelectorAll('#aiTailorChanges .ai-change-check').length===2 && !document.getElementById('aiApply').disabled")
+        self.assertTrue(self.browser.js("return document.getElementById('aiError').classList.contains('hidden')"))
+        self.browser.click('#aiTailorChanges .ai-change-check')
+        self.browser.click('#aiApply'); self.browser.wait("/saved 1 change/i.test(document.getElementById('aiStatus').textContent)")
+        cv.refresh_from_db()
+        self.assertEqual(cv.data['summary'], original['summary'])
+        self.assertEqual(cv.data['projects'][0]['description'], 'Built an employee management system with Django.')
+        self.assertEqual(cv.version, 2); self.assertEqual(cv.versions.count(), 2)
+
+    @override_settings(GEMINI_API_KEY='test-only-no-real-provider-access', M6_GEMINI_MODEL='browser-synthetic-gemini')
+    def test_gemini_sdk_partial_review_accepts_case_changes_and_omits_unconfirmed_skill(self):
+        from google.genai import types
+        from ai.llm.gemini_client import GeminiProvider
+
+        source = 'software engineering graduate building python/django applications and rest apis.'
+        rewritten = 'Software Engineering graduate building Python/Django applications and REST APIs.'
+        data = deepcopy(SAMPLE_CV)
+        data['skills'] = [skill.lower() for skill in data['skills']]
+        project = data['projects'][0]
+        project['description'] = project['description'].lower()
+        project['technologies'] = [technology.lower() for technology in project['technologies']]
+        project['highlights'] = [highlight.lower() for highlight in project['highlights']]
+        cv = self.saved_cv(summary=source, data=data); original = deepcopy(cv.data)
+        provider_result = {
+            'summary': 'Improve clarity while keeping the confirmed development experience.',
+            'changes': [
+                {'path': '/summary', 'original': source, 'rewritten': rewritten,
+                 'reason': 'Use consistent technology capitalization.'},
+                {'path': '/projects/0/description', 'original': project['description'],
+                 'rewritten': 'Built an employee management system using Django and AWS.',
+                 'reason': 'Mention cloud deployment.'},
+            ],
+            'suggestions': [],
+        }
+        response = types.GenerateContentResponse(candidates=[types.Candidate(
+            content=types.Content(role='model', parts=[types.Part.from_text(text=json.dumps(provider_result))]),
+            finish_reason=types.FinishReason.STOP,
+        )])
+        self.reload_dashboard(); self.browser.click('[data-action="intelligence"]')
+        self.browser.wait("!document.getElementById('aiTailor').disabled")
+        self.browser.value('#aiRole', 'Python Django Developer')
+        self.browser.value('#aiJob', 'Build Django applications and REST APIs. AWS is useful.')
+        self.browser.js("""
+            const originalFetch=window.fetch;
+            window.tailoringResponseStatuses=[];
+            window.fetch=async (...args)=>{
+                const result=await originalFetch(...args);
+                if(String(args[0]).includes('/api/ai/tailor/')) window.tailoringResponseStatuses.push(result.status);
+                return result;
+            };
+        """)
+        with patch('ai.llm.gemini_client.genai.Client') as client_factory:
+            generate = client_factory.return_value.models.generate_content
+            generate.return_value = response
+            with patch('ai.services.tailoring.get_llm_provider', return_value=GeminiProvider()):
+                self.browser.click('#aiTailor')
+                self.browser.wait("document.querySelectorAll('#aiTailorChanges .ai-change-card').length===1 && !document.getElementById('aiApply').disabled")
+            generate.assert_called_once()
+            self.assertEqual(generate.call_args.kwargs['config'].response_mime_type, 'application/json')
+        self.assertEqual(self.browser.js('return window.tailoringResponseStatuses'), [200])
+        self.assertTrue(self.browser.js("return document.getElementById('aiError').classList.contains('hidden')"))
+        comparison = self.browser.js("return document.getElementById('aiTailorChanges').textContent")
+        self.assertIn(source, comparison); self.assertIn(rewritten, comparison)
+        self.assertNotIn('AWS', comparison)
+        warning = self.browser.js("return document.getElementById('aiTailorWarnings').textContent")
+        self.assertIn('left out', warning); self.assertIn('could not be verified against your CV', warning)
+        cv.refresh_from_db(); self.assertEqual(cv.data, original)
+        self.assertEqual(cv.version, 1); self.assertEqual(cv.versions.count(), 1)
+        self.browser.click('#aiApply')
+        self.browser.wait("/saved 1 change/i.test(document.getElementById('aiStatus').textContent)")
+        cv.refresh_from_db(); self.assertEqual(cv.data['summary'], rewritten)
+        self.assertEqual(cv.data['projects'], original['projects'])
+        self.assertEqual(cv.data['skills'], original['skills'])
+        self.assertEqual(cv.version, 2); self.assertEqual(cv.versions.count(), 2)
 
     def test_grouped_education_and_explicit_dates_preserve_the_university(self):
         self.browser.click('#createAI'); self.browser.wait("document.getElementById('templateId').options.length>=3")

@@ -56,7 +56,7 @@ class CVAnalysisSerializer(serializers.Serializer):
 
 class WritingSerializer(serializers.Serializer):
     text = serializers.CharField(
-        max_length=3000,
+        max_length=5000,
     )
 
     section = serializers.ChoiceField(
@@ -76,3 +76,28 @@ class WritingSerializer(serializers.Serializer):
         default="",
         max_length=200,
     )
+
+    job_description = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        max_length=10000,
+    )
+
+
+class CVTailoringSerializer(serializers.Serializer):
+    cv_id = serializers.IntegerField(min_value=1)
+    expected_version = serializers.IntegerField(min_value=1)
+    target_role = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=200,
+    )
+    job_description = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=10000,
+    )
+
+    def validate(self, attrs):
+        if not attrs["target_role"].strip() and not attrs["job_description"].strip():
+            raise serializers.ValidationError(
+                "Enter a target role or paste a job description."
+            )
+        return attrs

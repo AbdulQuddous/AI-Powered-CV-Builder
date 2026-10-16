@@ -7,10 +7,12 @@ from ai.views import (
     OptimizeCVView,
     RewriteView,
     ImproveView,
+    TailorCVView,
 )
 
 
 urlpatterns = [
+    path("tailor/", TailorCVView.as_view(), name="ai-tailor"),
     path(
         "extract/",
         ExtractCVView.as_view(),

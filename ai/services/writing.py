@@ -19,6 +19,7 @@ def improve_text(
     user_id,
     section,
     target_role="",
+    job_description="",
     mode="rewrite",
     llm=None,
 ):
@@ -34,15 +35,19 @@ def improve_text(
 
     text = text.strip()
 
-    if len(text) > 3000:
+    if len(text) > 5000:
         raise InvalidAIInputError(
             "Text exceeds the supported limit."
         )
+
+    if not isinstance(job_description, str) or len(job_description) > 10000:
+        raise InvalidAIInputError("Job description exceeds the supported limit.")
 
     payload = {
         "text": text,
         "section": section,
         "target_role": target_role,
+        "job_description": job_description,
         "mode": mode,
     }
 
@@ -62,7 +67,7 @@ def improve_text(
                 )
             ),
             schema=WRITING_SCHEMA,
-            max_output_tokens=1000,
+            max_output_tokens=2500,
         )
 
         try:

@@ -101,3 +101,66 @@ class M9AIIntegrationTests(APITestCase):
         self.assertEqual(saved.status_code, 404)
         private.refresh_from_db()
         self.assertEqual(private.version, 1)
+
+    @patch('ai.services.tailoring.get_llm_provider')
+    def test_whole_cv_proposal_requires_one_approved_versioned_save(self, provider):
+        llm = Mock()
+        changes = [
+            {'path': '/summary', 'original': self.document['summary'], 'rewritten': 'Developed Django APIs.', 'reason': 'Use direct wording.'},
+            {'path': '/projects/0/description', 'original': self.document['projects'][0]['description'], 'rewritten': 'Developed a CV maker.', 'reason': 'Use a clear action verb.'},
+        ]
+        llm.generate_structured.return_value = {
+            'summary': 'Clarified the professional summary and project description.',
+            'changes': changes,
+            'suggestions': ['Only include skills supported by your experience.'],
+        }
+        provider.return_value = llm
+        snapshot_count = self.cv.versions.count()
+        response = self.client.post('/api/ai/tailor/', {
+            'cv_id': self.cv.id, 'expected_version': 1, 'target_role': 'Backend Developer',
+            'job_description': 'Develop and maintain Django APIs.',
+        }, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['data']['cv_id'], self.cv.id)
+        self.assertEqual(response.data['data']['version'], 1)
+        self.assertEqual(response.data['data']['changes'], changes)
+        self.cv.refresh_from_db()
+        self.assertEqual(self.cv.data, self.document)
+        self.assertEqual(self.cv.version, 1)
+        self.assertEqual(self.cv.versions.count(), snapshot_count)
+
+        approved = deepcopy(self.document)
+        approved['summary'] = changes[0]['rewritten']
+        approved['projects'][0]['description'] = changes[1]['rewritten']
+        saved = self.client.patch(f'/api/cvs/{self.cv.id}/', {
+            'data': approved, 'expected_version': response.data['data']['version'],
+        }, format='json')
+        self.assertEqual(saved.status_code, 200, saved.data)
+        self.assertEqual(saved.data['data'], approved)
+        self.assertEqual(saved.data['version'], 2)
+        self.assertEqual(self.cv.versions.count(), snapshot_count + 1)
+        self.assertEqual(saved.data['data']['personal'], self.document['personal'])
+        self.assertEqual(saved.data['data']['education'], self.document['education'])
+        self.assertEqual(saved.data['data']['projects'][0]['technologies'], self.document['projects'][0]['technologies'])
+        preview = self.client.get(f'/api/cvs/{self.cv.id}/preview/')
+        self.assertContains(preview, changes[0]['rewritten'])
+        self.assertContains(preview, changes[1]['rewritten'])
+        with patch('m8_renderer.views.PDFExporter.generate', return_value=b'%PDF-test') as pdf:
+            export = self.client.post(f'/api/cvs/{self.cv.id}/export/pdf/')
+            self.assertEqual(export.status_code, 200)
+            self.assertEqual(pdf.call_args.args[0]['cv_data'], approved)
+
+    @patch('ai.services.tailoring.get_llm_provider')
+    def test_whole_cv_generation_rejects_foreign_or_stale_sources_before_ai(self, provider):
+        private = create_cv(user=self.other, values={'name': 'Private CV', 'data': {}})
+        payload = {'cv_id': private.id, 'expected_version': 1, 'job_description': 'Maintain Django APIs.'}
+        response = self.client.post('/api/ai/tailor/', payload, format='json')
+        self.assertEqual(response.status_code, 404, response.data)
+        payload['cv_id'] = self.cv.id
+        payload['expected_version'] = 99
+        response = self.client.post('/api/ai/tailor/', payload, format='json')
+        self.assertEqual(response.status_code, 409, response.data)
+        provider.assert_not_called()
+        self.cv.refresh_from_db()
+        self.assertEqual(self.cv.data, self.document)
+        self.assertEqual(self.cv.version, 1)
