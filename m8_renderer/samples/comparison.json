@@ -1,0 +1,101 @@
+{
+  "schema_version": "1.0",
+  "meta": {
+    "template_id": "modern",
+    "target_role": "Python Backend Developer",
+    "career_level": "experienced"
+  },
+  "personal": {
+    "full_name": "Alex Morgan",
+    "email": "alex.morgan@example.com",
+    "phone": "+44 7700 900123",
+    "location": "Bristol, UK",
+    "linkedin": "",
+    "github": "github.example.com/alex",
+    "portfolio": "alex.example.com"
+  },
+  "summary": "Backend developer with five years of experience building dependable web services. Turns complex requirements into maintainable Python applications, with a focus on performance, clear communication, and thoughtful engineering.",
+  "skills": [
+    "Python",
+    "Django & DRF",
+    "PostgreSQL",
+    "REST APIs",
+    "Docker",
+    "Automated testing",
+    "Git",
+    "Agile delivery"
+  ],
+  "education": [
+    {
+      "institution": "Westbridge University (fictional)",
+      "degree": "BSc Computer Science",
+      "field_of_study": "Software Engineering",
+      "start_date": "2018-09",
+      "end_date": "2021-06",
+      "grade": "First class honours"
+    }
+  ],
+  "experience": [
+    {
+      "company": "Northstar Labs (fictional)",
+      "job_title": "Backend Developer",
+      "location": "Bristol",
+      "start_date": "2023-04",
+      "end_date": "",
+      "is_current": true,
+      "highlights": [
+        "Built a reporting API used by 12 internal teams; reduced response times by 35%.",
+        "Introduced integration tests and review checklists, reducing production defects.",
+        "Partnered with designers and analysts to deliver a self-service data dashboard."
+      ]
+    },
+    {
+      "company": "Cedar Digital (fictional)",
+      "job_title": "Junior Software Developer",
+      "location": "Bath",
+      "start_date": "2021-07",
+      "end_date": "2023-03",
+      "is_current": false,
+      "highlights": [
+        "Developed Django services for a scheduling platform and improved database queries.",
+        "Documented API endpoints and helped onboard three new colleagues."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Community Resource Hub",
+      "description": "A searchable directory connecting local volunteers with community projects.",
+      "technologies": [
+        "Django",
+        "PostgreSQL",
+        "Docker"
+      ],
+      "url": "hub.example.com",
+      "highlights": [
+        "Implemented accessible search and a reliable background import pipeline."
+      ]
+    }
+  ],
+  "certifications": [
+    {
+      "name": "Cloud Foundations",
+      "issuer": "Example Learning Academy",
+      "date": "2024-05",
+      "url": "credentials.example.com/alex"
+    }
+  ],
+  "achievements": [
+    "Recognised for mentoring early-career engineers in a volunteer coding programme."
+  ],
+  "languages": [
+    {
+      "name": "English",
+      "proficiency": "native"
+    },
+    {
+      "name": "French",
+      "proficiency": "conversational"
+    }
+  ]
+}

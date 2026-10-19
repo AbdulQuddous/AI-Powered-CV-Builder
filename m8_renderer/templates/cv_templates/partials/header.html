@@ -1,0 +1,5 @@
+<header class="header" id="m7-preview-personal">
+<h1 class="name">{{ personal.full_name|default:'Curriculum Vitae' }}</h1>
+{% if target_role %}<div class="target-role">{{ target_role }}</div>{% endif %}
+{% if contact %}<div class="contact">{{ contact|join:' | ' }}</div>{% endif %}
+</header>

@@ -1,11 +1,18 @@
 from rest_framework import serializers
 from cvs.serializers import CareerLevelField
 from shared.enums.career_level import CareerLevel
+from chatbot.services.career_profiles import profile_name, PROFILES
 
 from chatbot.models import (
     ChatMessage,
     ChatSession,
 )
+
+
+class InterviewCareerLevelField(CareerLevelField):
+    def to_internal_value(self, value):
+        profile = profile_name(value)
+        return PROFILES[profile][1] if profile else super().to_internal_value(value)
 
 
 class ChatSessionCreateSerializer(
@@ -18,12 +25,13 @@ class ChatSessionCreateSerializer(
     )
     cv_name = serializers.CharField(required=False, max_length=255)
     target_role = serializers.CharField(required=False, allow_blank=True, max_length=255)
-    career_level = CareerLevelField(required=False, choices=['', 'student'] + [level.value for level in CareerLevel])
+    career_level = InterviewCareerLevelField(required=False, choices=['', 'student'] + [level.value for level in CareerLevel])
     template_id = serializers.CharField(required=False, allow_blank=True, max_length=255)
 
     def validate(self, attrs):
-        if self.initial_data.get('career_level') == 'junior':
-            attrs['question_profile'] = 'junior'
+        profile = profile_name(self.initial_data.get('career_level'))
+        if profile:
+            attrs['question_profile'] = profile
         return attrs
 
     def validate_template_id(self, value):

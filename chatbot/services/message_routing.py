@@ -8,9 +8,13 @@ from chatbot.services.field_validation import extract_skills
 from chatbot.services.local_extractor import is_exact_skip_command, is_finish_command
 from chatbot.services.question_engine import question, recommendations
 from chatbot.services.content_handling import is_direct_abuse, is_conversational_question, is_self_harm_concern
-from chatbot.services.section_answers import labelled_summary, parse_languages, proficiency_unspecified, section_request
-from chatbot.services.education_answers import parse_education, parse_certificate, parse_employer, DATE
+from chatbot.services.section_answers import (labelled_summary, parse_languages, proficiency_unspecified,
+    keep_languages_unchanged, section_request, structured_section_answer)
+from chatbot.services.education_answers import parse_education, parse_certificate, parse_employer, normalise_date, DATE
+from chatbot.services.structured_answers import looks_structured
 from chatbot.services.project_answers import is_profile_paragraph, project_title, project_description
+from chatbot.services.career_profiles import profile_name, PROFILES
+from chatbot.services.career_guidance import guidance_request, guidance_message, automatic_guidance, guidance_data
 
 PERSONAL = {'name': 'full_name', 'full name': 'full_name', 'email': 'email',
             'phone': 'phone', 'location': 'location', 'linkedin': 'linkedin',
@@ -65,6 +69,22 @@ def route_message(state, text, step):
                      'i am safe', "i'm safe", 'no i am safe', 'no'):
             return control('resume_cv')
         return control('support_needed')
+    topic = guidance_request(text)
+    if topic:
+        return control('career_guidance', topic=topic)
+    if state.get('guidance_choice_pending'):
+        if lower in ('no', 'no thanks', 'keep all', 'continue without changes'):
+            return control('dismiss_guidance')
+        if lower in ('yes', 'yes please', 'all of them', 'use your suggestions', 'use suggestions', 'add them all', 'okay', 'ok', 'sure'):
+            return control('guidance_choice')
+    career_change = re.fullmatch(r'(?:change|set|update) my career level to (.+)', text, re.I)
+    if career_change:
+        selected = profile_name(career_change[1])
+        if selected:
+            response = response_update('target', 'career_level', PROFILES[selected][1])
+            response['_control'] = {'intent': 'answer', 'question_profile': selected}
+            return response
+        return control('clarification', notice='Choose Student, Fresher, Junior, Mid-Level, Senior, Executive or other.')
     if section == 'personal' and field in ('linkedin', 'github', 'portfolio'):
         link = re.fullmatch(r'\[[^\]]*\]\((https?://\S+)\)', text, re.I)
         value = link[1] if link else text
@@ -92,6 +112,30 @@ def route_message(state, text, step):
         return control('show_progress')
     if lower in ('go back', 'back', 'undo', 'undo last change'):
         return control('go_back')
+    if state.get('date_confirmation_pending'):
+        pending = state['date_confirmation_pending']
+        if lower in ('omit', 'omit this date', 'omit date', 'skip', 'skip this date', 'leave it blank', 'leave this date blank'):
+            return control('omit_source_date')
+        parsed = parse_education(text, pending['field']) if section in ('education', 'experience') else None
+        values = {key: parsed[key] for key in ('start_date', 'end_date') if parsed and key in parsed}
+        if not values:
+            value = normalise_date(text)
+            if re.fullmatch(r'(?:19|20)\d{2}(?:-(?:0[1-9]|1[0-2]))?', value):
+                values[pending['field']] = value
+        if not values:
+            return control('clarification', notice='Please confirm the month as well; I will not invent it.')
+        response = empty_ai_response(); response['section'] = section
+        # Validate both endpoints together. Partial years and a complete sibling
+        # date are retained while the active field still needs its month.
+        response['cv_updates'][section] = [values]
+        # Carry the selected entry's identity, so multiple degrees/jobs stay separate.
+        from cvs.chat_import import IDENTITIES
+        entry = state['collected_data'][section][pending['index']]
+        for key in IDENTITIES[section]:
+            if parsed and parsed.get(key) and entry.get(key) and parsed[key].casefold() != entry[key].casefold():
+                return control('clarification', notice='These dates are being collected for the listed entry. Confirm which education or job entry you want to change.')
+        response['cv_updates'][section][0].update({key: entry[key] for key in IDENTITIES[section] if entry.get(key)})
+        return response
     if state.get('pending_selection'):
         selection = state['pending_selection']
         source = 'collected_data' if selection.get('source') == 'collection' else 'existing_cv'
@@ -125,8 +169,10 @@ def route_message(state, text, step):
             response['_control'] = {'intent': 'answer', 'unspecified_proficiency': True}
         return response
     if proficiency_unspecified(text) or (state.get('language_proficiency_pending') and (
-            is_exact_skip_command(text) or ABSENCE.fullmatch(text))):
+            keep_languages_unchanged(text) or is_exact_skip_command(text) or ABSENCE.fullmatch(text))):
         return control('answer', unspecified_proficiency=True)
+    if section == 'languages' and keep_languages_unchanged(text):
+        return control('clarification', notice='Please name the languages to include, or skip this section.')
     if state.get('experience_absence_pending') and lower in ('yes', 'confirm', 'yes no experience', 'i confirm', 'no experience'):
         return control('skip', skip_fields=['experience'], confirmed_absence=True)
     if is_exact_skip_command(text) or ABSENCE.fullmatch(text):
@@ -141,6 +187,12 @@ def route_message(state, text, step):
     choice = re.fullmatch(r'(?:select|display|use) (?:experiences? )?([\d, and]+)', lower)
     if choice:
         return control('select_experience', indexes=[int(n) - 1 for n in re.findall(r'\d+', choice[1])])
+    choice = re.fullmatch(r'(?:select|display|use) (projects?|certifications?) ([\d, and]+)', lower)
+    if choice:
+        section = 'projects' if choice[1].startswith('project') else 'certifications'
+        return control('select_entries', section=section, indexes=[int(n) - 1 for n in re.findall(r'\d+', choice[2])])
+    if re.match(r'^(?:select|display|use) (?:projects?|certifications?)\b', lower):
+        return control('clarification', notice='Please list the original entry numbers, for example: select projects 1, 2.')
     correction = re.fullmatch(r'(?:change|update|edit) my (full name|name|email|phone|location|linkedin|github|portfolio|summary)(?: to (.+))?', text, re.I)
     if correction:
         label, value = correction.groups()
@@ -169,6 +221,11 @@ def route_message(state, text, step):
     if skill_command:
         operation, values = skill_command.groups()
         skills = extract_skills(values)
+        if not skills and operation.lower() == 'remove':
+            # A literal, already-confirmed skill needs no vocabulary guess or
+            # model call, even when it is uncommon or from another discipline.
+            skills = [skill for skill in guidance_data(state).get('skills') or []
+                      if skill.casefold() == values.strip().casefold()]
         if skills:
             if operation.lower() == 'remove':
                 return control('remove_skills', skills=skills)
@@ -190,14 +247,11 @@ def route_message(state, text, step):
             target = {'language': 'languages', 'skill': 'skills', 'certification': 'certifications', 'project': 'projects'}.get(noun, noun)
             return control('edit_focus', section=target, operation='edit' if lower.startswith(('edit', 'update')) else 'add')
     if section == 'target' and field == 'career_level':
-        profiles = {'student': ('other', 'student'), 'fresher': ('fresher', 'fresher'),
-                    'junior': ('experienced', 'junior'), 'experienced': ('experienced', 'experienced'),
-                    'senior': ('experienced', 'senior'), 'executive': ('experienced', 'executive'), 'other': ('other', 'other')}
         label = re.sub(r"^(?:i am (?:a |an )?|i'm (?:a |an )?)", '', lower)
-        if label in profiles:
-            career, profile = profiles[label]
-            response = response_update('target', 'career_level', career)
-            response['_control'] = {'intent': 'answer', 'question_profile': profile}
+        selected = profile_name(label)
+        if selected:
+            response = response_update('target', 'career_level', PROFILES[selected][1])
+            response['_control'] = {'intent': 'answer', 'question_profile': selected}
             return response
         return try_local_extraction(required_step=step, user_message=text)
     inline_language = re.fullmatch(r'(?:i want to )?add (.+?) (?:to my cv|to my languages|as a language)', text, re.I)
@@ -219,8 +273,18 @@ def route_message(state, text, step):
             response = empty_ai_response(); response['section'] = section
             response['cv_updates'][section] = [education]
             return response
+        if looks_structured(text):
+            return control('clarification', notice='Please check the pasted education JSON. Use distinct institution, degree, specialization and graduation date/year fields.')
         if re.fullmatch(DATE + r'[.!]?', text, re.I) and field not in ('start_date', 'end_date'):
             return control('clarification', notice='Please say whether this is your start date or graduation date.')
+    if section in ('certifications', 'languages', 'achievements'):
+        entries = structured_section_answer(text, section)
+        if entries:
+            response = empty_ai_response(); response['section'] = section
+            response['cv_updates'][section] = entries
+            return response
+        if looks_structured(text) or text.startswith('"'):
+            return control('clarification', notice='Please check the pasted list. Use text items, or named entries with the supported fields; no duplicate JSON properties.')
     if section == 'certifications':
         certificate = parse_certificate(text)
         if certificate:
@@ -274,6 +338,8 @@ def route_message(state, text, step):
         skills = extract_skills(text)
         if skills:
             return response_update(section, field, skills)
+        if looks_structured(text):
+            return control('clarification', notice='Please provide skills as a JSON list or groups of text lists, without duplicate or conflicting fields.')
     if re.fullmatch(r'[\w .\-]+\s+(?:basic|conversational|professional|fluent|native)(?:\s*(?:,|and)\s*[\w .\-]+\s+(?:basic|conversational|professional|fluent|native))*\.?', text, re.I):
         response = empty_ai_response()
         response['section'] = 'languages'
@@ -314,6 +380,25 @@ def apply_control(state, response):
     action = response.get('_control') or {}
     intent = action.get('intent')
     notice = action.get('notice', '')
+    if intent == 'career_guidance':
+        state['guidance_choice_pending'] = action.get('topic', 'all')
+    elif intent != 'guidance_choice':
+        state.pop('guidance_choice_pending', None)
+    pending_date = state.get('date_confirmation_pending')
+    if pending_date:
+        entries = (response.get('cv_updates') or {}).get(pending_date['section']) or []
+        answer = next((item[pending_date['field']] for item in entries if item.get(pending_date['field'])), '')
+        answered = bool(re.fullmatch(r'(?:19|20)\d{2}-(?:0[1-9]|1[0-2])', answer)) or (
+            answer == 'present' and pending_date['section'] == 'experience' and pending_date['field'] == 'end_date')
+        if re.fullmatch(r'(?:19|20)\d{2}', answer):
+            state['date_confirmation_pending']['year'] = answer
+        if intent == 'omit_source_date':
+            state.setdefault('omitted_source_dates', []).append(pending_date)
+            notice = 'That date will be omitted from the CV. Your original year remains in the chat.'
+        if answered or intent == 'omit_source_date':
+            state.pop('date_confirmation_pending', None)
+            if state.get('pending_field', {}).get('section') == pending_date['section']:
+                state.pop('pending_field', None)
     languages = (response.get('cv_updates') or {}).get('languages') or []
     pending_languages = list(state.get('language_proficiency_pending') or [])
     for item in languages:
@@ -368,6 +453,15 @@ def apply_control(state, response):
     elif intent == 'skip_field':
         state.setdefault('field_status', {})[action['section'] + '.' + action['field']] = 'skipped'
         state.pop('pending_field', None)
+    elif intent == 'select_entries':
+        section = action['section']
+        entries = guidance_data(state).get(section) or []
+        indexes = action['indexes']
+        if indexes and len(set(indexes)) == len(indexes) and all(type(i) is int and 0 <= i < len(entries) for i in indexes):
+            state.setdefault('display_entry_indexes', {})[section] = indexes
+            notice = f'Your selected {section} will be displayed in that order. All source entries remain in this conversation.'
+        else:
+            notice = 'Choose valid, distinct original entry numbers. Your previous selection is unchanged.'
     elif intent == 'select_experience':
         entries = (state.get('collected_data') or {}).get('experience') or []
         if state.get('mode') == 'edit_existing':
@@ -426,21 +520,30 @@ def present_response(response, state, errors=None, notice=''):
                         assistant_message=boundary + "I'm here to help with your CV. Let's continue. " + question(state))
     elif action == 'cv_question':
         response.update(intent='give_suggestion', next_action='ask_question', assistant_message=(
-            'Projects can demonstrate practical skills even without formal employment. Certifications and grades are optional; include only confirmed, relevant facts. ' + question(state)))
+            'Projects can demonstrate practical skills even without formal employment. Certifications and grades are optional; include only confirmed, relevant facts. '
+            + guidance_message(state, (response.get('_control') or {}).get('topic', 'all')) + '\n\n' + question(state)))
+    elif action == 'career_guidance':
+        response.update(intent='give_suggestion', next_action='ask_question', assistant_message=(
+            guidance_message(state, response['_control'].get('topic', 'all')) + '\n\n' + question(state)))
+    elif action in ('guidance_choice', 'dismiss_guidance'):
+        detail = ('Please name what you want to add or prioritize, for example "add another project" or "prioritize projects". Suggestions are not added automatically. '
+                  if action == 'guidance_choice' else 'Your confirmed information is kept. ')
+        response.update(intent='give_suggestion', next_action='ask_question', assistant_message=detail + question(state))
     elif action == 'show_progress':
         info = state.get('collected_data') or state.get('edit_updates') or {}
         response.update(intent='give_suggestion', next_action='review', assistant_message=(
             'Collected information: ' + json.dumps(info, ensure_ascii=False)[:7000] + '\n' + '\n'.join(recommendations(state)) + '\n' + question(state)))
-    elif errors:
-        response.update(intent='clarify_information', next_action='ask_question', assistant_message=' '.join(errors) + ' ' + question(state))
+    elif errors or action == 'clarification':
+        detail = ' '.join(errors) if errors else notice or 'Please clarify the details you would like to include.'
+        response.update(intent='clarify_information', next_action='ask_question', assistant_message=detail + ' ' + question(state))
     elif action == 'finish' and step['section'] == 'review':
         response.update(intent='complete', next_action='complete', assistant_message='Your draft is ready. Review the collected details, optionally request an external Gemini review, then save when you approve.')
     else:
         response['next_action'] = 'review' if step['section'] == 'review' else 'ask_question'
         response['intent'] = 'update_cv' if any(value for value in response.get('cv_updates', {}).values()) else 'collect_information'
         response['assistant_message'] = (notice + ' ' if notice else '') + question(state)
-        counts = state.get('collected_data') or state.get('edit_updates') or {}
-        if any(len(counts.get(s) or []) > n for s, n in [('skills', 15), ('certifications', 5), ('experience', 5), ('projects', 5)]):
-            response['assistant_message'] += '\n' + '\n'.join(recommendations(state)[:4])
+        advice = automatic_guidance(state, response)
+        if advice:
+            response['assistant_message'] += '\n\n' + advice
     response.pop('_control', None)
     return response

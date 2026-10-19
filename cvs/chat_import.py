@@ -174,6 +174,14 @@ def build_chat_document(session, current=None):
     document = deepcopy(current) if current is not None else build_document({})
     updates = collected_updates(session)
     warnings = []
+    entry_warnings = {}
+
+    def canonical_at(section, index, item):
+        local_warnings = []
+        result = canonical_entry(section, item, local_warnings)
+        entry_warnings.setdefault((section, index), []).extend(local_warnings)
+        return result
+
     for key, value in updates["personal"].items():
         if key in document["personal"]:
             document["personal"][key] = text(value)
@@ -195,7 +203,7 @@ def build_chat_document(session, current=None):
                 value = [canonical_entry(section, item, warnings) for item in value]
             # Merge sparse proposals first, then fill required structural defaults.
             entries = merge_entries(existing + deepcopy(additions), value, section)
-            document[section] = [canonical_entry(section, item, warnings) for item in entries]
+            document[section] = [canonical_at(section, index, item) for index, item in enumerate(entries)]
     state = session.conversation_state or {}
     for patch in state.get('entry_patches', []):
         section, index = patch['section'], patch['index']
@@ -206,7 +214,7 @@ def build_chat_document(session, current=None):
             raw['role'] = raw['job_title']
             raw['responsibilities'] = raw['highlights']
         raw.update(patch['updates'])
-        document[section][index] = canonical_entry(section, raw, warnings)
+        document[section][index] = canonical_at(section, index, raw)
     removed = {item.casefold() for item in state.get('removed_skills', [])}
     document['skills'] = [skill for skill in document['skills'] if skill.casefold() not in removed]
     indexes = state.get('display_experience_indexes')
@@ -214,6 +222,18 @@ def build_chat_document(session, current=None):
         if not (0 < len(indexes) <= 5 and all(type(i) is int and 0 <= i < len(document['experience']) for i in indexes)):
             raise ValidationError({'detail': 'Please select up to five valid experiences.'})
         document['experience'] = [document['experience'][i] for i in indexes]
+    for section, indexes in (state.get('display_entry_indexes') or {}).items():
+        if (section not in ('projects', 'certifications') or not isinstance(indexes, list) or not indexes
+                or any(type(i) is not int or not 0 <= i < len(document[section]) for i in indexes)
+                or len(set(indexes)) != len(indexes)):
+            raise ValidationError({'detail': 'Choose valid, distinct original project or certification numbers.'})
+        document[section] = [document[section][i] for i in indexes]
+    # Omitted source entries need no date fixes in the displayed document.
+    for (section, index), messages in entry_warnings.items():
+        selection = (state.get('display_experience_indexes') if section == 'experience'
+                     else (state.get('display_entry_indexes') or {}).get(section))
+        if selection is None or index in selection:
+            warnings.extend(messages)
     if state.get('mode') == 'edit_existing':
         state = state.get('edit_metadata_updates') or {}
     for key in ("target_role", "career_level"):
@@ -242,11 +262,16 @@ def save_chat_cv(*, user, session_id, expected_version=None):
     session = get_object_or_404(ChatSession.objects.select_for_update(), id=session_id, user=user)
     if session.status != ChatSession.Status.COMPLETED:
         raise ChatImportConflict("Finish the conversation before saving its collected details.")
+    # Approval may be the first request after an older draft was collected.
+    # Apply the same evidence-based recovery used by the draft review endpoint.
+    from chatbot.services.optional_section_recovery import repair_optional_answers
+    repair_optional_answers(session)
     cv = services.owned(user=user, cv_id=session.cv_id, lock=True) if session.cv_id else None
     editing = session.conversation_state.get('mode') == 'edit_existing'
-    if editing and cv and session.conversation_state.get('edit_saved_cv_id') == cv.id:
-        # Completed editing proposals are immutable. Retrying approval must not
-        # append a project twice or overwrite later manual edits.
+    if cv and (session.conversation_state.get('chat_saved_cv_id') == cv.id
+               or session.conversation_state.get('edit_saved_cv_id') == cv.id):
+        # Approved proposals are immutable. Retrying approval must not replay
+        # subset indexes against reordered saved entries or later manual edits.
         return cv, []
     document, warnings = build_chat_document(session, current=cv.data if cv else None)
     if cv:

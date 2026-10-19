@@ -43,6 +43,7 @@
       case 'certifications':
         row.title = first(item, 'name', 'title', 'certification');
         row.subtitle = join(first(item, 'issuer', 'organization'), first(item, 'date', 'issue_date'));
+        if (first(item, 'url')) row.bullets.push(first(item, 'url'));
         break;
       case 'achievements':
         row.title = first(item, 'title', 'name');
@@ -91,14 +92,32 @@
     add(header, 'h1', 'name', data.name);
     if (data.targetRole) add(header, 'div', 'target-role', data.targetRole);
     if (data.contact.length) add(header, 'div', 'contact', data.contact.join(' | '));
+    const design = document.body?.dataset || {};
+    const sideKeys = (design.sideKeys || '').split(',').filter(Boolean);
+    const order = (design.sectionOrder || '').split(',').filter(Boolean);
+    let mainColumn = fragment, sideColumn = null;
+    if (order.length) {
+      const layout = add(fragment, 'div', 'layout');
+      mainColumn = add(layout, 'div', 'main-column');
+      if (sideKeys.length) sideColumn = add(layout, 'aside', 'side-column');
+    }
+    const nodes = {};
     function section(key, label) {
-      const node = add(fragment, 'section', 'section');
+      const node = document.createElement('section');
+      node.className = 'section';
+      if (node.dataset) node.dataset.section = key;
+      nodes[key] = node;
+      if (!order.length) fragment.appendChild(node);
       node.id = `m7-preview-${key}`;
       add(node, 'h2', 'section-title', label);
       return node;
     }
     if (data.summary) add(section('summary', 'Professional Summary'), 'p', 'summary', data.summary);
-    if (data.skills.length) add(section('skills', 'Skills'), 'p', 'skills', data.skills.join(', '));
+    if (data.skills.length) {
+      const skills = add(section('skills', 'Skills'), 'p', 'skills');
+      if (order.length) data.skills.forEach(skill => add(skills, 'span', 'skill', skill));
+      else skills.textContent = data.skills.join(', ');
+    }
     for (const group of data.sections) {
       const node = section(group.key, group.label);
       for (const row of group.items) {
@@ -111,6 +130,9 @@
           row.bullets.forEach(bullet => add(list, 'li', '', bullet));
         }
       }
+    }
+    for (const key of order) {
+      if (nodes[key]) (sideKeys.includes(key) && sideColumn ? sideColumn : mainColumn).appendChild(nodes[key]);
     }
     main.replaceChildren(fragment);
     document.title = `${data.name} - CV`;
@@ -169,6 +191,12 @@
     }
     function loaded() {
       if (disposed || !frame.contentDocument?.querySelector('.document')) return;
+      const doc = frame.contentDocument;
+      if (doc.head && !doc.getElementById('m7-embed-style')) {
+        const style = doc.createElement('style'); style.id = 'm7-embed-style';
+        style.textContent = 'html{overflow:hidden;background:white!important}body{padding:0!important;background:white!important}.document{margin:0!important;box-shadow:none!important}';
+        doc.head.appendChild(style);
+      }
       ready = true;
       update();
       onReady();

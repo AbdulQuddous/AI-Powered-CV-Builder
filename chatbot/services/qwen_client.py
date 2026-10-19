@@ -51,7 +51,7 @@ def extraction_schema():
                 'requires_clarification': {'type': 'boolean'},
                 'target_role': {'type': 'string', 'maxLength': 255},
                 'career_level': {'enum': ['fresher', 'experienced', 'other']},
-                'question_profile': {'enum': ['student', 'fresher', 'junior', 'experienced', 'senior', 'executive']},
+                'question_profile': {'enum': ['student', 'fresher', 'junior', 'experienced', 'mid_level', 'senior', 'executive']},
             }}
 
 
@@ -86,6 +86,11 @@ insults directed at the assistant are inappropriate. Workplace incidents, quoted
 and ordinary criticism are not abuse. For corrections use field_corrections. For
 commands without supplied facts return empty extracted_fields. Destructive or ambiguous
 removals require clarification, no changes. Python controls all questions and completion.
+Assistant guidance and suggested skills/certification topics are not user facts.
+An unqualified 'yes' or 'use your suggestions' does not confirm possession of those
+skills, jobs, metrics or qualifications. Ask which actual facts the user confirms.
+Student, fresher, junior, mid_level, senior and executive are interview profiles;
+the canonical career_level remains fresher, experienced or other.
 """
 
 

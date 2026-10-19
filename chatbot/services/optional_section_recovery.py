@@ -2,8 +2,12 @@
 from copy import deepcopy
 import re
 
-from chatbot.services.section_answers import labelled_summary, parse_languages
+from chatbot.services.section_answers import (labelled_summary, parse_languages,
+    keep_languages_unchanged, proficiency_unspecified, structured_section_answer)
 from chatbot.services.education_answers import parse_education
+from chatbot.services.structured_answers import looks_structured
+from chatbot.services.field_validation import unique_skills, extract_skills
+from chatbot.services.date_recovery import date_repair_candidate, repair_date_state
 
 
 def _misplaced_dates(data):
@@ -72,9 +76,61 @@ def _normalise(value):
     return ' '.join(value.casefold().split())
 
 
+def _has_list_cleanup(data):
+    return (any(isinstance(entry, dict) and (
+                keep_languages_unchanged(entry.get('name', '')) or proficiency_unspecified(entry.get('name', '')))
+                for entry in data.get('languages') or [])
+            or any(isinstance(entry, dict) and looks_structured(entry.get('name', ''))
+                   for entry in data.get('certifications') or [])
+            or unique_skills(data.get('skills') or []) != (data.get('skills') or [])
+            or any(isinstance(entry, dict) and re.search(r'\bdegrre$', entry.get('degree', ''), re.I)
+                   for entry in data.get('education') or []))
+
+
+def _repair_lists(data, user_answers):
+    changed = False
+    for section in ('certifications',):
+        entries = data.get(section) or []
+        for source in user_answers.values():
+            clean = structured_section_answer(source, section)
+            if not clean:
+                continue
+            # Match exactly the old comma-split proposal, including its JSON
+            # wrapper. A later user edit or a different list is never replaced.
+            legacy = [{'name': value.strip().rstrip('.')} for value in
+                      re.split(r',|\band\b', ' '.join(source.split())) if value.strip()]
+            for start in range(len(entries) - len(legacy) + 1):
+                if entries[start:start + len(legacy)] == legacy and legacy != clean:
+                    entries[start:start + len(legacy)] = deepcopy(clean)
+                    data[section] = entries
+                    changed = True
+                    break
+    original_skills = data.get('skills') or []
+    skills = unique_skills(original_skills)
+    if skills != original_skills and any(extract_skills(text) == skills for text in user_answers.values()):
+        data['skills'] = skills
+        changed = True
+    for entry in data.get('education') or []:
+        degree = entry.get('degree', '')
+        if not re.search(r'\bdegrre$', degree, re.I):
+            continue
+        parsed = parse_education(degree)
+        sources = [parse_education(text) for text in user_answers.values() if _normalise(degree) in _normalise(text)]
+        if not parsed or not any(source and source.get('degree') == parsed['degree']
+                and _normalise(source.get('institution', '')) == _normalise(entry.get('institution', '')) for source in sources):
+            continue
+        entry['degree'] = parsed['degree']
+        subject = entry.get('field_of_study', '')
+        if re.search(r'\bdegrre$', subject, re.I) and parsed.get('field_of_study'):
+            entry['field_of_study'] = parsed['field_of_study']
+        changed = True
+    return changed
+
+
 def _clean(state, user_answers, accepted_universities=()):
     data = state.get('collected_data') or {}
     changed = _repair_education(state, user_answers, accepted_universities)
+    changed = _repair_lists(data, user_answers) or changed
     summary = data.get('summary')
     parsed = labelled_summary(summary) if isinstance(summary, str) else None
     if parsed and parsed[1] and _normalise(summary) in user_answers:
@@ -85,6 +141,13 @@ def _clean(state, user_answers, accepted_universities=()):
     cleaned = []
     for entry in entries:
         name = entry.get('name', '') if isinstance(entry, dict) else ''
+        if (name and not entry.get('proficiency') and _normalise(name) in user_answers
+                and (keep_languages_unchanged(name) or proficiency_unspecified(name))):
+            pending = state.get('language_proficiency_pending') or []
+            if any(_normalise(value) == _normalise(name) for value in pending):
+                state.pop('language_proficiency_pending', None)
+            changed = True
+            continue
         split = parse_languages(name) if name and not entry.get('proficiency') else []
         if len(split) > 1 and _normalise(name) in user_answers:
             cleaned.extend(split)
@@ -108,7 +171,8 @@ def repair_optional_answers(session):
         data = state.get('collected_data') or {}
         summary = data.get('summary')
         parsed = labelled_summary(summary) if isinstance(summary, str) else None
-        possible = bool(parsed and parsed[1]) or bool(_misplaced_dates(data)) or any(
+        possible = (bool(parsed and parsed[1]) or bool(_misplaced_dates(data)) or _has_list_cleanup(data)
+                    or date_repair_candidate(state)) or any(
             isinstance(entry, dict) and not entry.get('proficiency')
             and len(parse_languages(entry.get('name', ''))) > 1
             for entry in data.get('languages') or [])
@@ -131,13 +195,24 @@ def repair_optional_answers(session):
                 if isinstance(name, str) and name and not _misplaced_dates({'education': [{'institution': name}]}):
                     accepted_universities.add(name)
         state = deepcopy(locked.conversation_state)
-        if not _clean(state, answers, accepted_universities):
+        history = list(locked.messages.order_by('created_at', 'id').values('role', 'content', 'intent', 'cv_updates'))
+        date_changed = repair_date_state(state, history)
+        if not (_clean(state, answers, accepted_universities) or date_changed):
             return False
         if state.get('undo_state'):
             _clean(state['undo_state'], answers, accepted_universities)
+            repair_date_state(state['undo_state'], history)
         from chatbot.services.question_engine import next_step
         locked.current_section = state['current_section'] = next_step(state)['section']
         locked.conversation_state = state
         locked.save(update_fields=['conversation_state', 'current_section', 'updated_at'])
+        if date_changed:
+            from chatbot.models import ChatMessage
+            from chatbot.services.question_engine import question
+            dates = state['collected_data']['education'][0]
+            values = ', '.join(f'{key.replace("_", " ")}: {dates[key]}' for key in ('start_date', 'end_date') if dates.get(key))
+            ChatMessage.objects.create(session=locked, role='assistant', intent='collect_information',
+                section=locked.current_section, next_action='review' if locked.current_section == 'review' else 'ask_question',
+                content='I recovered the dates supported by your earlier answers (' + values + '). ' + question(state))
         session.refresh_from_db()
         return True

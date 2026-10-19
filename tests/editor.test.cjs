@@ -190,3 +190,45 @@ test('M2 certificate validation error is visible and failed saves preserve the d
     assert.equal(calls, 1);
   } finally { global.fetch = previous.fetch; global.M7Api = previous.api; }
 });
+
+test('saved preview requests actual PDF pages and displays their page count', async () => {
+  const component = edit.cvEditor(); component.id = 18; component.loading = false;
+  component.cv = structuredClone(cv); component.initial = JSON.stringify(component.cv); component.loaded = {version: 11};
+  const calls = [];
+  component.m8Request = async (action, method) => {
+    calls.push([action, method]);
+    return {text: async () => '<html><body>2 A4 pages</body></html>', headers: {get: name => name === 'X-CV-Page-Count' ? '2' : null}};
+  };
+  await component.previewM8();
+  assert.deepEqual(calls, [['preview/document/', 'GET']]);
+  assert.equal(component.m8PreviewPages, 2); assert.equal(component.m8PreviewOpen, true);
+  assert.match(component.notice, /Exact PDF preview/);
+  component.closeM8Preview(); assert.equal(component.m8PreviewPages, 0);
+});
+
+test('M8 preview and export requests pin the version loaded by the editor', async () => {
+  const previous = {session: global.M1Session, storage: global.sessionStorage};
+  const paths = [];
+  global.sessionStorage = {getItem: () => 'test-access'};
+  global.M1Session = {request: async path => { paths.push(path); return {ok: true}; }};
+  try {
+    const component = edit.cvEditor(); component.id = 18; component.loaded = {version: 11};
+    await component.m8Request('preview/document/');
+    await component.m8Request('export/docx/?layout=fixed', 'POST');
+    assert.deepEqual(paths, ['/api/cvs/18/preview/document/?expected_version=11', '/api/cvs/18/export/docx/?layout=fixed&expected_version=11']);
+  } finally { global.M1Session = previous.session; global.sessionStorage = previous.storage; }
+});
+
+test('Word download defaults to matching pages and retains an explicit editable option', async () => {
+  const previous = {document: global.document, timer: global.setTimeout}; const names = [], paths = [];
+  global.document = {body: {appendChild() {}}, createElement: () => ({click() { names.push(this.download); }, remove() {}})};
+  global.setTimeout = fn => { fn(); return 0; };
+  try {
+    const component = edit.cvEditor(); component.id = 18; component.loading = false;
+    component.cv = structuredClone(cv); component.initial = JSON.stringify(component.cv); component.loaded = {version: 11};
+    component.m8Request = async path => { paths.push(path); return {blob: async () => new Blob(['Word'])}; };
+    await component.downloadM8('docx'); await component.downloadM8('docx', 'editable');
+    assert.deepEqual(paths, ['export/docx/?layout=fixed', 'export/docx/?layout=editable']);
+    assert.deepEqual(names, ['cv-18.docx', 'cv-18-editable.docx']);
+  } finally { global.document = previous.document; global.setTimeout = previous.timer; }
+});

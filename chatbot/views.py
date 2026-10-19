@@ -233,9 +233,11 @@ class ChatDraftView(APIView):
         session = get_object_or_404(ChatSession, pk=session_id, user=request.user)
         repair_optional_answers(session)
         repair_project_profile_split(session)
-        document = draft_for_review(session)
+        document, warnings = draft_for_review(session, include_warnings=True)
+        from chatbot.services.question_engine import recommendations
         return Response({'draft': document, 'fingerprint': fingerprint(document),
-                         'recommendations': session.conversation_state.get('recommendations', [])})
+                         'recommendations': recommendations(session.conversation_state),
+                         'warnings': warnings})
 
 
 class ChatReopenView(APIView):

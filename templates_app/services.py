@@ -3,15 +3,15 @@
 from django.core.exceptions import ObjectDoesNotExist
 
 from .models import CVTemplate
+from .catalogue import is_renderable
 
 
 class TemplateService:
 
     @staticmethod
     def list_available_templates():
-        return CVTemplate.objects.filter(
-            is_available=True
-        )
+        candidates = CVTemplate.objects.filter(is_available=True)
+        return candidates.filter(pk__in=[t.pk for t in candidates if is_renderable(t)])
 
     @staticmethod
     def get_template(template_id):
@@ -25,10 +25,8 @@ class TemplateService:
 
     @staticmethod
     def template_exists(template_id):
-        return CVTemplate.objects.filter(
-            id=template_id,
-            is_available=True
-        ).exists()
+        template = TemplateService.get_template(template_id)
+        return template is not None and is_renderable(template)
 
     @staticmethod
     def is_compatible(template, level=None, role=None):

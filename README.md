@@ -37,7 +37,21 @@ The custom user model must be configured before the first migration. For an exis
 project with an already-migrated user model, plan a data migration rather than dropping
 these files into it. This bundle is a standalone new-project foundation.
 
+### Workspace styles
+
+Workspace pages share local CSS; no CSS CDN is needed at runtime. When changing
+utility classes in templates or JavaScript, rebuild the checked-in stylesheet:
+
+```bash
+npm ci
+npm run build:css
+```
+
+Node is only required to rebuild CSS. See [workspace styling](docs/WORKSPACE_UI.md)
+for the shared components and browser checks.
+
 ## 4. Try the API
+
 ```bash
 curl -X POST http://127.0.0.1:8000/api/auth/register/ \
  -H 'Content-Type: application/json' \

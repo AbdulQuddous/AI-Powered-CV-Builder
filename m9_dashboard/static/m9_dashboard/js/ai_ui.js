@@ -59,10 +59,16 @@
         $('aiTailorChanges').replaceChildren();
         $('aiTailorSuggestions').replaceChildren();
         $('aiTailorWarnings').replaceChildren();
-        $('aiTailorSummary').textContent = proposal?.summary || '';
+        $('aiTailorSummary').textContent = proposal ? proposal.changes.length ? proposal.summary : 'No wording changes were proposed. Your saved CV is unchanged.' : '';
         if (!proposal) return;
-        for (const warning of proposal.warnings || []) node('p', warning, $('aiTailorWarnings'));
-        if (!proposal.changes.length) node('p', 'No wording changes suggested. You can review the advice below or edit your CV manually.', $('aiTailorChanges'));
+        const warnings = proposal.warnings || [];
+        if (warnings.length) node('p', warnings[0], $('aiTailorWarnings'));
+        if (warnings.length > 1) {
+            const details = node('details', '', $('aiTailorWarnings'));
+            node('summary', `Why ${warnings.length - 1} ${warnings.length === 2 ? 'suggestion was' : 'suggestions were'} left out`, details);
+            const list = node('ul', '', details);
+            warnings.slice(1).forEach(warning => node('li', warning, list));
+        }
         proposal.changes.forEach((change, index) => {
             const card = node('article', '', $('aiTailorChanges'), 'ai-change-card');
             const label = node('label', '', card, 'ai-change-label');

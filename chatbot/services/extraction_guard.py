@@ -7,6 +7,7 @@ import re
 from copy import deepcopy
 
 from chatbot.services.field_validation import ALIASES
+from chatbot.services.education_answers import education_dates, structured_education
 
 
 def comparable(text):
@@ -26,6 +27,9 @@ def guard_extraction(response, message, state):
     unsupported = []
     context = state.get('collected_data') or state.get('edit_updates') or {}
     existing = state.get('existing_cv') or {}
+    # A completion date is not evidence of a start date just because the same
+    # year appears in the answer. Check labelled endpoints independently.
+    stated_education = structured_education(message) or education_dates(message)[0]
     literal = {'personal': {'full_name', 'email', 'phone', 'location', 'linkedin', 'github', 'portfolio'},
                'education': {'institution', 'degree', 'field_of_study', 'grade'},
                'experience': {'company', 'role', 'job_title', 'technologies', 'employment_type'},
@@ -78,6 +82,12 @@ def guard_extraction(response, message, state):
                         unsupported.append(f'{section}.{field}')
                         if isinstance(value, list): entry[field] = supported or None
                         else: entry.pop(field)
+                if (section == 'education' and field in ('start_date', 'end_date')
+                        and any(key in stated_education for key in ('start_date', 'end_date'))
+                        and field not in stated_education):
+                    entry.pop(field, None)
+                    unsupported.append(f'{section}.{field}')
+                    continue
                 if field in ('start_date', 'end_date', 'date') and re.match(r'^\d{4}', str(value)) and str(value)[:4] not in message:
                     entry.pop(field, None)
                     unsupported.append(f'{section}.{field}')

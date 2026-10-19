@@ -1,10 +1,11 @@
 from io import BytesIO
 
 from docx import Document
-from docx.shared import Inches, Pt, RGBColor
+from docx.shared import Inches, Mm, Pt, RGBColor
 
 from .context_builder import build_context
 from .renderer import CVRenderer
+from templates_app.catalogue import catalogue
 
 
 TEMPLATE_COLORS = {
@@ -31,6 +32,8 @@ class DOCXExporter:
 
         section = document.sections[0]
 
+        section.page_width = Mm(210)
+        section.page_height = Mm(297)
         section.top_margin = Inches(0.65)
         section.bottom_margin = Inches(0.65)
         section.left_margin = Inches(0.75)
@@ -43,10 +46,10 @@ class DOCXExporter:
 
         normal_style.paragraph_format.space_after = Pt(4)
 
-        accent = TEMPLATE_COLORS.get(
-            template_id,
-            RGBColor(30, 64, 120),
-        )
+        row = catalogue().get(template_id)
+        accent = TEMPLATE_COLORS.get(template_id)
+        if accent is None:
+            accent = RGBColor.from_string(row['design_config']['accent'].lstrip('#')) if row else RGBColor(30, 64, 120)
 
         # -------------------------
         # Personal information

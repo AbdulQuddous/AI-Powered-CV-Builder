@@ -139,7 +139,7 @@ class BrowserJourneys(StaticLiveServerTestCase):
     @classmethod
     def setUpClass(cls):
         vendor = Path(os.environ['E2E_VENDOR_DIR'])
-        for name in ('alpine.js', 'tailwind.js'):
+        for name in ('alpine.js',):
             if not (vendor / 'audit-libraries' / name).is_file(): raise RuntimeError('Missing cached frontend library: ' + name)
         cls.config = override_settings(STATICFILES_DIRS=[*settings.STATICFILES_DIRS, vendor],
             MIDDLEWARE=[*settings.MIDDLEWARE, 'tests.browser_e2e.LocalLibrariesMiddleware'], GEMINI_API_KEY='')
@@ -484,6 +484,141 @@ class BrowserJourneys(StaticLiveServerTestCase):
         cv.refresh_from_db(); self.assertEqual(cv.data['summary'], rewritten)
         self.assertEqual(cv.data['projects'], original['projects'])
         self.assertEqual(cv.data['skills'], original['skills'])
+        self.assertEqual(cv.version, 2); self.assertEqual(cv.versions.count(), 2)
+
+    def test_ai_engineer_jd_rewrite_rejects_inflation_then_previews_supported_role_focus(self):
+        from tests.test_job_focused_writing import ORIGINAL, REPORTED, FOCUSED, JD
+        cv = self.saved_cv(summary=ORIGINAL); original = deepcopy(cv.data)
+        self.reload_dashboard(); self.browser.click('[data-action="intelligence"]')
+        self.browser.wait('!document.getElementById("aiModePart").disabled')
+        self.browser.click('#aiModePart')
+        self.browser.value('#aiRole', 'AI Engineer'); self.browser.value('#aiJob', JD)
+        with patch.object(IntelligenceProvider, 'generate_structured', side_effect=[
+            {'rewritten': REPORTED, 'changes': ['Reworded the summary.']},
+            {'rewritten': FOCUSED, 'changes': ['Led with supported AI application work.', 'Kept the stated intern level and proficiency.']},
+        ]) as provider:
+            self.browser.click('#aiRewrite')
+            self.browser.wait('!document.getElementById("aiError").classList.contains("hidden") && !document.getElementById("aiRetry").disabled')
+            self.assertIn('could not be verified', self.browser.js('return document.getElementById("aiError").textContent'))
+            self.assertEqual(self.browser.js('return document.getElementById("aiJob").value'), JD)
+            cv.refresh_from_db(); self.assertEqual(cv.data, original); self.assertEqual(cv.version, 1)
+            self.browser.click('#aiRetry')
+            self.browser.wait('!document.getElementById("aiApply").disabled && document.getElementById("aiRewritten").value.includes("Builds and tests")')
+            self.assertEqual(provider.call_count, 2)
+        self.assertEqual(self.browser.js('return document.getElementById("aiOriginal").value'), ORIGINAL)
+        self.assertEqual(self.browser.js('return document.getElementById("aiRewritten").value'), FOCUSED)
+        cv.refresh_from_db(); self.assertEqual(cv.data, original)
+        output = os.environ.get('M6_SCREENSHOTS')
+        if output:
+            import base64
+            root = Path(output); root.mkdir(parents=True, exist_ok=True)
+            (root / 'ai-engineer-focused-rewrite.png').write_bytes(base64.b64decode(self.browser.command(f'/session/{self.browser.session}/screenshot', None, 'GET')))
+        self.browser.click('#aiApply')
+        self.browser.wait('/saved this change/i.test(document.getElementById("aiStatus").textContent)')
+        cv.refresh_from_db(); expected = deepcopy(original); expected['summary'] = FOCUSED
+        self.assertEqual(cv.data, expected); self.assertEqual(cv.version, 2); self.assertEqual(cv.versions.count(), 2)
+
+    def test_advice_only_review_has_no_save_action_and_polishing_is_explicit(self):
+        data = deepcopy(SAMPLE_CV)
+        data['meta']['target_role'] = 'Graduate / Associate Software Engineer'
+        cv = self.saved_cv(data=data); original = deepcopy(cv.data)
+        response = {'summary': original['summary'], 'changes': [],
+            'suggestions': ['Mention cloud or deployment experience only if you have it.']}
+        self.reload_dashboard(); self.browser.click('[data-action="intelligence"]')
+        self.browser.wait('!document.getElementById("aiTailor").disabled')
+        self.browser.value('#aiRole', 'DevOps Engineer')
+        with patch.object(IntelligenceProvider, 'generate_structured', return_value=response) as provider:
+            self.browser.click('#aiTailor')
+            self.browser.wait('!document.getElementById("aiPolishPart").classList.contains("hidden") && !document.getElementById("aiTailor").disabled')
+            self.assertEqual(self.browser.js('return getComputedStyle(document.getElementById("aiApply")).display'), 'none')
+            self.assertEqual(self.browser.js('return document.getElementById("aiReviewState").textContent'), 'No changes to save')
+            summary = self.browser.js('return document.getElementById("aiTailorSummary").textContent')
+            self.assertIn('Your saved CV is unchanged', summary)
+            self.assertNotIn(original['summary'], summary)
+            focus = self.browser.js('return document.getElementById("aiReviewContext").textContent')
+            self.assertIn('Review focus: DevOps Engineer', focus)
+            self.assertIn('Saved CV target: Graduate / Associate Software Engineer', focus)
+            self.browser.click('#aiTailor')
+            self.browser.wait('!document.getElementById("aiReviewCache").classList.contains("hidden") && !document.getElementById("aiTailor").disabled')
+            provider.assert_called_once()
+            for width in (1600, 390):
+                self.browser.command(f'/session/{self.browser.session}/window/rect', {'width': width, 'height': 1000})
+                self.assertLessEqual(self.browser.js('return document.documentElement.scrollWidth'), self.browser.js('return innerWidth'))
+                self.assertTrue(self.browser.js('const card=document.querySelector(".ai-card");return card.scrollWidth <= card.clientWidth'))
+                output = os.environ.get('M6_SCREENSHOTS')
+                if output:
+                    import base64
+                    self.browser.js('document.getElementById("aiComparison").scrollIntoView({block:"start",behavior:"instant"})')
+                    root = Path(output); root.mkdir(parents=True, exist_ok=True)
+                    (root / f'advice-only-{width}.png').write_bytes(base64.b64decode(self.browser.command(f'/session/{self.browser.session}/screenshot', None, 'GET')))
+            self.browser.click('#aiPolishPart')
+            self.browser.wait('document.getElementById("aiModePart").getAttribute("aria-selected") === "true"')
+            provider.assert_called_once()
+        cv.refresh_from_db(); self.assertEqual(cv.data, original); self.assertEqual(cv.version, 1)
+        rewritten = 'Software Engineering graduate with Python and Django skills.'
+        with patch.object(IntelligenceProvider, 'generate_structured', return_value={'rewritten': rewritten, 'changes': ['More concise wording.']}) as provider:
+            self.browser.click('#aiRewrite')
+            self.browser.wait('!document.getElementById("aiApply").disabled && getComputedStyle(document.getElementById("aiApply")).display !== "none"')
+            provider.assert_called_once()
+        cv.refresh_from_db(); self.assertEqual(cv.data, original)
+        self.browser.click('#aiApply')
+        self.browser.wait('/saved this change/i.test(document.getElementById("aiStatus").textContent)')
+        cv.refresh_from_db()
+        expected = deepcopy(original); expected['summary'] = rewritten
+        self.assertEqual(cv.data, expected); self.assertEqual(cv.version, 2); self.assertEqual(cv.versions.count(), 2)
+
+    def test_devops_partial_review_explains_omissions_and_preserves_architecture(self):
+        from tests.test_tailoring_grounding import SUMMARY, ARCHITECTURE, WORKFLOW
+        data = deepcopy(SAMPLE_CV)
+        data['meta'].update(target_role='Senior DevOps Engineer', career_level='experienced')
+        data['summary'] = SUMMARY
+        data['experience'] = [{'company': 'Example Cloud', 'job_title': 'DevOps Engineer',
+            'location': '', 'start_date': '', 'end_date': '', 'is_current': True,
+            'highlights': [ARCHITECTURE, WORKFLOW]}]
+        cv = self.saved_cv(data=data); original = deepcopy(cv.data)
+        rewritten = WORKFLOW.replace('workflows that eliminated', 'workflows, eliminating').replace(', saving', ' and saving')
+        result = {'summary': 'All proposed changes preserve the original facts.', 'suggestions': [], 'changes': [
+            {'path': '/summary', 'original': SUMMARY, 'rewritten': SUMMARY.replace('over 7', 'over 10'), 'reason': 'Match the job.'},
+            {'path': '/experience/0/highlights/0', 'original': ARCHITECTURE,
+             'rewritten': ARCHITECTURE.replace('Architected', 'Built and maintained'), 'reason': 'Match maintenance duties.'},
+            {'path': '/experience/0/highlights/1', 'original': WORKFLOW, 'rewritten': rewritten, 'reason': 'Make the wording concise.'},
+        ]}
+        self.reload_dashboard()
+        self.browser.js(r'''
+            const originalFetch = window.fetch;
+            window.cvDetailReads = 0;
+            window.fetch = async (...args) => {
+                if (/^\/api\/cvs\/\d+\/$/.test(String(args[0])) && (!args[1]?.method || args[1].method === 'GET')) window.cvDetailReads++;
+                return originalFetch(...args);
+            };
+        ''')
+        self.browser.click('[data-action="intelligence"]')
+        self.browser.wait('!document.getElementById("aiTailor").disabled')
+        for _ in range(3): self.browser.js('window.dispatchEvent(new Event("focus"))')
+        self.assertEqual(self.browser.js('return window.cvDetailReads'), 1)
+        with patch.object(IntelligenceProvider, 'generate_structured', return_value=result) as provider:
+            self.browser.click('#aiTailor')
+            self.browser.wait('document.querySelectorAll("#aiTailorChanges .ai-change-card").length === 1 && !document.getElementById("aiApply").disabled')
+            provider.assert_called_once()
+        self.assertIn('1 wording change is ready', self.browser.js('return document.getElementById("aiStatus").textContent'))
+        self.assertIn('1 wording change passed', self.browser.js('return document.getElementById("aiTailorSummary").textContent'))
+        self.browser.click('#aiTailorWarnings summary')
+        reasons = self.browser.js('return document.getElementById("aiTailorWarnings").textContent')
+        self.assertIn('Professional summary: excluded because a number', reasons)
+        self.assertIn('Work experience 1, bullet 1', reasons)
+        self.assertIn('unsupported responsibility', reasons)
+        self.assertEqual(self.browser.js('return window.cvDetailReads'), 2)
+        cv.refresh_from_db(); self.assertEqual(cv.data, original)
+        output = os.environ.get('M6_SCREENSHOTS')
+        if output:
+            import base64
+            root = Path(output); root.mkdir(parents=True, exist_ok=True)
+            (root / 'partial-devops-review.png').write_bytes(base64.b64decode(self.browser.command(f'/session/{self.browser.session}/screenshot', None, 'GET')))
+        self.browser.click('#aiApply')
+        self.browser.wait('/saved 1 change/i.test(document.getElementById("aiStatus").textContent)')
+        cv.refresh_from_db()
+        expected = deepcopy(original); expected['experience'][0]['highlights'][1] = rewritten
+        self.assertEqual(cv.data, expected)
         self.assertEqual(cv.version, 2); self.assertEqual(cv.versions.count(), 2)
 
     def test_grouped_education_and_explicit_dates_preserve_the_university(self):

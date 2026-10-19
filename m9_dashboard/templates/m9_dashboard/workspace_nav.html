@@ -1,0 +1,28 @@
+<a class="workspace-skip" href="#workspace-main">Skip to content</a>
+<aside class="workspace-sidebar" aria-label="Workspace">
+  <a class="workspace-brand" href="/dashboard/">
+    <span class="workspace-brand-mark" aria-hidden="true">CV</span>
+    <span>CV Maker<small>Your career workspace</small></span>
+  </a>
+  <p class="workspace-nav-label">WORKSPACE</p>
+  <nav class="workspace-nav" aria-label="Main navigation">
+    <a href="/dashboard/"{% if workspace_page == 'dashboard' %} aria-current="page"{% endif %}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>My CVs
+    </a>
+    <a href="/templates/"{% if workspace_page == 'templates' %} aria-current="page"{% endif %}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16M10 9v12"/></svg>Templates
+    </a>
+    {% if workspace_page == 'editor' %}
+    <a href="/cvs/{{ cv_id }}/edit/" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15l-1 6Z"/></svg>CV editor
+    </a>
+    {% endif %}
+    {% if workspace_page == 'dashboard' %}
+    <button id="sidebarCreate" type="button" class="workspace-create"><span aria-hidden="true">＋</span>Create a CV</button>
+    {% else %}
+    <a href="/dashboard/?create=manual" class="workspace-create"><span aria-hidden="true">＋</span>Create a CV</a>
+    {% endif %}
+  </nav>
+  <div class="workspace-sidebar-note"><span class="workspace-note-icon" aria-hidden="true">✦</span><strong>Your next chapter starts here.</strong><p>Bring your experience together.<br>Make every application your own.</p><a href="/templates/">Explore templates <span aria-hidden="true">→</span></a></div>
+  <div class="workspace-sidebar-footer"><span class="workspace-dot" aria-hidden="true"></span>Made for your next move</div>
+</aside>

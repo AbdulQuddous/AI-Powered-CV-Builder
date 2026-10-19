@@ -49,7 +49,7 @@ function harness(overrides={}) {
             else if(url.includes('/versions/'))result={results:[{version:2,name:'Updated CV',created_at:'2026-10-13T10:00:00Z'},{version:1,name:'Original CV',created_at:'2026-10-12T10:00:00Z'}],next:null};
             else if(url==='/api/templates/')result=[{id:'modern',name:'Modern'}];
             else if(options.method==='DELETE') { saved.delete(Number(url.split('/')[3]));status=204; }
-            else if(url.endsWith('/preview/'))return {ok:true,status:200,text:async()=>'<html><head></head><body>Saved CV</body></html>'};
+            else if(url.endsWith('/preview/document/'))return {ok:true,status:200,text:async()=>'<html><head></head><body>Saved CV</body></html>'};
             else if(/^\/api\/cvs\/\d+\/$/.test(url))result=saved.get(Number(url.split('/')[3]));
             else throw Error('Unexpected request '+url);
             return {ok:true,status,json:async()=>{if(status===204)throw Error('204 must not be parsed');return clone(result);}};
@@ -68,6 +68,13 @@ test('manual creation sends all selected fields and opens the existing editor',a
     await h.run('handleCreateCV({preventDefault(){}})');
     assert.deepEqual(h.calls.find(x=>x.method==='POST').body,{name:'My CV',target_role:'Backend Developer',career_level:'experienced',template_id:'modern',data:{}});
     assert.equal(h.c.window.location.href,'/cvs/20/edit/');
+});
+
+test('manual creation uses its canonical field regardless of the AI profile selection',async()=>{
+    const h=harness();h.get('cvName').value='My CV';h.get('targetRole').value='Backend';
+    h.get('careerLevel').value='experienced';h.get('interviewProfile').value='senior';h.get('templateId').value='modern';
+    await h.run('handleCreateCV({preventDefault(){}})');
+    assert.equal(h.calls.find(x=>x.method==='POST').body.career_level,'experienced');
 });
 
 test('creation displays wrapped API field errors and preserves form values for retry',async()=>{
@@ -163,6 +170,25 @@ test('AI creation sends selected metadata to M5 and does not create an empty M2 
     assert.deepEqual(h.calls.find(c=>c.url==='/api/chat/sessions/').body,{cv_id:null,cv_name:'AI CV',target_role:'Backend',career_level:'fresher',template_id:'modern'});
     assert.equal(h.calls.some(c=>c.url==='/api/cvs/'&&c.method==='POST'),false);
     assert.equal(h.get('chatModal').classList.contains('hidden'),false);
+});
+
+test('AI creation preserves the detailed career profile for M5',async()=>{
+    const id='00000000-0000-4000-8000-000000000002';
+    const h=harness({fetch:url=>url==='/api/chat/sessions/'?{ok:true,status:201,json:async()=>({id,cv_id:null,status:'active',current_section:'personal',assistant_message:'What is your full name?'})}:null});
+    await h.run("openCreateCV('ai')");
+    h.get('cvName').value='Senior CV';h.get('targetRole').value='Backend';h.get('careerLevel').value='fresher';h.get('interviewProfile').value='senior';h.get('templateId').value='modern';
+    await h.run('handleCreateCV({preventDefault(){}})');
+    assert.equal(h.calls.find(call=>call.url==='/api/chat/sessions/').body.career_level,'senior');
+});
+
+test('AI and manual creation show the appropriate career selector',async()=>{
+    const h=harness();
+    await h.run("openCreateCV('ai')");
+    assert.equal(h.get('canonicalCareerField').classList.contains('hidden'),true);
+    assert.equal(h.get('interviewProfileField').classList.contains('hidden'),false);
+    await h.run("openCreateCV('manual')");
+    assert.equal(h.get('canonicalCareerField').classList.contains('hidden'),false);
+    assert.equal(h.get('interviewProfileField').classList.contains('hidden'),true);
 });
 
 test('AI startup validation returns to the creation form with the actual field error',async()=>{
@@ -370,6 +396,31 @@ test('chat draft can be inspected without an external AI call',async()=>{
     assert.equal(h.get('chatDraftPanel').classList.contains('hidden'),false);
     assert.equal(h.get('chatExternalApproval').checked,false);
     assert.equal(h.run('chat.draft.fingerprint'),'a'.repeat(64));
+});
+
+test('chat draft uses readable headings and exposes date warnings as literal text',async()=>{
+    const result=draftResult();result.warnings=['Education end date (2026) needs a confirmed year and month.'];
+    result.draft.certifications=[{name:'<script>Literal certificate</script>',issuer:'Academy'}];
+    const h=harness({fetch:url=>url.endsWith('/draft/')?jsonResult(result):null});completedChat(h);
+    await h.click('chatDraft');
+    const texts=h.get('chatDraftDetails').children.map(node=>node.textContent);
+    assert.ok(texts.includes('CV settings'));assert.ok(texts.includes('Contact details'));
+    assert.ok(!texts.includes('meta'));assert.ok(!texts.includes('schema version'));
+    assert.ok(texts.includes(result.warnings[0]));
+    assert.ok(texts.some(text=>text.includes('Template: modern')));
+    assert.ok(texts.some(text=>text.includes('<script>Literal certificate</script>')));
+    assert.ok(!texts.some(text=>text.includes('template id:')));
+});
+
+test('career suggestions are optional review text and never become CV fields',async()=>{
+    const result=draftResult();result.recommendations=['Candidate skills: Docker, SQL. Include only confirmed skills.','Review <script>untrusted label</script>.'];
+    const h=harness({fetch:url=>url.endsWith('/draft/')?jsonResult(result):null});completedChat(h);
+    await h.click('chatDraft');
+    const panel=h.get('chatDraftDetails').children.find(node=>node.children.some(child=>child.textContent==='Optional suggestions for your target role'));
+    assert.ok(panel);assert.equal(panel.children[1].textContent,result.recommendations[0]);
+    assert.equal(panel.children[2].textContent,result.recommendations[1]);
+    assert.deepEqual(clone(h.run('chat.draft.draft.skills')),result.draft.skills);
+    assert.equal(h.calls.length,1);
 });
 
 test('final Gemini review requires the consent checkbox',async()=>{

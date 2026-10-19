@@ -169,6 +169,7 @@
       m8Busy: false,
       m8PreviewOpen: false,
       m8PreviewUrl: null,
+      m8PreviewPages: 0,
       livePreviewLoading: false,
       livePreviewError: '',
       livePreviewZoom: 'fit',
@@ -233,6 +234,14 @@
 
         this.$watch?.('cv', () => this._livePreview?.update());
         this.reload();
+      },
+
+      openTemplateGallery() {
+        if (this.dirty || this.saving) {
+          this.notice = 'Save your changes before choosing a template. Your draft is preserved here.';
+          return;
+        }
+        if (this.loaded) global.location.href = `/templates/?cv_id=${encodeURIComponent(this.id)}`;
       },
 
       startLivePreview() {
@@ -472,8 +481,10 @@
           throw error;
         }
 
-        const url =
-          `/api/cvs/${encodeURIComponent(this.id)}/${action}`;
+        let url = `/api/cvs/${encodeURIComponent(this.id)}/${action}`;
+        if (action !== 'preview/' && Number.isSafeInteger(this.loaded?.version) && this.loaded.version > 0) {
+          url += (url.includes('?') ? '&' : '?') + 'expected_version=' + this.loaded.version;
+        }
 
         const transport = global.M1Session ? global.M1Session.request : global.fetch;
         const response = await transport(
@@ -544,7 +555,7 @@
         try {
 
           const response = await this.m8Request(
-            'preview/',
+            'preview/document/',
             'GET'
           );
 
@@ -563,17 +574,19 @@
           this.closeM8Preview();
 
           this.m8PreviewUrl = url;
+          this.m8PreviewPages = Number(response.headers?.get('X-CV-Page-Count') || 0);
 
           this.m8PreviewOpen = true;
 
           this.notice =
-            'Rendered preview loaded from M8.';
+            'Exact PDF preview loaded. Page breaks match the downloaded PDF.';
 
         } catch (error) {
 
           if (error.status === 401) {
             this.authRequired = true;
           }
+          if (error.status === 409) this.conflict = true;
 
           this.error = error.message;
 
@@ -589,6 +602,7 @@
       closeM8Preview() {
 
         this.m8PreviewOpen = false;
+        this.m8PreviewPages = 0;
 
         if (this.m8PreviewUrl) {
 
@@ -604,9 +618,9 @@
       // M8 PDF / DOCX DOWNLOAD
       // --------------------------------
 
-      async downloadM8(format) {
+      async downloadM8(format, layout = 'fixed') {
 
-        if (!['pdf', 'docx'].includes(format)) {
+        if (!['pdf', 'docx'].includes(format) || !['fixed', 'editable'].includes(layout)) {
           return;
         }
 
@@ -620,7 +634,7 @@
         try {
 
           const response = await this.m8Request(
-            `export/${format}/`,
+            `export/${format}/` + (format === 'docx' ? `?layout=${layout}` : ''),
             'POST'
           );
 
@@ -636,7 +650,7 @@
           anchor.href = url;
 
           anchor.download =
-            `cv-${this.id}.${format}`;
+            `cv-${this.id}${format === 'docx' && layout === 'editable' ? '-editable' : ''}.${format}`;
 
           global.document.body.appendChild(
             anchor
@@ -659,6 +673,7 @@
           if (error.status === 401) {
             this.authRequired = true;
           }
+          if (error.status === 409) this.conflict = true;
 
           this.error = error.message;
 

@@ -1129,12 +1129,12 @@ async function viewCV(id) {
          * A normal iframe URL cannot send our Bearer token.
          *
          * Therefore:
-         * 1. Fetch HTML using Authorization header.
+         * 1. Fetch the actual paginated PDF preview using Authorization.
          * 2. Display the returned HTML in a sandboxed iframe.
          */
 
         const response = await apiFetch(
-            `/api/cvs/${id}/preview/`
+            `/api/cvs/${id}/preview/document/`
         );
 
         const html = await response.text();
@@ -1285,13 +1285,16 @@ async function loadCreateTemplates() {
 // 15. CREATE NEW CV — M2
 // ======================================================
 
-async function openCreateCV(mode = 'manual') {
+async function openCreateCV(mode = 'manual', selection = null) {
+    if (typeof mode !== 'string') mode = 'manual';
     if (!requireLogin()) {
         return;
     }
 
     $("createForm").reset();
     state.createMode = mode;
+    $('canonicalCareerField').classList.toggle('hidden', mode === 'ai');
+    $('interviewProfileField').classList.toggle('hidden', mode !== 'ai');
     $('createTitle').textContent = mode === 'ai' ? 'Create CV with AI' : 'Create new CV';
     $('createSubmit').textContent = mode === 'ai' ? 'Start AI interview' : 'Create CV';
 
@@ -1300,6 +1303,14 @@ async function openCreateCV(mode = 'manual') {
     openModal("createModal");
 
     await loadCreateTemplates();
+    if (selection) {
+        if ([...$('templateId').options].some(option => option.value === selection.template_id)) $('templateId').value = selection.template_id;
+        $('targetRole').value = selection.target_role || '';
+        if (selection.cv_name) $('cvName').value = selection.cv_name;
+        if ([...$('careerLevel').options].some(option => option.value === selection.career_level)) $('careerLevel').value = selection.career_level;
+        const profile = ({experienced: 'mid_level', mid: 'mid_level'})[selection.career_level] || selection.career_level;
+        if ([...$('interviewProfile').options].some(option => option.value === profile)) $('interviewProfile').value = profile;
+    }
 }
 
 
@@ -1316,7 +1327,8 @@ async function handleCreateCV(event) {
 
         target_role: $("targetRole").value.trim(),
 
-        career_level: $("careerLevel").value,
+        career_level: state.createMode === 'ai'
+            ? ($('interviewProfile').value || $('careerLevel').value) : $('careerLevel').value,
 
         template_id: $("templateId").value,
 
@@ -1601,7 +1613,13 @@ async function loadSavedChatPage() {
 async function resumeDashboardAction() {
     const query = new URLSearchParams(window.location.search);
     const sessionId = query.get('chat'), reviewId = query.get('review');
-    if (query.has('import')) await window.M4Import?.resume();
+    if (query.get('create')) {
+        await openCreateCV(query.get('create') === 'ai' ? 'ai' : 'manual', {
+            template_id: query.get('template') || 'modern', target_role: query.get('role'),
+            career_level: query.get('level'), cv_name: query.get('name')
+        });
+    }
+    else if (query.has('import')) await window.M4Import?.resume();
     else if (sessionId && /^[0-9a-f-]{36}$/i.test(sessionId)) await openAIChat(null, sessionId);
     else if (reviewId && /^\d+$/.test(reviewId) && Number.isSafeInteger(Number(reviewId)) && Number(reviewId) > 0) await window.M6Review.open(Number(reviewId));
 }
@@ -1654,6 +1672,7 @@ async function openAIChat(cvId, explicitId = null, initialValues = null) {
         if (initialValues?.cv_name !== undefined) closeModal('createModal');
         const url = new URL(window.location.href);
         url.searchParams.set("chat", session.id);
+        ["create", "template", "role", "level", "name"].forEach(key => url.searchParams.delete(key));
         window.history.replaceState(null, "", url);
     } catch (error) {
         if (generation === chat.generation) {
@@ -1774,13 +1793,33 @@ async function reviewChatDraft() {
         const result = await response.json();
         if (generation !== chat.generation) return;
         clearChatReview(); chat.draft = result;
-        for (const [section, value] of Object.entries(result.draft)) {
-            if (section === 'schema_version') continue;
-            const heading = document.createElement('h3'); heading.textContent = section.replaceAll('_', ' ');
+        const sections = {personal: 'Contact details', summary: 'Professional summary', experience: 'Experience',
+            education: 'Education', skills: 'Skills', projects: 'Projects', certifications: 'Certifications',
+            achievements: 'Achievements', languages: 'Languages', meta: 'CV settings'};
+        const label = key => ({template_id: 'Template', target_role: 'Target role', career_level: 'Career level'}[key]
+            || key.replaceAll('_', ' ').replace(/^./, ch => ch.toUpperCase()));
+        for (const warning of result.warnings || []) {
+            const note = document.createElement('p'); note.textContent = warning;
+            note.setAttribute('role', 'status'); $('chatDraftDetails').appendChild(note);
+        }
+        if (result.recommendations?.length) {
+            const suggestions = document.createElement('details');
+            const summary = document.createElement('summary'); summary.textContent = 'Optional suggestions for your target role';
+            suggestions.appendChild(summary);
+            for (const recommendation of result.recommendations) {
+                const note = document.createElement('p'); note.textContent = recommendation;
+                suggestions.appendChild(note);
+            }
+            $('chatDraftDetails').appendChild(suggestions);
+        }
+        for (const [section, title] of Object.entries(sections)) {
+            const value = result.draft[section];
+            if (!value || (Array.isArray(value) && !value.length)) continue;
+            const heading = document.createElement('h3'); heading.textContent = title;
             const content = document.createElement('p'); content.style.whiteSpace = 'pre-wrap';
             const describe = item => typeof item === 'object' && item !== null
                 ? Object.entries(item).filter(([, v]) => v !== '' && v !== false && (!Array.isArray(v) || v.length))
-                    .map(([k, v]) => `${k.replaceAll('_', ' ')}: ${Array.isArray(v) ? v.join(', ') : v}`).join(' · ')
+                    .map(([k, v]) => k === 'name' ? v : `${label(k)}: ${Array.isArray(v) ? v.join(', ') : v}`).join(' · ')
                 : String(item || '');
             content.textContent = Array.isArray(value) ? value.map(describe).join('\n') : describe(value);
             $('chatDraftDetails').appendChild(heading); $('chatDraftDetails').appendChild(content);

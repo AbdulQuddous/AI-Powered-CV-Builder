@@ -13,6 +13,7 @@ from jsonschema import Draft202012Validator
 
 from ai.exceptions import AIStructuredOutputError, InvalidAIInputError
 from ai.llm.factory import get_llm_provider
+from ai.prompts.cv_tasks import JOB_FOCUS_RULES
 from ai.services.cache import cached_ai_result
 from cvs.services import check_version, owned
 
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 PARTIAL_REVIEW_WARNING = (
     "Some suggested changes were left out because they could not be verified against your CV."
 )
+NO_CHANGES_SUMMARY = 'No wording changes were proposed. Your saved CV is unchanged.'
 
 
 SYSTEM = """You edit a saved CV for relevance to a job, using only confirmed CV facts.
@@ -33,13 +35,22 @@ description. You may emphasize relevant existing facts and improve grammar and c
 Keep project and employment facts with their own entry; never transfer a technology or
 duty from a different project or employer. Summaries may synthesize confirmed CV facts.
 Do not promote assisting into leading, building into architecting, or academic into paid work.
+Do not weaken architecting into building, or add ongoing maintenance to a design/build task.
+Preserve every numerical expression, including percentages, units and qualifiers such as
+"over" or "at least". Use the field_constraints as a final check before returning a change.
+Review all editable fields, but propose only useful improvements; do not force a change count.
+If wording is already clear, omit it from changes. Keep established responsibility verbs.
 Leave missing evidence as suggestions, clearly described as gaps or questions to the user.
 Do not edit names, contacts, dates, titles, institutions, certifications, skills or metadata.
 Do not repeat personal or contact information. Rewritten text must remain nonempty.
 Each change needs its exact original text, rewritten text and a short reason.
 Include a concise review summary and at most five practical suggestions. Changes are proposals
 and require user approval. Do not return an ATS score or imply that anything has been saved.
-"""
+The response field "summary" means editorial feedback about this review, NOT the candidate's
+professional summary. Never copy a CV paragraph into it. Every proposed CV rewrite belongs
+in "changes", with its exact path and original. When no useful factual rewrite is possible,
+return an empty changes array and advice only; never invent experience to fit the job.
+""" + JOB_FOCUS_RULES
 
 CONTACT = re.compile(
     r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|https?://\S+|www\.\S+|"
@@ -78,6 +89,9 @@ PROSE = {
     "framework", "frameworks", "library", "libraries", "database", "databases",
     "motivated", "dedicated", "passionate", "strong", "solid", "detail", "oriented",
     "troubleshooting", "troubleshot", "debugging", "integration", "integrations",
+    "automated", "configured", "deployed", "migrated", "orchestrated", "provisioned",
+    "streamlined", "optimized", "optimised", "architected", "monitoring", "monitored",
+    "builds", "develops", "creates", "implements", "uses", "reviews", "tests", "contributes",
 }
 ELEVATED_CLAIMS = (
     (r"\b(?:led|lead|leading|managed|managing|supervised|supervising|oversaw|"
@@ -99,6 +113,45 @@ ELEVATED_CLAIMS = (
 ELEVATED_CLAIMS += tuple((rf"\b{claim}\b", rf"\b{claim}\b") for claim in (
     "expert", "expertise", "senior", "principal", "executive", "certified", "award-winning",
 ))
+MAINTENANCE = r"\b(?:maintain(?:ed|ing|s)?|maintenance|operat(?:ed|es|ing)|administer(?:ed|ing))\b"
+ELEVATED_CLAIMS += ((MAINTENANCE, MAINTENANCE),)
+ELEVATED_CLAIMS += ((r'\b(?:proficient|proficiency|skilled|adept)\b', r'\b(?:proficient|proficiency|skilled|adept)\b'),)
+ELEVATED_CLAIMS += tuple((pattern, pattern) for pattern in (
+    r'\b(?:deployed|deploying|deploys|deployments?)\b',
+    r'\b(?:trained|training|fine[ -]?tun(?:ed|ing))\b',
+    r'\bproduction(?:[ -](?:grade|ready))?\b',
+    r'\bmlops\b',
+))
+ARCHITECTURE = r"\b(?:architect(?:ed|ing|s)?|architectur(?:e|al))\b"
+LEADERSHIP = r"\b(?:led|lead|leading|managed|managing|supervised|supervising|oversaw|mentored|mentoring|directed|spearheaded)\b"
+PRESERVED_RESPONSIBILITIES = (
+    (ARCHITECTURE, ARCHITECTURE), (LEADERSHIP, LEADERSHIP),
+    (r"\b(?:assisted|helped)\b", r"\b(?:assisted|helped|supported|contributed)\b"),
+)
+REJECTION_REASONS = {
+    'empty_rewrite': 'the suggested text was empty',
+    'numerical_claims': 'a number, percentage or quantity changed or was removed',
+    'unconfirmed_named_fact': 'a tool, qualification or named fact was not supported by this entry',
+    'unsupported_responsibility': 'the suggestion added an unsupported responsibility or claim',
+    'responsibility_changed': 'the suggestion changed your stated responsibility',
+    'contact_information': 'the suggestion included personal or contact details',
+}
+
+NUMBER_WORDS = dict(zip(
+    'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split(), range(20)))
+NUMBER_WORDS.update(dict(zip('twenty thirty forty fifty sixty seventy eighty ninety'.split(), range(20, 100, 10))))
+SMALL_NUMBER = re.compile(r'\b(' + '|'.join(NUMBER_WORDS) + r')(?:[ -](' + '|'.join(list(NUMBER_WORDS)[1:10]) + r'))?'
+    r'(?=[ -]+(?:years?|months?|weeks?|days?|hours?|minutes?|seconds?|percent|projects?|applications?|records?|users?|teams?|engineers?|developers?|services?|regions?|clusters?|pipelines?|deployments?)\b)', re.I)
+
+
+def normalized_numeric_text(text):
+    def number(match):
+        first = NUMBER_WORDS[match[1].casefold()]
+        if match[2] and (first < 20 or first % 10):
+            return match[0]
+        return str(first + (NUMBER_WORDS[match[2].casefold()] if match[2] else 0))
+    text = SMALL_NUMBER.sub(number, text)
+    return re.sub(r'(\b\d+(?:[.,]\d+)*)\s*(?:%|per\s+cent\b|percent\b)', r'\1%', text, flags=re.I)
 
 
 def writable_text(document):
@@ -150,10 +203,12 @@ def response_schema(fields):
         "type": "object", "additionalProperties": False,
         "required": ["summary", "changes", "suggestions"],
         "properties": {
-            "summary": {"type": "string", "minLength": 1, "maxLength": 2000},
+            "summary": {"type": "string", "minLength": 1, "maxLength": 2000,
+                        "description": "Short editorial feedback about this review, not a CV profile or a replacement professional summary."},
             "suggestions": {"type": "array", "maxItems": 5,
                             "items": {"type": "string", "minLength": 1, "maxLength": 1500}},
-            "changes": {"type": "array", "maxItems": 30, "items": {
+            "changes": {"type": "array", "maxItems": 30,
+                        "description": "All proposed CV rewrites go here. Each needs the supplied path and original text. Empty only when no useful factual wording change is proposed.", "items": {
                 "type": "object", "additionalProperties": False,
                 "required": ["path", "original", "rewritten", "reason"],
                 "properties": {
@@ -174,12 +229,22 @@ def canonical_term(token):
 
 def normalized_technical_text(text):
     # These spellings name the same technology, rather than new candidate skills.
+    for pattern, canonical in (
+        (r'\bAmazon Web Services(?:\s*\(AWS\))?', 'AWS'),
+        (r'\bAmazon Elastic Kubernetes Service(?:\s*\(EKS\))?', 'EKS'),
+        (r'\bInfrastructure as Code(?:\s*\(IaC\))?', 'IaC'),
+        (r'\bContinuous Integration(?:\s*\(CI\))?', 'CI'),
+        (r'\bContinuous (?:Delivery|Deployment)(?:\s*\(CD\))?', 'CD'),
+        (r'\bKubernetes\s*\(K8s\)', 'Kubernetes'),
+        (r'\bK8s\b', 'Kubernetes'),
+    ):
+        text = re.sub(pattern, canonical, text, flags=re.I)
     text = re.sub(r"\bnode(?:\.|[ -]?)js\b", "NodeJS", text, flags=re.IGNORECASE)
     return re.sub(r"\brest(?:ful)?[\s_-]*apis?\b", "REST API", text, flags=re.IGNORECASE)
 
 
 def named_terms(text):
-    text = normalized_technical_text(text)
+    text = normalized_technical_text(normalized_numeric_text(text))
 
     terms = {canonical_term(match.group()) for match in NAMED_TERMS.finditer(text)} - PROSE
     terms.update(canonical_term(match.group()) for match in TECHNOLOGIES.finditer(text))
@@ -215,7 +280,37 @@ def numerical_claims(text):
             return number.replace(",", "")
         return number
 
-    return Counter(canonical(number) for number in NUMBERS.findall(text))
+    text = normalized_numeric_text(text)
+    claims = []
+    qualifiers = {'over': 'over', 'more than': 'over', 'at least': 'at least',
+                  'at most': 'at most', 'up to': 'at most', 'about': 'about',
+                  'around': 'about', 'approximately': 'about', 'nearly': 'nearly',
+                  'less than': 'under', 'under': 'under'}
+    for match in NUMBERS.finditer(text):
+        prefix = text[max(0, match.start() - 25):match.start()].casefold()
+        qualifier = re.search(r'\b(' + '|'.join(qualifiers) + r')\s*$', prefix)
+        bound = qualifiers[qualifier[1]] if qualifier else ''
+        if text[match.end():].startswith('+'):
+            bound = 'at least'
+        suffix = text[match.end():].lstrip('+')
+        measure = re.match(r'[\s-]*(?:(?:developer|engineer|person|staff)[ -]+)?(years?|months?|weeks?|days?|hours?|minutes?|seconds?)\b', suffix, re.I)
+        unit = measure[1].casefold().rstrip('s') if measure else ''
+        claims.append((canonical(match[0]), bound, unit))
+    return Counter(claims)
+
+
+def field_label(path):
+    parts = path.strip('/').split('/')
+    if parts[0] == 'summary':
+        return 'Professional summary'
+    if parts[0] == 'achievements':
+        return f'Achievement {int(parts[1]) + 1}'
+    label = f'{"Work experience" if parts[0] == "experience" else "Project"} {int(parts[1]) + 1}'
+    return label + (f', bullet {int(parts[3]) + 1}' if parts[2] == 'highlights' else ', description')
+
+
+def rejection_warning(path, reason):
+    return f'{field_label(path)}: excluded because {REJECTION_REASONS[reason]}. Original wording kept.'
 
 
 def evidence_for_path(path, original, context):
@@ -235,10 +330,38 @@ def log_validation_failure(reason, *, path=None, index=None):
                    reason, path or "none", index if index is not None else "none")
 
 
+def wording_rejection(original, rewritten, evidence, personal=(), *, allow_existing_contacts=False):
+    """Shared conservative grounding for whole-CV and selected-text proposals."""
+    if not rewritten.strip():
+        return 'empty_rewrite'
+    if numerical_claims(rewritten) != numerical_claims(original):
+        return 'numerical_claims'
+    if named_terms(rewritten) - confirmed_terms(evidence):
+        return 'unconfirmed_named_fact'
+    source, output = normalized_numeric_text(original), normalized_numeric_text(rewritten)
+    for output_pattern, source_pattern in ELEVATED_CLAIMS:
+        if re.search(output_pattern, output, re.I) and not re.search(source_pattern, source, re.I):
+            return 'unsupported_responsibility'
+    for source_pattern, output_pattern in PRESERVED_RESPONSIBILITIES:
+        if re.search(source_pattern, original, re.I) and not re.search(output_pattern, rewritten, re.I):
+            return 'responsibility_changed'
+    if allow_existing_contacts:
+        contacts = lambda value: Counter(item for item in CONTACT.findall(value) if not re.fullmatch(r'[\d ]+', item))
+        if contacts(rewritten) != contacts(original):
+            return 'contact_information'
+    elif redact(rewritten, personal) != rewritten:
+        return 'contact_information'
+    return None
+
+
 def validate_response(result, fields, context, personal, *, trusted_warnings=False):
     result = deepcopy(result)
     warning = result.pop("warnings", None) if trusted_warnings and isinstance(result, dict) else None
-    if (warning is not None and warning != [PARTIAL_REVIEW_WARNING]) or not Draft202012Validator(response_schema(fields)).is_valid(result):
+    allowed_warnings = {PARTIAL_REVIEW_WARNING} | {
+        rejection_warning(path, reason) for path in fields for reason in REJECTION_REASONS}
+    if (warning is not None and (not isinstance(warning, list) or not warning
+            or len(warning) > 31 or warning[0] != PARTIAL_REVIEW_WARNING
+            or any(not isinstance(item, str) or item not in allowed_warnings for item in warning))) or not Draft202012Validator(response_schema(fields)).is_valid(result):
         log_validation_failure("schema_invalid")
         raise AIStructuredOutputError("The CV review has an invalid structure.", reason="schema_invalid")
     seen = set()
@@ -255,24 +378,16 @@ def validate_response(result, fields, context, personal, *, trusted_warnings=Fal
             raise AIStructuredOutputError("The CV review targets an unsupported or stale field.", reason="source_mismatch")
         change["original"] = fields[path]
 
-    accepted, rejected = [], False
+    accepted, rejected, omitted = [], False, []
     for index, change in enumerate(result["changes"]):
         path, original, rewritten = change["path"], change["original"], change["rewritten"]
-        reason = None
-        if not rewritten.strip():
-            reason = "empty_rewrite"
-        elif numerical_claims(rewritten) != numerical_claims(original):
-            reason = "numerical_claims"
+        if ' '.join(rewritten.split()) == ' '.join(original.split()):
+            continue
         evidence = evidence_for_path(path, original, context)
-        if reason is None and named_terms(rewritten) - confirmed_terms(evidence):
-            reason = "unconfirmed_named_fact"
-        for output_pattern, source_pattern in ELEVATED_CLAIMS:
-            if reason is None and re.search(output_pattern, rewritten, re.IGNORECASE) and not re.search(source_pattern, original, re.IGNORECASE):
-                reason = "unsupported_responsibility"
-        if reason is None and redact(rewritten, personal) != rewritten:
-            reason = "contact_information"
+        reason = wording_rejection(original, rewritten, evidence, personal)
         if reason:
             rejected = True
+            omitted.append(rejection_warning(path, reason))
             log_validation_failure(reason, path=path, index=index)
         else:
             accepted.append(change)
@@ -280,7 +395,15 @@ def validate_response(result, fields, context, personal, *, trusted_warnings=Fal
         raise AIStructuredOutputError("The CV review could not verify its proposed changes.", reason="factual_validation")
     result["changes"] = accepted
     if warning or rejected:
-        result["warnings"] = [PARTIAL_REVIEW_WARNING]
+        result["warnings"] = list(dict.fromkeys([PARTIAL_REVIEW_WARNING, *(warning or [])[1:], *omitted]))
+        count = len(accepted)
+        result['summary'] = (f'{count} wording {"change" if count == 1 else "changes"} passed the checks. '
+            'Other suggestions were left out; the original wording is kept for those fields.')
+    elif not accepted:
+        result['summary'] = NO_CHANGES_SUMMARY
+    elif ' '.join(result['summary'].split()) == ' '.join(fields.get('/summary', '').split()):
+        count = len(accepted)
+        result['summary'] = f'{count} wording {"change is" if count == 1 else "changes are"} available to review.'
     return result
 
 
@@ -304,6 +427,11 @@ def tailor_cv(*, user, cv_id, expected_version, target_role="", job_description=
         "cv_id": cv.pk, "version": cv.version, "cv": context,
         "editable_fields": fields, "target_role": redact(target_role, personal),
         "job_description": redact(job_description, personal),
+        "field_constraints": {path: {
+            'numbers_to_preserve': NUMBERS.findall(text),
+            'responsibilities_to_preserve': [match[0] for pattern, _ in PRESERVED_RESPONSIBILITIES
+                                            for match in re.finditer(pattern, text, re.I)],
+        } for path, text in fields.items()},
     }
     if len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > 100000:
         raise InvalidAIInputError("This CV is too large for one AI review. Select a section to rewrite instead.")
@@ -318,7 +446,7 @@ def tailor_cv(*, user, cv_id, expected_version, target_role="", job_description=
         return validate_response(result, fields, context, personal)
 
     result, cached = cached_ai_result(
-        user_id=user.pk, operation="saved_cv_tailoring_v2", payload=payload, generate=generate,
+        user_id=user.pk, operation="saved_cv_tailoring_v5", payload=payload, generate=generate,
     )
     result = validate_response(result, fields, context, personal, trusted_warnings=True)
     # A concurrent editor save during generation makes the proposals stale too.

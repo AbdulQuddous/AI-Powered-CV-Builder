@@ -10,10 +10,11 @@ from chatbot.services.qwen_client import QwenClient, build_qwen_messages
 from chatbot.services.field_validation import validated_updates
 from chatbot.services.message_routing import route_message, apply_control, present_response
 from chatbot.services.question_engine import question, recommendations
-from chatbot.services.collection_memory import merge_collection_entries, repair_split_education, sync_project_progress, FIELD_STATES
+from chatbot.services.collection_memory import merge_collection_entries, repair_split_education, repair_structured_education, sync_project_progress, FIELD_STATES
 from chatbot.services.content_handling import repair_hostile_experience
 from chatbot.services.optional_section_recovery import repair_optional_answers
 from chatbot.services.project_recovery import repair_project_profile_split
+from chatbot.services.career_profiles import normalize_profile
 from copy import deepcopy
 
 from chatbot.services.response_normalizer import sanitize_ai_response_for_state
@@ -52,8 +53,7 @@ def create_chat_session(
         state = initial_edit_state(state, existing_cv)
     if initial_values:
         state.update(initial_values)
-    if state.get('career_level') == 'student':
-        state.update(career_level='other', question_profile='student')
+    normalize_profile(state)
     step = get_required_conversation_step(state)
     state['current_section'] = step['section']
     initial_message = INTRO if existing_cv else (
@@ -131,6 +131,7 @@ def process_user_message(
     if state.get('mode') != 'edit_existing' and 'collected_data' not in state:
         from cvs.chat_import import collected_updates
         state['collected_data'] = collected_updates(session)
+    state = repair_structured_education(session, state)
     state = repair_split_education(session, state)
     session.conversation_state = state
     required_step = get_required_conversation_step(state)
@@ -143,11 +144,13 @@ def process_user_message(
             ai_response['_control']['intent'] = 'clarification'
     ai_response = sanitize_ai_response_for_state(ai_response)
     pending = state.get('pending_field') or {}
-    if 'index' in pending and (ai_response.get('cv_updates') or {}).get(pending['section']):
+    if (not state.get('date_confirmation_pending') and 'index' in pending
+            and (ai_response.get('cv_updates') or {}).get(pending['section'])):
         ai_response['_control'] = {'intent': 'entry_patch', 'section': pending['section'], 'index': pending['index']}
     action = (ai_response.get('_control') or {}).get('intent')
     blocked = ai_response.get('intent') == 'irrelevant' or action in (
-        'off_topic', 'inappropriate', 'support_needed', 'cv_question', 'show_progress', 'clarification')
+        'off_topic', 'inappropriate', 'support_needed', 'cv_question', 'show_progress', 'clarification',
+        'career_guidance', 'guidance_choice', 'dismiss_guidance')
     if blocked:
         ai_response['cv_updates'] = empty_updates()
         ai_response['state_updates'] = {}
@@ -275,6 +278,11 @@ def process_user_message(
         if answered:
             new_state.pop('pending_field', None)
     new_state['recommendations'] = recommendations(new_state)
+    if action == 'finish' and get_required_conversation_step(new_state)['section'] == 'review':
+        from chatbot.services.date_confirmation import next_unconfirmed_date
+        unconfirmed_date = next_unconfirmed_date(new_state)
+        if unconfirmed_date:
+            new_state['date_confirmation_pending'] = unconfirmed_date
     if action == 'finish' and get_required_conversation_step(new_state)['section'] == 'review':
         # Completion depends on the built M10 document, never on a provider's complete flag.
         from cvs.chat_import import build_chat_document

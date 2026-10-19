@@ -5,6 +5,8 @@ from django.template import TemplateDoesNotExist
 from rest_framework.exceptions import ValidationError
 
 from templates_app.services import TemplateService
+from templates_app.catalogue import definition
+from .designs import design_context
 
 from .context_builder import build_context
 
@@ -67,6 +69,11 @@ class CVRenderer:
             })
 
         context = build_context(cv_data)
+        row = definition(template)
+        if template_path == "cv_templates/designed.html":
+            if row is None:
+                raise ValidationError({"code": "template_unavailable", "detail": "Unregistered design."})
+            context.update(design_context(context, row))
 
         try:
             return render_to_string(template_path, context)

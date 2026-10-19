@@ -115,7 +115,7 @@ def apply_change(document, change):
     node[key] = change['replacement']
 
 
-def draft_for_review(session):
+def draft_for_review(session, *, include_warnings=False):
     # Build without previously approved proposals, so re-opening review uses its source draft.
     shadow = deepcopy(session)
     shadow.conversation_state.pop('approved_review_changes', None)
@@ -123,7 +123,8 @@ def draft_for_review(session):
     if session.cv_id:
         from cvs.services import owned
         current = owned(user=session.user, cv_id=session.cv_id).data
-    return build_chat_document(shadow, current=current)[0]
+    document, warnings = build_chat_document(shadow, current=current)
+    return (document, warnings) if include_warnings else document
 
 
 @transaction.atomic

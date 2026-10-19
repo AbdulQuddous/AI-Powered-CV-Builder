@@ -1,0 +1,302 @@
+{
+  "ats_chronicle": {
+    "bytes": 37504,
+    "pdf_sha256": "ad3cd6253a9333b3a1518f28c96aea1332e1867a89f7b512251e0702ca74a8e8",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "ats_experience": {
+    "bytes": 35516,
+    "pdf_sha256": "e82cd07d19b96eefcf26abf7c10ea156f06f018dd9a86e768e5cdb39cd760687",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "ats_graduate": {
+    "bytes": 30804,
+    "pdf_sha256": "809a6b9594658532ff92827ebd6f3cbe4bab5594b07593a5cc86d99f1ff098b5",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "ats_plain": {
+    "bytes": 35874,
+    "pdf_sha256": "ae385e04994d7f7bf535492de74da36a259113e0a51b30cd94eda0743b22d489",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "ats_research": {
+    "bytes": 34372,
+    "pdf_sha256": "da8991d06852afa8dc3622b532fbb09b70ec6ad876abafb84c921c9f5b135bd0",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "ats_standard": {
+    "bytes": 33794,
+    "pdf_sha256": "3497017e3c43b3dd288b5320a696c7c12b7ddd0673bf6ab71987066a7995c250",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "ats_technical": {
+    "bytes": 36192,
+    "pdf_sha256": "db3bd8dad3dd59c3ab38653293edb473b9824a6383f534cb3bef971262ec9454",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "classic": {
+    "bytes": 44560,
+    "pdf_sha256": "d5e6b105595456165a3df4864cf8b69f39d2d0de377b1495a0a923d261ddbb78",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "creative_canvas": {
+    "bytes": 35568,
+    "pdf_sha256": "7bc8cf533c2ab023c86190d5b1c2af1b9060792b9ed284ec20ae88d8b7a9b4bd",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "creative_editorial": {
+    "bytes": 44014,
+    "pdf_sha256": "c6fd3c78d451ab950c2a64b7db2ed485b8ccb3dbcf3bb101893acad689e4390c",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "creative_folio": {
+    "bytes": 37914,
+    "pdf_sha256": "d4ebdf0f0a64deff58634c030d1f9b0527d7464181f7db6b686608db0c6ea032",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "creative_muse": {
+    "bytes": 42822,
+    "pdf_sha256": "9a67144dac02fd018ed0c3aaf68303bf2516bc20913b5a7a8755a9c2b61e54fb",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "creative_prism": {
+    "bytes": 39162,
+    "pdf_sha256": "0522620c9f511ad10dd995714862fb6810e53147e322824ade42bdf7fd3dc7c8",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "creative_studio": {
+    "bytes": 38978,
+    "pdf_sha256": "2dc9df8c539f254342cc4fede803fe2a51124c697481fea791969c4ef78ce4df",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "creative_type": {
+    "bytes": 39482,
+    "pdf_sha256": "d8e4ef53d00a3db95328f595bfd0d62374cef0f9af54aabb18f87d28e6dec313",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "developer": {
+    "bytes": 43572,
+    "pdf_sha256": "49a4f7e70271e5b645d07441d7f4a7dccd838c3bc75cb46efa153a500b52d99d",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "executive_boardroom": {
+    "bytes": 38572,
+    "pdf_sha256": "e9ab2beeef5b909cf930c52ece25c12cedca4dcc932791e61cf0eedf4ab9551b",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "executive_director": {
+    "bytes": 31944,
+    "pdf_sha256": "0cdb167f6ac20671bd93e826cc054a1ebf43264a6ccbb62a53e743cbe60678c1",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "executive_legacy": {
+    "bytes": 36118,
+    "pdf_sha256": "1b5d0b3c5e4116b682ccdc5e2dea79f25afa5892c104ee75720d1ec2bb3a3856",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "minimalist_form": {
+    "bytes": 40730,
+    "pdf_sha256": "f1ae9432fac20688470903bc14f4cfc55b8b3d32c37bca2ae2bbfbf0fe108b49",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "minimalist_ink": {
+    "bytes": 35712,
+    "pdf_sha256": "77986cd6a242e29256510a6f98aab181feb18cfb11044d4fb1cda475b3318492",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "minimalist_line": {
+    "bytes": 31878,
+    "pdf_sha256": "68b9c88dcd3e00b69f14227d122b4fa0fd858060ff74b36d29349282f05ff977",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "minimalist_quiet": {
+    "bytes": 42716,
+    "pdf_sha256": "5a8c7b47fb15d6ccbde9b60fae3f83ecf9b1297df104e67b3fb351085141aac1",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "minimalist_space": {
+    "bytes": 33738,
+    "pdf_sha256": "07a57513263e61149ca6b796e60596fdf00ed3e08f6a847e5c37055ce5e86ab3",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "modern": {
+    "bytes": 44404,
+    "pdf_sha256": "fbe8d7c6dc163de95cfc0db439c8b55b64349afc7ee96572e232c93aafcbda12",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "modern_arc": {
+    "bytes": 42300,
+    "pdf_sha256": "c10030b507a629af5dc6065d7c1ad8dd2b121a4a00b980845ead48788db9a46e",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "modern_axis": {
+    "bytes": 43148,
+    "pdf_sha256": "38ff95ee219db49d68c39165bb18a134122c5b14cc38dda322a6ede8a9cbbd93",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "modern_current": {
+    "bytes": 38056,
+    "pdf_sha256": "59e9c202bc9e13205e48e7b77e6c6d05bae878c4bbbd514ec527cfa0d4216dc6",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "modern_frame": {
+    "bytes": 40772,
+    "pdf_sha256": "a388b054ce8fa8dc3f182bf726410d75f48276a4a80c2725960c8962e0525a36",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "modern_horizon": {
+    "bytes": 38086,
+    "pdf_sha256": "9e7c164d2e73e5da4016ef878a2e59cfa8052a7b1161bb324cccdd793dde6aa2",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "modern_signal": {
+    "bytes": 36380,
+    "pdf_sha256": "0b55804520ae96cef32cfc892961b36cdd2ffbdd5dcb7b95525c0f0f230c5e48",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "modern_stride": {
+    "bytes": 35846,
+    "pdf_sha256": "eb29cfc5585be3a6bf5fc72687af746d38075a978907ca88c11f1b7bacc51b38",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "modern_vector": {
+    "bytes": 42220,
+    "pdf_sha256": "f085e6d41f81b5b8861c7840da21149b6aff78e6b90e1ed66db5fadab295cf6f",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "professional_anchor": {
+    "bytes": 38492,
+    "pdf_sha256": "07aa3803afa93fbcf37ae4df7bc23283f82beac1d165f3ad2c20a92ab7f7fb5a",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "professional_blue": {
+    "bytes": 37170,
+    "pdf_sha256": "a2efb40d52082e60146521e54554f997db1ec74ba178401037e139f4fd74f72b",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "professional_bridge": {
+    "bytes": 34636,
+    "pdf_sha256": "e2a70196dde6831fd9feb798d6db11257b6c575bd962264b1a149537d97c478e",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "professional_clarity": {
+    "bytes": 38494,
+    "pdf_sha256": "310245585e82ca1d931bb7c0e3eddd27a00b9e162f015bfbe45db0a6cc1d6e10",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "professional_counsel": {
+    "bytes": 34914,
+    "pdf_sha256": "0ad3542e57c943c0639c8502bcaa0fc1b82a2df62a44bbfdebb31ece73bedc00",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "professional_meridian": {
+    "bytes": 36420,
+    "pdf_sha256": "dcd448b67f8b75d8a8fbe2f7a40be0a6ad7919865487a283cfc51490de0abba4",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "professional_precision": {
+    "bytes": 34836,
+    "pdf_sha256": "dce8438c3c7121df60667d22c85ebdcfce7125667c36483740b4301778b73c44",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "professional_steward": {
+    "bytes": 37018,
+    "pdf_sha256": "c677a3f4320343aefefaca1becf2c8071339747696f3f9404a958e0c4ef55ce5",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "professional_summit": {
+    "bytes": 37820,
+    "pdf_sha256": "a426cafe78ce4bbc1a3bd398488a4e480d6a85c399914d80b2c6887f1bf5d46c",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "simple_breeze": {
+    "bytes": 38342,
+    "pdf_sha256": "04d6916b81fb26120022898bfa5bce83eed608ca29db80b0b5c58b3f2335ca07",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "simple_daily": {
+    "bytes": 38260,
+    "pdf_sha256": "572ec8887f9698ba235b5c27b13d7c77a787e60cb0f897ecd90c34401d5e5baf",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "simple_direct": {
+    "bytes": 37216,
+    "pdf_sha256": "b606e744966aae1b02705f0a1282f3fde7c4390fe8e094a763adfed499977d62",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "simple_essential": {
+    "bytes": 33996,
+    "pdf_sha256": "b6cc2152889cd9a5c1bca59f0fa6e6c89278dfe9a314f87c4618770fbbc5cd24",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "simple_foundation": {
+    "bytes": 38798,
+    "pdf_sha256": "608f7aa40c95714802ca9aabb3377e3856af1e14baf3519945a7a5d1185f87ef",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "simple_notebook": {
+    "bytes": 37650,
+    "pdf_sha256": "0a2fd7b87f28b186f35dfaa936ecc4b6728b0383cd7735d6841264e1d3244055",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "simple_outline": {
+    "bytes": 28728,
+    "pdf_sha256": "1e06344b29470f6e1cd7d76379e07b3379c8d580ae2abe422c055ff25e76cd79",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  },
+  "simple_study": {
+    "bytes": 35028,
+    "pdf_sha256": "1e9e4fc52329cd9223dc4631e92798113f3dd9a76a37d0192c409fb6e0f59bad",
+    "sample": "comparison",
+    "source_hash": "1c04e6dfeac60e6e2549c579506460b519b7ce591e0761674cdeac71cecd8657"
+  }
+}

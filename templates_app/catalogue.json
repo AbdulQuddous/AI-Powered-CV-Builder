@@ -1,0 +1,1642 @@
+[
+  {
+    "id": "modern",
+    "name": "Modern",
+    "category": "modern",
+    "description": "Modern pairs a sans type system with a line contact header and ledger structure. A clear, original layout for your career story.",
+    "layout_family": "ledger",
+    "design_config": {
+      "family": "ledger",
+      "font": "sans",
+      "header": "line",
+      "heading": "rule",
+      "density": "regular",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#24566b",
+      "aside": "left",
+      "sidebar_width": 29,
+      "name_size": 25
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/modern.html",
+    "preview_image": "cv_templates/previews/modern.webp"
+  },
+  {
+    "id": "developer",
+    "name": "Developer",
+    "category": "modern",
+    "description": "Developer pairs a sans type system with a line contact header and ledger structure. A clear, original layout for your career story.",
+    "layout_family": "ledger",
+    "design_config": {
+      "family": "ledger",
+      "font": "sans",
+      "header": "line",
+      "heading": "rule",
+      "density": "regular",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#394f78",
+      "aside": "right",
+      "sidebar_width": 32,
+      "name_size": 27
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/developer.html",
+    "preview_image": "cv_templates/previews/developer.webp"
+  },
+  {
+    "id": "modern_horizon",
+    "name": "Horizon",
+    "category": "modern",
+    "description": "Horizon pairs a sans type system with a banner contact header and split structure. A clear, original layout for your career story.",
+    "layout_family": "split",
+    "design_config": {
+      "family": "split",
+      "font": "sans",
+      "header": "banner",
+      "heading": "caps",
+      "density": "regular",
+      "order": "work",
+      "skills": "tags",
+      "accent": "#514c76",
+      "aside": "left",
+      "sidebar_width": 35,
+      "name_size": 29
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/modern_horizon.webp"
+  },
+  {
+    "id": "modern_current",
+    "name": "Current",
+    "category": "modern",
+    "description": "Current pairs a sans type system with a stack contact header and sidebar structure. A clear, original layout for your career story.",
+    "layout_family": "sidebar",
+    "design_config": {
+      "family": "sidebar",
+      "font": "sans",
+      "header": "stack",
+      "heading": "bar",
+      "density": "regular",
+      "order": "work",
+      "skills": "list",
+      "accent": "#7a443d",
+      "aside": "right",
+      "sidebar_width": 29,
+      "name_size": 31
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/modern_current.webp"
+  },
+  {
+    "id": "modern_vector",
+    "name": "Vector",
+    "category": "modern",
+    "description": "Vector pairs a mono type system with a split contact header and technical structure. A clear, original layout for your career story.",
+    "layout_family": "technical",
+    "design_config": {
+      "family": "technical",
+      "font": "mono",
+      "header": "split",
+      "heading": "rule",
+      "density": "compact",
+      "order": "projects",
+      "skills": "inline",
+      "accent": "#24566b",
+      "aside": "left",
+      "sidebar_width": 32,
+      "name_size": 25
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/modern_vector.webp"
+  },
+  {
+    "id": "modern_arc",
+    "name": "Arc",
+    "category": "modern",
+    "description": "Arc pairs a serif type system with a center contact header and split structure. A clear, original layout for your career story.",
+    "layout_family": "split",
+    "design_config": {
+      "family": "split",
+      "font": "serif",
+      "header": "center",
+      "heading": "rule",
+      "density": "airy",
+      "order": "education",
+      "skills": "inline",
+      "accent": "#394f78",
+      "aside": "right",
+      "sidebar_width": 35,
+      "name_size": 27
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/modern_arc.webp"
+  },
+  {
+    "id": "modern_signal",
+    "name": "Signal",
+    "category": "modern",
+    "description": "Signal pairs a sans type system with a split contact header and compact structure. A clear, original layout for your career story.",
+    "layout_family": "compact",
+    "design_config": {
+      "family": "compact",
+      "font": "sans",
+      "header": "split",
+      "heading": "bar",
+      "density": "compact",
+      "order": "skills",
+      "skills": "tags",
+      "accent": "#514c76",
+      "aside": "left",
+      "sidebar_width": 29,
+      "name_size": 29
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/modern_signal.webp"
+  },
+  {
+    "id": "modern_axis",
+    "name": "Axis",
+    "category": "modern",
+    "description": "Axis pairs a serif type system with a line contact header and sidebar structure. A clear, original layout for your career story.",
+    "layout_family": "sidebar",
+    "design_config": {
+      "family": "sidebar",
+      "font": "serif",
+      "header": "line",
+      "heading": "caps",
+      "density": "regular",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#7a443d",
+      "aside": "right",
+      "sidebar_width": 32,
+      "name_size": 31
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/modern_axis.webp"
+  },
+  {
+    "id": "modern_stride",
+    "name": "Stride",
+    "category": "modern",
+    "description": "Stride pairs a sans type system with a banner contact header and portfolio structure. A clear, original layout for your career story.",
+    "layout_family": "portfolio",
+    "design_config": {
+      "family": "portfolio",
+      "font": "sans",
+      "header": "banner",
+      "heading": "rule",
+      "density": "regular",
+      "order": "projects",
+      "skills": "tags",
+      "accent": "#24566b",
+      "aside": "left",
+      "sidebar_width": 35,
+      "name_size": 25
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/modern_stride.webp"
+  },
+  {
+    "id": "modern_frame",
+    "name": "Frame",
+    "category": "modern",
+    "description": "Frame pairs a sans type system with a stack contact header and asymmetry structure. A clear, original layout for your career story.",
+    "layout_family": "asymmetry",
+    "design_config": {
+      "family": "asymmetry",
+      "font": "sans",
+      "header": "stack",
+      "heading": "bar",
+      "density": "regular",
+      "order": "work",
+      "skills": "list",
+      "accent": "#394f78",
+      "aside": "right",
+      "sidebar_width": 29,
+      "name_size": 27
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/modern_frame.webp"
+  },
+  {
+    "id": "classic",
+    "name": "Classic",
+    "category": "professional",
+    "description": "Classic pairs a serif type system with a center contact header and ledger structure. A clear, original layout for your career story.",
+    "layout_family": "ledger",
+    "design_config": {
+      "family": "ledger",
+      "font": "serif",
+      "header": "center",
+      "heading": "rule",
+      "density": "regular",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#394f78",
+      "aside": "left",
+      "sidebar_width": 29,
+      "name_size": 25
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/classic.html",
+    "preview_image": "cv_templates/previews/classic.webp"
+  },
+  {
+    "id": "professional_blue",
+    "name": "Blue Ledger",
+    "category": "professional",
+    "description": "Blue Ledger pairs a sans type system with a line contact header and split structure. A clear, original layout for your career story.",
+    "layout_family": "split",
+    "design_config": {
+      "family": "split",
+      "font": "sans",
+      "header": "line",
+      "heading": "caps",
+      "density": "regular",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#514c76",
+      "aside": "right",
+      "sidebar_width": 32,
+      "name_size": 27
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/professional_blue.webp"
+  },
+  {
+    "id": "professional_meridian",
+    "name": "Meridian",
+    "category": "professional",
+    "description": "Meridian pairs a serif type system with a center contact header and traditional structure. A clear, original layout for your career story.",
+    "layout_family": "traditional",
+    "design_config": {
+      "family": "traditional",
+      "font": "serif",
+      "header": "center",
+      "heading": "double",
+      "density": "regular",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#7a443d",
+      "aside": "left",
+      "sidebar_width": 35,
+      "name_size": 29
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/professional_meridian.webp"
+  },
+  {
+    "id": "professional_anchor",
+    "name": "Anchor",
+    "category": "professional",
+    "description": "Anchor pairs a sans type system with a banner contact header and sidebar structure. A clear, original layout for your career story.",
+    "layout_family": "sidebar",
+    "design_config": {
+      "family": "sidebar",
+      "font": "sans",
+      "header": "banner",
+      "heading": "caps",
+      "density": "compact",
+      "order": "work",
+      "skills": "list",
+      "accent": "#24566b",
+      "aside": "right",
+      "sidebar_width": 29,
+      "name_size": 31
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/professional_anchor.webp"
+  },
+  {
+    "id": "professional_counsel",
+    "name": "Counsel",
+    "category": "professional",
+    "description": "Counsel pairs a serif type system with a split contact header and traditional structure. A clear, original layout for your career story.",
+    "layout_family": "traditional",
+    "design_config": {
+      "family": "traditional",
+      "font": "serif",
+      "header": "split",
+      "heading": "rule",
+      "density": "airy",
+      "order": "education",
+      "skills": "inline",
+      "accent": "#394f78",
+      "aside": "left",
+      "sidebar_width": 32,
+      "name_size": 25
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/professional_counsel.webp"
+  },
+  {
+    "id": "professional_precision",
+    "name": "Precision",
+    "category": "professional",
+    "description": "Precision pairs a sans type system with a line contact header and compact structure. A clear, original layout for your career story.",
+    "layout_family": "compact",
+    "design_config": {
+      "family": "compact",
+      "font": "sans",
+      "header": "line",
+      "heading": "bar",
+      "density": "compact",
+      "order": "skills",
+      "skills": "inline",
+      "accent": "#514c76",
+      "aside": "right",
+      "sidebar_width": 35,
+      "name_size": 27
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/professional_precision.webp"
+  },
+  {
+    "id": "professional_summit",
+    "name": "Summit",
+    "category": "professional",
+    "description": "Summit pairs a serif type system with a banner contact header and executive structure. A clear, original layout for your career story.",
+    "layout_family": "executive",
+    "design_config": {
+      "family": "executive",
+      "font": "serif",
+      "header": "banner",
+      "heading": "double",
+      "density": "regular",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#7a443d",
+      "aside": "left",
+      "sidebar_width": 29,
+      "name_size": 29
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/professional_summit.webp"
+  },
+  {
+    "id": "professional_clarity",
+    "name": "Clarity",
+    "category": "professional",
+    "description": "Clarity pairs a sans type system with a center contact header and split structure. A clear, original layout for your career story.",
+    "layout_family": "split",
+    "design_config": {
+      "family": "split",
+      "font": "sans",
+      "header": "center",
+      "heading": "rule",
+      "density": "airy",
+      "order": "work",
+      "skills": "list",
+      "accent": "#24566b",
+      "aside": "right",
+      "sidebar_width": 32,
+      "name_size": 31
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/professional_clarity.webp"
+  },
+  {
+    "id": "professional_steward",
+    "name": "Steward",
+    "category": "professional",
+    "description": "Steward pairs a serif type system with a line contact header and academic structure. A clear, original layout for your career story.",
+    "layout_family": "academic",
+    "design_config": {
+      "family": "academic",
+      "font": "serif",
+      "header": "line",
+      "heading": "caps",
+      "density": "regular",
+      "order": "education",
+      "skills": "inline",
+      "accent": "#394f78",
+      "aside": "left",
+      "sidebar_width": 35,
+      "name_size": 25
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/professional_steward.webp"
+  },
+  {
+    "id": "professional_bridge",
+    "name": "Bridge",
+    "category": "professional",
+    "description": "Bridge pairs a sans type system with a split contact header and technical structure. A clear, original layout for your career story.",
+    "layout_family": "technical",
+    "design_config": {
+      "family": "technical",
+      "font": "sans",
+      "header": "split",
+      "heading": "bar",
+      "density": "regular",
+      "order": "work",
+      "skills": "tags",
+      "accent": "#514c76",
+      "aside": "right",
+      "sidebar_width": 29,
+      "name_size": 27
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/professional_bridge.webp"
+  },
+  {
+    "id": "simple_essential",
+    "name": "Essential",
+    "category": "simple",
+    "description": "Essential pairs a sans type system with a line contact header and minimal structure. A clear, original layout for your career story.",
+    "layout_family": "minimal",
+    "design_config": {
+      "family": "minimal",
+      "font": "sans",
+      "header": "line",
+      "heading": "rule",
+      "density": "regular",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#514c76",
+      "aside": "left",
+      "sidebar_width": 29,
+      "name_size": 25
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/simple_essential.webp"
+  },
+  {
+    "id": "simple_notebook",
+    "name": "Notebook",
+    "category": "simple",
+    "description": "Notebook pairs a serif type system with a stack contact header and academic structure. A clear, original layout for your career story.",
+    "layout_family": "academic",
+    "design_config": {
+      "family": "academic",
+      "font": "serif",
+      "header": "stack",
+      "heading": "rule",
+      "density": "regular",
+      "order": "education",
+      "skills": "inline",
+      "accent": "#7a443d",
+      "aside": "right",
+      "sidebar_width": 32,
+      "name_size": 27
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/simple_notebook.webp"
+  },
+  {
+    "id": "simple_direct",
+    "name": "Direct",
+    "category": "simple",
+    "description": "Direct pairs a sans type system with a split contact header and compact structure. A clear, original layout for your career story.",
+    "layout_family": "compact",
+    "design_config": {
+      "family": "compact",
+      "font": "sans",
+      "header": "split",
+      "heading": "caps",
+      "density": "compact",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#24566b",
+      "aside": "left",
+      "sidebar_width": 35,
+      "name_size": 29
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/simple_direct.webp"
+  },
+  {
+    "id": "simple_outline",
+    "name": "Outline",
+    "category": "simple",
+    "description": "Outline pairs a sans type system with a line contact header and minimal structure. A clear, original layout for your career story.",
+    "layout_family": "minimal",
+    "design_config": {
+      "family": "minimal",
+      "font": "sans",
+      "header": "line",
+      "heading": "rule",
+      "density": "airy",
+      "order": "skills",
+      "skills": "list",
+      "accent": "#394f78",
+      "aside": "right",
+      "sidebar_width": 29,
+      "name_size": 31
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/simple_outline.webp"
+  },
+  {
+    "id": "simple_foundation",
+    "name": "Foundation",
+    "category": "simple",
+    "description": "Foundation pairs a serif type system with a center contact header and traditional structure. A clear, original layout for your career story.",
+    "layout_family": "traditional",
+    "design_config": {
+      "family": "traditional",
+      "font": "serif",
+      "header": "center",
+      "heading": "double",
+      "density": "compact",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#514c76",
+      "aside": "left",
+      "sidebar_width": 32,
+      "name_size": 25
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/simple_foundation.webp"
+  },
+  {
+    "id": "simple_study",
+    "name": "Study",
+    "category": "simple",
+    "description": "Study pairs a sans type system with a center contact header and academic structure. A clear, original layout for your career story.",
+    "layout_family": "academic",
+    "design_config": {
+      "family": "academic",
+      "font": "sans",
+      "header": "center",
+      "heading": "bar",
+      "density": "regular",
+      "order": "education",
+      "skills": "tags",
+      "accent": "#7a443d",
+      "aside": "right",
+      "sidebar_width": 35,
+      "name_size": 27
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/simple_study.webp"
+  },
+  {
+    "id": "simple_breeze",
+    "name": "Breeze",
+    "category": "simple",
+    "description": "Breeze pairs a sans type system with a stack contact header and split structure. A clear, original layout for your career story.",
+    "layout_family": "split",
+    "design_config": {
+      "family": "split",
+      "font": "sans",
+      "header": "stack",
+      "heading": "rule",
+      "density": "airy",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#24566b",
+      "aside": "left",
+      "sidebar_width": 29,
+      "name_size": 29
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/simple_breeze.webp"
+  },
+  {
+    "id": "simple_daily",
+    "name": "Daily",
+    "category": "simple",
+    "description": "Daily pairs a serif type system with a split contact header and minimal structure. A clear, original layout for your career story.",
+    "layout_family": "minimal",
+    "design_config": {
+      "family": "minimal",
+      "font": "serif",
+      "header": "split",
+      "heading": "caps",
+      "density": "regular",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#394f78",
+      "aside": "right",
+      "sidebar_width": 32,
+      "name_size": 31
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/simple_daily.webp"
+  },
+  {
+    "id": "creative_studio",
+    "name": "Studio",
+    "category": "creative",
+    "description": "Studio pairs a sans type system with a banner contact header and asymmetry structure. A clear, original layout for your career story.",
+    "layout_family": "asymmetry",
+    "design_config": {
+      "family": "asymmetry",
+      "font": "sans",
+      "header": "banner",
+      "heading": "bar",
+      "density": "regular",
+      "order": "projects",
+      "skills": "tags",
+      "accent": "#514c76",
+      "aside": "left",
+      "sidebar_width": 29,
+      "name_size": 25
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Designer",
+      "Marketing Specialist"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/creative_studio.webp"
+  },
+  {
+    "id": "creative_folio",
+    "name": "Folio",
+    "category": "creative",
+    "description": "Folio pairs a serif type system with a stack contact header and portfolio structure. A clear, original layout for your career story.",
+    "layout_family": "portfolio",
+    "design_config": {
+      "family": "portfolio",
+      "font": "serif",
+      "header": "stack",
+      "heading": "double",
+      "density": "airy",
+      "order": "projects",
+      "skills": "inline",
+      "accent": "#7a443d",
+      "aside": "right",
+      "sidebar_width": 32,
+      "name_size": 27
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Designer",
+      "Marketing Specialist"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/creative_folio.webp"
+  },
+  {
+    "id": "creative_prism",
+    "name": "Prism",
+    "category": "creative",
+    "description": "Prism pairs a sans type system with a split contact header and sidebar structure. A clear, original layout for your career story.",
+    "layout_family": "sidebar",
+    "design_config": {
+      "family": "sidebar",
+      "font": "sans",
+      "header": "split",
+      "heading": "bar",
+      "density": "regular",
+      "order": "projects",
+      "skills": "tags",
+      "accent": "#24566b",
+      "aside": "left",
+      "sidebar_width": 35,
+      "name_size": 29
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Designer",
+      "Marketing Specialist"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/creative_prism.webp"
+  },
+  {
+    "id": "creative_editorial",
+    "name": "Editorial",
+    "category": "creative",
+    "description": "Editorial pairs a serif type system with a line contact header and asymmetry structure. A clear, original layout for your career story.",
+    "layout_family": "asymmetry",
+    "design_config": {
+      "family": "asymmetry",
+      "font": "serif",
+      "header": "line",
+      "heading": "caps",
+      "density": "airy",
+      "order": "work",
+      "skills": "list",
+      "accent": "#394f78",
+      "aside": "right",
+      "sidebar_width": 29,
+      "name_size": 31
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Designer",
+      "Marketing Specialist"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/creative_editorial.webp"
+  },
+  {
+    "id": "creative_canvas",
+    "name": "Canvas",
+    "category": "creative",
+    "description": "Canvas pairs a sans type system with a center contact header and portfolio structure. A clear, original layout for your career story.",
+    "layout_family": "portfolio",
+    "design_config": {
+      "family": "portfolio",
+      "font": "sans",
+      "header": "center",
+      "heading": "bar",
+      "density": "regular",
+      "order": "projects",
+      "skills": "list",
+      "accent": "#514c76",
+      "aside": "left",
+      "sidebar_width": 32,
+      "name_size": 25
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Designer",
+      "Marketing Specialist"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/creative_canvas.webp"
+  },
+  {
+    "id": "creative_muse",
+    "name": "Muse",
+    "category": "creative",
+    "description": "Muse pairs a serif type system with a banner contact header and split structure. A clear, original layout for your career story.",
+    "layout_family": "split",
+    "design_config": {
+      "family": "split",
+      "font": "serif",
+      "header": "banner",
+      "heading": "double",
+      "density": "regular",
+      "order": "projects",
+      "skills": "tags",
+      "accent": "#7a443d",
+      "aside": "right",
+      "sidebar_width": 35,
+      "name_size": 27
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Designer",
+      "Marketing Specialist"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/creative_muse.webp"
+  },
+  {
+    "id": "creative_type",
+    "name": "Type",
+    "category": "creative",
+    "description": "Type pairs a mono type system with a stack contact header and technical structure. A clear, original layout for your career story.",
+    "layout_family": "technical",
+    "design_config": {
+      "family": "technical",
+      "font": "mono",
+      "header": "stack",
+      "heading": "caps",
+      "density": "airy",
+      "order": "projects",
+      "skills": "inline",
+      "accent": "#24566b",
+      "aside": "left",
+      "sidebar_width": 29,
+      "name_size": 29
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Designer",
+      "Marketing Specialist"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/creative_type.webp"
+  },
+  {
+    "id": "ats_standard",
+    "name": "ATS Standard",
+    "category": "ats",
+    "description": "ATS Standard pairs a sans type system with a line contact header and ats structure. Designed for conventional text parsing; compatibility varies by ATS.",
+    "layout_family": "ats",
+    "design_config": {
+      "family": "ats",
+      "font": "sans",
+      "header": "line",
+      "heading": "rule",
+      "density": "regular",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#282f36",
+      "aside": "left",
+      "sidebar_width": 29,
+      "name_size": 25
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/ats_standard.webp"
+  },
+  {
+    "id": "ats_chronicle",
+    "name": "ATS Chronicle",
+    "category": "ats",
+    "description": "ATS Chronicle pairs a serif type system with a center contact header and ats structure. Designed for conventional text parsing; compatibility varies by ATS.",
+    "layout_family": "ats",
+    "design_config": {
+      "family": "ats",
+      "font": "serif",
+      "header": "center",
+      "heading": "double",
+      "density": "regular",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#282f36",
+      "aside": "right",
+      "sidebar_width": 32,
+      "name_size": 27
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/ats_chronicle.webp"
+  },
+  {
+    "id": "ats_technical",
+    "name": "ATS Technical",
+    "category": "ats",
+    "description": "ATS Technical pairs a sans type system with a split contact header and ats structure. Designed for conventional text parsing; compatibility varies by ATS.",
+    "layout_family": "ats",
+    "design_config": {
+      "family": "ats",
+      "font": "sans",
+      "header": "split",
+      "heading": "caps",
+      "density": "compact",
+      "order": "skills",
+      "skills": "inline",
+      "accent": "#282f36",
+      "aside": "left",
+      "sidebar_width": 35,
+      "name_size": 29
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/ats_technical.webp"
+  },
+  {
+    "id": "ats_graduate",
+    "name": "ATS Graduate",
+    "category": "ats",
+    "description": "ATS Graduate pairs a sans type system with a stack contact header and ats structure. Designed for conventional text parsing; compatibility varies by ATS.",
+    "layout_family": "ats",
+    "design_config": {
+      "family": "ats",
+      "font": "sans",
+      "header": "stack",
+      "heading": "rule",
+      "density": "regular",
+      "order": "education",
+      "skills": "list",
+      "accent": "#282f36",
+      "aside": "right",
+      "sidebar_width": 29,
+      "name_size": 31
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/ats_graduate.webp"
+  },
+  {
+    "id": "ats_research",
+    "name": "ATS Research",
+    "category": "ats",
+    "description": "ATS Research pairs a serif type system with a line contact header and ats structure. Designed for conventional text parsing; compatibility varies by ATS.",
+    "layout_family": "ats",
+    "design_config": {
+      "family": "ats",
+      "font": "serif",
+      "header": "line",
+      "heading": "caps",
+      "density": "airy",
+      "order": "education",
+      "skills": "inline",
+      "accent": "#282f36",
+      "aside": "left",
+      "sidebar_width": 32,
+      "name_size": 25
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/ats_research.webp"
+  },
+  {
+    "id": "ats_experience",
+    "name": "ATS Experience",
+    "category": "ats",
+    "description": "ATS Experience pairs a sans type system with a center contact header and ats structure. Designed for conventional text parsing; compatibility varies by ATS.",
+    "layout_family": "ats",
+    "design_config": {
+      "family": "ats",
+      "font": "sans",
+      "header": "center",
+      "heading": "bar",
+      "density": "compact",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#282f36",
+      "aside": "right",
+      "sidebar_width": 35,
+      "name_size": 27
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/ats_experience.webp"
+  },
+  {
+    "id": "ats_plain",
+    "name": "ATS Plain",
+    "category": "ats",
+    "description": "ATS Plain pairs a serif type system with a stack contact header and ats structure. Designed for conventional text parsing; compatibility varies by ATS.",
+    "layout_family": "ats",
+    "design_config": {
+      "family": "ats",
+      "font": "serif",
+      "header": "stack",
+      "heading": "rule",
+      "density": "regular",
+      "order": "projects",
+      "skills": "inline",
+      "accent": "#282f36",
+      "aside": "left",
+      "sidebar_width": 29,
+      "name_size": 29
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/ats_plain.webp"
+  },
+  {
+    "id": "minimalist_space",
+    "name": "Space",
+    "category": "minimalist",
+    "description": "Space pairs a sans type system with a stack contact header and minimal structure. A clear, original layout for your career story.",
+    "layout_family": "minimal",
+    "design_config": {
+      "family": "minimal",
+      "font": "sans",
+      "header": "stack",
+      "heading": "caps",
+      "density": "airy",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#282f36",
+      "aside": "left",
+      "sidebar_width": 29,
+      "name_size": 25
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/minimalist_space.webp"
+  },
+  {
+    "id": "minimalist_ink",
+    "name": "Ink",
+    "category": "minimalist",
+    "description": "Ink pairs a serif type system with a line contact header and traditional structure. A clear, original layout for your career story.",
+    "layout_family": "traditional",
+    "design_config": {
+      "family": "traditional",
+      "font": "serif",
+      "header": "line",
+      "heading": "double",
+      "density": "airy",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#282f36",
+      "aside": "right",
+      "sidebar_width": 32,
+      "name_size": 27
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/minimalist_ink.webp"
+  },
+  {
+    "id": "minimalist_line",
+    "name": "Line",
+    "category": "minimalist",
+    "description": "Line pairs a sans type system with a split contact header and minimal structure. A clear, original layout for your career story.",
+    "layout_family": "minimal",
+    "design_config": {
+      "family": "minimal",
+      "font": "sans",
+      "header": "split",
+      "heading": "rule",
+      "density": "regular",
+      "order": "skills",
+      "skills": "list",
+      "accent": "#282f36",
+      "aside": "left",
+      "sidebar_width": 35,
+      "name_size": 29
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/minimalist_line.webp"
+  },
+  {
+    "id": "minimalist_quiet",
+    "name": "Quiet",
+    "category": "minimalist",
+    "description": "Quiet pairs a serif type system with a center contact header and split structure. A clear, original layout for your career story.",
+    "layout_family": "split",
+    "design_config": {
+      "family": "split",
+      "font": "serif",
+      "header": "center",
+      "heading": "caps",
+      "density": "airy",
+      "order": "education",
+      "skills": "inline",
+      "accent": "#282f36",
+      "aside": "right",
+      "sidebar_width": 29,
+      "name_size": 31
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": false,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/minimalist_quiet.webp"
+  },
+  {
+    "id": "minimalist_form",
+    "name": "Form",
+    "category": "minimalist",
+    "description": "Form pairs a mono type system with a stack contact header and compact structure. A clear, original layout for your career story.",
+    "layout_family": "compact",
+    "design_config": {
+      "family": "compact",
+      "font": "mono",
+      "header": "stack",
+      "heading": "rule",
+      "density": "regular",
+      "order": "projects",
+      "skills": "inline",
+      "accent": "#282f36",
+      "aside": "left",
+      "sidebar_width": 32,
+      "name_size": 25
+    },
+    "supported_levels": [
+      "fresher",
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/minimalist_form.webp"
+  },
+  {
+    "id": "executive_boardroom",
+    "name": "Boardroom",
+    "category": "executive",
+    "description": "Boardroom pairs a serif type system with a center contact header and executive structure. A clear, original layout for your career story.",
+    "layout_family": "executive",
+    "design_config": {
+      "family": "executive",
+      "font": "serif",
+      "header": "center",
+      "heading": "double",
+      "density": "airy",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#485935",
+      "aside": "left",
+      "sidebar_width": 29,
+      "name_size": 25
+    },
+    "supported_levels": [
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/executive_boardroom.webp"
+  },
+  {
+    "id": "executive_director",
+    "name": "Director",
+    "category": "executive",
+    "description": "Director pairs a sans type system with a banner contact header and executive structure. A clear, original layout for your career story.",
+    "layout_family": "executive",
+    "design_config": {
+      "family": "executive",
+      "font": "sans",
+      "header": "banner",
+      "heading": "caps",
+      "density": "regular",
+      "order": "skills",
+      "skills": "list",
+      "accent": "#23584c",
+      "aside": "right",
+      "sidebar_width": 32,
+      "name_size": 27
+    },
+    "supported_levels": [
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/executive_director.webp"
+  },
+  {
+    "id": "executive_legacy",
+    "name": "Legacy",
+    "category": "executive",
+    "description": "Legacy pairs a serif type system with a split contact header and traditional structure. A clear, original layout for your career story.",
+    "layout_family": "traditional",
+    "design_config": {
+      "family": "traditional",
+      "font": "serif",
+      "header": "split",
+      "heading": "double",
+      "density": "airy",
+      "order": "work",
+      "skills": "inline",
+      "accent": "#695141",
+      "aside": "left",
+      "sidebar_width": 35,
+      "name_size": 29
+    },
+    "supported_levels": [
+      "experienced",
+      "other"
+    ],
+    "supported_roles": [
+      "Python Developer",
+      "Data Analyst",
+      "Project Manager"
+    ],
+    "ats_compatible": true,
+    "template_path": "cv_templates/designed.html",
+    "preview_image": "cv_templates/previews/executive_legacy.webp"
+  }
+]

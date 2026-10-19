@@ -172,6 +172,9 @@ def normalize_entry(section, item):
             first(item, "issuer", "organization"),
             first(item, "date", "issue_date"),
         )
+        url = first(item, "url")
+        if url:
+            bullets.append(url)
 
     elif section == "achievements":
         title = first(item, "title", "name")
@@ -219,6 +222,7 @@ def build_section(data, key, label):
             entries.append(entry)
 
     return {
+        "key": key,
         "label": label,
         "items": entries,
     }

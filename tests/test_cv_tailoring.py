@@ -69,6 +69,8 @@ class CVTailoringTests(APITestCase):
         self.assertEqual(response.data["data"]["version"], 1)
         self.assertFalse(response.data["data"]["cached"])
         self.provider.generate_structured.assert_called_once()
+        constraints = json.loads(self.provider.generate_structured.call_args.kwargs['user_prompt'])['field_constraints']
+        self.assertEqual(constraints['/experience/0/highlights/0']['numbers_to_preserve'], ['2'])
         self.cv.refresh_from_db()
         self.assertEqual(self.cv.data, self.document)
         self.assertEqual(self.cv.version, 1)
@@ -224,7 +226,7 @@ class CVTailoringTests(APITestCase):
         self.cv.data = self.document
         self.cv.save(update_fields=["data"])
         change = self.change("/experience/0/highlights/0",
-            "Developed and maintained backend features using Python, Django, and REST APIs.")
+            "Developed backend features using Python, Django, and REST APIs.")
         self.provider.generate_structured.return_value["changes"] = [change]
         response = self.post()
         self.assertEqual(response.status_code, 200, response.data)
@@ -319,8 +321,12 @@ class CVTailoringTests(APITestCase):
         for response in (first, second):
             self.assertEqual(response.status_code, 200, response.data)
             self.assertEqual(response.data["data"]["changes"], [safe_change])
-            self.assertEqual(response.data["data"]["warnings"], [
-                "Some suggested changes were left out because they could not be verified against your CV."])
+            warnings = response.data["data"]["warnings"]
+            self.assertEqual(warnings[0], "Some suggested changes were left out because they could not be verified against your CV.")
+            self.assertEqual(len(warnings), 2)
+            self.assertIn('Project 1, description', warnings[1])
+            self.assertIn('named fact', warnings[1])
+            self.assertIn('1 wording change passed', response.data['data']['summary'])
         self.assertTrue(second.data["data"]["cached"])
         self.provider.generate_structured.assert_called_once()
         self.cv.refresh_from_db()
@@ -334,6 +340,29 @@ class CVTailoringTests(APITestCase):
         self.provider.generate_structured.return_value["changes"] = [self.change("/summary", "Developed Django web applications and REST APIs.")]
         self.assertEqual(self.post().status_code, 200)
         self.assertEqual(self.provider.generate_structured.call_count, 2)
+
+    def test_reported_copied_profile_with_no_edits_is_advice_only_and_caches_without_saving(self):
+        from ai.services.tailoring import NO_CHANGES_SUMMARY
+        advice = ['Mention cloud or deployment experience only if you have it.']
+        self.provider.generate_structured.return_value = {
+            'summary': self.document['summary'], 'changes': [], 'suggestions': advice}
+        first, cached = self.post(target_role='DevOps Engineer'), self.post(target_role='DevOps Engineer')
+        for response in (first, cached):
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertEqual(response.data['data']['summary'], NO_CHANGES_SUMMARY)
+            self.assertEqual(response.data['data']['changes'], [])
+            self.assertEqual(response.data['data']['suggestions'], advice)
+        self.assertTrue(cached.data['data']['cached'])
+        self.provider.generate_structured.assert_called_once()
+        prompt = json.loads(self.provider.generate_structured.call_args.kwargs['user_prompt'])
+        self.assertEqual(prompt['target_role'], 'DevOps Engineer')
+        self.assertEqual(prompt['cv']['meta']['target_role'], self.document['meta']['target_role'])
+        schema = self.provider.generate_structured.call_args.kwargs['schema']
+        self.assertIn('not a CV profile', schema['properties']['summary']['description'])
+        self.cv.refresh_from_db()
+        self.assertEqual(self.cv.data, self.document)
+        self.assertEqual(self.cv.version, 1)
+        self.assertEqual(self.cv.versions.count(), 1)
 
     def test_structural_or_substantive_source_errors_still_reject_mixed_reviews(self):
         good = deepcopy(self.proposal["changes"][0])
@@ -416,7 +445,7 @@ class CVTailoringTests(APITestCase):
 
     @patch("ai.services.writing.get_llm_provider")
     def test_selected_text_accepts_m10_prose_limit_and_rejects_oversize_jd(self, factory):
-        factory.return_value.generate_structured.return_value = {"rewritten": "Developed Django applications.", "changes": []}
+        factory.return_value.generate_structured.return_value = {"rewritten": "x" * 5000, "changes": []}
         good = self.client.post("/api/ai/rewrite/", {"text": "x" * 5000, "section": "projects"}, format="json")
         self.assertEqual(good.status_code, 200)
         for values in ({"text": "x" * 5001}, {"job_description": "x" * 10001}):

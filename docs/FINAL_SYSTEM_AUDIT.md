@@ -546,3 +546,119 @@ provider usage; no such action was executed as part of this audit.
     backups/monitoring/rate policy; deployment/vulnerability checks and explicitly authorized
     provider smoke test. Resolve/version legacy DTO alignment if strict full M10 adoption
     is a release requirement.
+
+## 2026-10-19 follow-up: workspace consistency and date confirmation
+
+Dashboard, editor and template gallery now share one navigation include and a
+navy/indigo application theme. Account, creation, import, chat and AI-review
+dialogs inherit the same buttons, forms and focus styling. The editor groups
+secondary downloads in an accessible native disclosure; save, preview and PDF
+download stay visible. Navigation and section controls adapt to phones, and
+mobile summary cards take less space. Workspace CSS remains outside CV frames
+and export templates.
+
+All three screens load a locally compiled utility stylesheet. Rebuild with
+`npm ci && npm run build:css` when changing utility classes; theme changes also
+invalidate editor/dashboard CSS asset versions. Details and browser commands
+are in [WORKSPACE_UI.md](WORKSPACE_UI.md).
+
+The reported date loop is fixed: a year with an unknown month no longer falsely
+conflicts with a month in the same year, labelled pairs update both endpoints,
+and short omission replies omit only the requested date. The reported completion
+typo retains grouped education facts; a graduation year cannot justify an
+invented start year. Proven mistakes in unsaved single-qualification drafts can
+be recovered from accepted history, respecting later corrections, ownership and
+saved CV boundaries. See [CHATBOT_INPUT_CLEANUP.md](CHATBOT_INPUT_CLEANUP.md).
+
+Validation: 423 Django tests passed with seven optional browser tests skipped in
+the default run; all seven browser journeys passed separately in Chromium.
+All eight Node test files passed. Browser coverage includes real editing/save,
+creation navigation, template filters/selection, 320px/390px phone layouts,
+and one/multiple-page preview with PDF/exact Word downloads. New date coverage
+includes interval validation, paired/partial corrections, omission and evidence
+recovery. Provider calls remain mocked in automated regressions. Screenshots
+use synthetic CVs; existing saved CV records were not modified.
+
+## 2026-10-19 follow-up: partial tailoring review
+
+The reported tailoring `200` was a partial result: the validator rejected a
+numerical rewrite and an unconfirmed named fact while keeping another proposal.
+The accepted “Architected” → “Built and maintained” wording exposed an additional
+responsibility-preservation gap. Tailoring now protects the architecture claim
+and rejects unsupported maintenance duties. Bounded number-format and technology
+normalization reduces false rejections while retaining checks on changed
+metrics, quantity bounds, common time units and entry-level evidence.
+
+Partial reviews identify omitted fields and reasons, show an accurate accepted
+count, and replace the provider's unqualified review summary. Identical-text
+proposals are omitted. Existing saved-CV approval/version contracts are retained;
+old tailoring cache entries are separated by a new operation version.
+
+The review's window-focus handler now checks at most once per minute after the
+latest CV read/check. Explicit actions still check current data, and a detected
+change clears stale proposals with a clear message. This removes the observed
+rapid focus-triggered GET requests. See [CV_TAILORING_REVIEW.md](CV_TAILORING_REVIEW.md)
+for behavior, limits and regression coverage.
+
+Validation: the full 436-test Django suite passed with seven optional browser
+tests skipped. The final 50-test grounding/tailoring regression and all eight
+Node test files also passed. Four Chromium journeys passed separately with
+mocked providers and synthetic CVs, including
+the DevOps partial-result reproduction and approval persistence. No live provider
+request or change to development CV records was performed.
+
+## 2026-10-19 follow-up: advice-only tailoring
+
+The CV 23 report contained `changes: []`, with its existing professional summary
+copied into the provider's review feedback. There was no new proposed text to
+save. The source CV targets Graduate / Associate Software Engineer; the pasted
+advice referred to DevOps. A requested review focus may differ from saved CV
+metadata without changing that metadata.
+
+The prompt and response-schema descriptions now distinguish editorial review
+feedback from a professional summary. Empty reviews get a server-controlled
+message, and the client also avoids showing a copied CV profile as an unsaveable
+improvement. No feedback paragraph is silently converted into an edit.
+
+The UI shows “Advice for your CV” and “No changes to save,” hides the save
+button, offers “Polish one part,” and identifies the request's role focus and
+saved target when different. Reused reviews are labelled. Opening the focused
+mode causes no AI request; an explicit rewrite request and subsequent approval
+use the existing single-text and versioned M2 save flows. Changing the job
+details still invalidates earlier results. Tailoring cache operation v4 avoids
+reusing prior-policy reviews.
+
+Verification: the full 439-test Django suite passed with seven optional browser
+tests skipped. The 72 focused backend tests and eight Node test files passed. Five
+mocked-provider Chromium journeys passed, including desktop/phone advice-only
+layout, cache reuse, explicit polishing and approval, partial results and retry.
+Read-only inspection used CV 23; development CV data was not changed and no
+live AI request was made. Details are in [CV_TAILORING_REVIEW.md](CV_TAILORING_REVIEW.md).
+
+## 2026-10-19 follow-up: AI Engineer job relevance
+
+The reported rewrite mostly substituted synonyms and strengthened “Comfortable”
+into “Proficient.” Shared job-focus instructions now ask whole-CV and selected-text
+rewrites to lead with relevant confirmed contributions and explain the change
+in emphasis. For this source, AI-powered CV and ATS work can lead, supported by
+Python/Django/API development and testing. The graduate/intern identity and
+stated proficiency remain accurate; production ML deployment is not inferred
+from AI coding assistance or a job requirement.
+
+Selected-text writing now reuses the whole-CV wording guard, including numbers,
+named facts, responsibility and proficiency checks. It also revalidates cached
+output. New cache operation versions separate older proposals from the updated
+prompt/validation policy. M5/M10 contracts and M2 explicit versioned approval
+remain unchanged. No development CV was edited automatically.
+
+Eleven new tests cover the supplied JD/source, a grounded reorder, rejection of
+the reported inflation, unsupported training/deployment claims, cached validation
+and both writing endpoints. The existing 83-test focused regression passed;
+all eight Node test files and six mocked-provider Chromium journeys passed.
+The new browser journey rejects the inflated rewrite, retains the JD for an
+explicit retry, previews supported AI-focused wording and saves only after
+approval. Automated verification did not call a live AI provider.
+
+Final verification: 450 Django tests passed with seven optional browser tests
+skipped in the default run; the six review/browser journeys passed separately.
+All eight Node test files passed. Development CV records were unchanged.

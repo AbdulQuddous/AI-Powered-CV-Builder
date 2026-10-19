@@ -5,11 +5,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Edit CV · CV Maker</title>
-  <link rel="stylesheet" href="{% static 'm7_editor/css/editor.css' %}?v={{ editor_asset_version }}">
+  <link rel="stylesheet" href="{% static 'm9_dashboard/css/utilities.css' %}?v={{ editor_asset_version }}">
   <link rel="stylesheet" href="{% static 'm7_editor/css/live_preview.css' %}?v={{ editor_asset_version }}">
 
-  <!-- M8 preview styles are intentionally plain CSS.
-       editor.css may contain only precompiled Tailwind utility classes. -->
+  <!-- The document viewer uses scoped CSS alongside the shared workspace theme. -->
   <style>
     [x-cloak] { display: none !important; }
 
@@ -106,6 +105,8 @@
     .m8-viewer__button--primary:hover { background: #115e59; }
     .m8-viewer__button:disabled { opacity: .5; cursor: not-allowed; }
 
+    .m8-word-note { flex-basis: 100%; font-size: 10px; color: #475569; text-align: right; }
+
     .m8-viewer__workspace {
       display: flex;
       justify-content: center;
@@ -159,6 +160,7 @@
       .m8-viewer__button { font-size: 12px; padding: 8px 10px; }
     }
   </style>
+  <link rel="stylesheet" href="{% static 'm9_dashboard/css/workspace.css' %}?v={{ editor_asset_version }}">
   {{ cv_id|json_script:"m7-config" }}
   {{ cv_schema|json_script:"m7-cv-schema" }}
   <script defer src="{% static 'accounts/js/session.js' %}?v={{ editor_asset_version }}"></script>
@@ -167,54 +169,43 @@
   <script defer src="{% static 'm7_editor/js/editor.js' %}?v={{ editor_asset_version }}"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.4/dist/cdn.min.js"></script>
 </head>
-<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+<body class="workspace-app workspace-editor">
 <div x-data="cvEditor" x-cloak>
-  <header x-show="!m8PreviewOpen" class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:px-8">
-    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <span class="grid size-10 place-items-center rounded-xl bg-teal-700 text-xl font-bold text-white">C</span>
-        <div>
-          <p class="font-bold leading-tight tracking-tight">CV Maker <span class="font-normal text-slate-400">/ Editor</span></p>
-          <p class="text-xs text-slate-500">Edit your CV without losing its AI-generated structure</p>
-        </div>
-      </div>
-      <div class="flex flex-wrap items-center gap-2">
-      <a href="/dashboard/" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium">Dashboard</a>
-      <a href="/dashboard/?review={{ cv_id|urlencode }}" class="rounded-lg border border-teal-300 bg-white px-3 py-2 text-sm font-semibold text-teal-800">AI Review</a>
-      <span class="hidden text-sm sm:inline"
-            :class="dirty ? 'text-amber-700' : 'text-slate-500'"
-            x-text="dirty ? 'Unsaved changes' : (loaded ? 'All changes saved' : '')"></span>
-
-      <button type="button" @click="exportDraft()" :disabled="!loaded"
-        class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-100 disabled:opacity-50">
-        Export draft JSON
-      </button>
-
-      <button id="save-cv-btn" type="button" @click="save()" :disabled="!dirty || saving || conflict"
-        class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-40"
-        x-text="saving ? 'Saving…' : 'Save changes'"></button>
-
-      <button id="preview-cv-btn" type="button" @click="previewM8()"
-        :disabled="!loaded || loading || saving || m8Busy || authRequired"
-        class="rounded-lg border border-teal-300 bg-white px-3 py-2 text-sm font-semibold text-teal-800 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-40">
-        Preview CV
-      </button>
-
-      <button id="export-pdf-btn" type="button" @click="downloadM8('pdf')"
-        :disabled="!loaded || loading || saving || m8Busy || authRequired"
-        class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">
-        Download PDF
-      </button>
-
-      <button id="export-docx-btn" type="button" @click="downloadM8('docx')"
-        :disabled="!loaded || loading || saving || m8Busy || authRequired"
-        class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">
-        Download DOCX
-      </button>
-    </div>
+  <div x-show="!m8PreviewOpen">
+    {% include "m9_dashboard/workspace_nav.html" with workspace_page="editor" %}
   </div>
+  <div class="workspace-content" x-show="!m8PreviewOpen">
+  <header class="workspace-page-header workspace-editor-header">
+    <div>
+      <p class="workspace-breadcrumb"><a href="/dashboard/">Workspace</a> <span>/</span> CV editor</p>
+      <h1 class="workspace-page-title">Make your experience stand out</h1>
+      <p class="workspace-page-description">Edit your details and see your selected template come to life.</p>
+    </div>
+    <div class="workspace-header-actions">
+      <span class="workspace-save-status" role="status"
+        :class="dirty ? 'text-amber-700' : 'text-slate-500'"
+        x-text="dirty ? 'Unsaved changes' : (loaded ? 'All changes saved' : 'Loading…')"></span>
+      <button id="save-cv-btn" type="button" @click="save()" :disabled="!dirty || saving || conflict"
+        class="workspace-button workspace-button--primary" x-text="saving ? 'Saving…' : 'Save changes'"></button>
+    </div>
   </header>
-  <main x-show="!m8PreviewOpen" class="m7-editor-main">
+  <div class="workspace-editor-actions" aria-label="CV actions">
+    <button type="button" @click="openTemplateGallery()" :disabled="!loaded || loading || saving" class="workspace-button">Change template</button>
+    <a href="/dashboard/?review={{ cv_id|urlencode }}" class="workspace-button">✦ Improve with AI</a>
+    <span class="workspace-action-spacer"></span>
+    <button id="preview-cv-btn" type="button" @click="previewM8()" :disabled="!loaded || loading || saving || m8Busy || authRequired" class="workspace-button">Preview CV</button>
+    <button id="export-pdf-btn" type="button" @click="downloadM8('pdf')" :disabled="!loaded || loading || saving || m8Busy || authRequired" class="workspace-button workspace-button--primary">Download PDF</button>
+    <details class="workspace-export-menu" @keydown.escape.stop="$el.open = false" @click.outside="$el.open = false">
+      <summary class="workspace-button">More downloads <span aria-hidden="true">⌄</span></summary>
+      <div class="workspace-export-options">
+        <button title="Preserves the PDF design as fixed page images; text is not normally editable" id="export-docx-btn" type="button" @click="downloadM8('docx')" :disabled="!loaded || loading || saving || m8Busy || authRequired" class="workspace-button">Word · exact layout</button>
+        <button type="button" @click="downloadM8('docx', 'editable')" :disabled="!loaded || loading || saving || m8Busy || authRequired" class="workspace-button">Word · editable</button>
+        <button type="button" @click="exportDraft()" :disabled="!loaded" class="workspace-button">Export draft JSON</button>
+        <p>Exact Word matches the PDF pages using page images. Editable Word lets you edit the text and may change page breaks.</p>
+      </div>
+    </details>
+  </div>
+  <main id="workspace-main" class="m7-editor-main">
     <p x-show="notice" role="status" class="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-800" x-text="notice"></p>
     <div x-show="error" role="alert" class="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
       <p x-text="error"></p>
@@ -225,8 +216,8 @@
     </div>
     <div x-show="loading" role="status" class="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500">Loading your CV…</div>
     <section x-show="!loading && authRequired" class="mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
-      <h1 class="mb-2 text-2xl font-semibold">Sign in</h1>
-      <p class="mb-5 text-sm text-slate-500">Use your existing M1 account to load the CV. Your CV data remains protected by M1/M2.</p>
+      <h2 class="mb-2 text-2xl font-semibold">Sign in</h2>
+      <p class="mb-5 text-sm text-slate-500">Sign in with your CV Maker account to continue editing.</p>
       <form @submit.prevent="signIn()" class="space-y-4">
         <label for="login-email" class="block text-sm font-medium">Email Address
           <input id="login-email" class="m7-input mt-1" type="email"
@@ -255,14 +246,14 @@
       <section class="m7-edit-form min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div class="mb-6 border-b border-slate-100 pb-5">
           <p class="mb-1 text-xs font-bold uppercase tracking-widest text-teal-700">Manual editor</p>
-          <h1 class="text-2xl font-bold tracking-tight" x-text="activeLabel"></h1>
-          <p class="mt-1 text-sm text-slate-500">Edit what is accurate. Changes are sent to M2 when you save.</p>
+          <h2 class="workspace-section-title text-2xl font-bold tracking-tight" x-text="activeLabel"></h2>
+          <p class="mt-1 text-sm text-slate-500">Add your details below. Save your changes when you are ready.</p>
         </div>
         <fieldset :disabled="saving || conflict" class="min-w-0 space-y-5 disabled:opacity-60">
           <div x-show="active==='personal'" class="grid gap-4">
             <template x-for="key in personalKeys()" :key="key">
               <label class="block text-sm font-medium text-slate-700">
-                <span x-text="key.replaceAll('_',' ')"></span>
+                <span class="capitalize" x-text="key.replaceAll('_',' ')"></span>
                 <input class="m7-input mt-1 capitalize-none" :type="key==='email' ? 'email' : 'text'"
                   :value="personalValue(key)" @input="setPersonal(key,$event.target.value)"
                   :placeholder="'Enter '+key.replaceAll('_',' ')">
@@ -367,8 +358,8 @@
         <div class="m7-preview-card rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div x-ref="liveToolbar" class="m7-preview-toolbar">
             <div class="flex items-center justify-between gap-2">
-              <h2 class="font-semibold">Live content preview</h2>
-              <span class="text-xs text-slate-500">A4 · Selected template</span>
+              <h2 class="font-semibold">Draft content preview</h2>
+              <span class="text-xs text-slate-500">Draft layout · Selected template</span>
             </div>
             <div class="m7-preview-zoom" role="group" aria-label="Preview zoom">
               <button type="button" @click="setLivePreviewZoom('fit')" :aria-pressed="livePreviewZoom==='fit'">Fit width</button>
@@ -387,11 +378,13 @@
                 sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe>
             </div>
           </div>
-          <p class="mt-3 text-xs leading-relaxed text-slate-500">A4 (210 × 297 mm), scaled to fit. Edits appear here before saving. Long CVs extend below the first sheet; PDF export adds page breaks.</p>
+          <p class="mt-3 text-xs leading-relaxed text-slate-500">Continuous draft preview for editing. Save and open Preview CV to see the actual A4 pages and page count used by PDF and fixed-layout Word downloads.</p>
         </div>
       </aside>
     </div>
   </main>
+
+  </div>
 
   <!-- M8: The fixed viewer uses scoped CSS (not Tailwind utilities). -->
   <section
@@ -414,7 +407,7 @@
         </button>
         <div class="m8-viewer__title">
           <h2>CV Preview</h2>
-          <p>Selected template · Last saved version</p>
+          <p x-text="m8PreviewPages ? m8PreviewPages + ' A4 page' + (m8PreviewPages === 1 ? '' : 's') + ' · Exact PDF layout' : 'Selected template · Exact PDF layout'"></p>
         </div>
       </div>
 
@@ -433,8 +426,10 @@
           :disabled="m8Busy"
           @click="downloadM8('docx')"
         >
-          Download DOCX
+          Word · exact layout
         </button>
+        <button type="button" class="m8-viewer__button" :disabled="m8Busy" @click="downloadM8('docx', 'editable')">Word · editable</button>
+        <small class="m8-word-note">Exact Word preserves pages as images. Editable Word allows text editing and may reflow.</small>
       </div>
     </div>
 

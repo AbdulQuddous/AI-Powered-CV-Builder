@@ -1,3 +1,6 @@
+from io import BytesIO
+from pypdf import PdfWriter
+
 from copy import deepcopy
 from unittest.mock import Mock, patch
 
@@ -8,6 +11,13 @@ from rest_framework.test import APITestCase
 from cvs.models import CV
 from cvs.services import create_cv
 from templates_app.models import CVTemplate
+
+
+def valid_pdf_fixture():
+    """Export responses now expose page counts, so the mock must be a real PDF."""
+    writer = PdfWriter(); writer.add_blank_page(width=595.2756, height=841.8898)
+    output = BytesIO(); writer.write(output)
+    return output.getvalue()
 
 
 class M9AIIntegrationTests(APITestCase):
@@ -73,7 +83,7 @@ class M9AIIntegrationTests(APITestCase):
         preview = self.client.get(f'/api/cvs/{self.cv.id}/preview/')
         self.assertContains(preview, 'Developed Django APIs.')
         self.assertContains(preview, 'CV Maker')
-        with patch('m8_renderer.views.PDFExporter.generate', return_value=b'%PDF-test') as pdf:
+        with patch('m8_renderer.views.PDFExporter.generate', return_value=valid_pdf_fixture()) as pdf:
             export = self.client.post(f'/api/cvs/{self.cv.id}/export/pdf/')
             self.assertEqual(export.status_code, 200)
             self.assertEqual(pdf.call_args.args[0]['cv_data']['summary'], 'Developed Django APIs.')
@@ -145,7 +155,7 @@ class M9AIIntegrationTests(APITestCase):
         preview = self.client.get(f'/api/cvs/{self.cv.id}/preview/')
         self.assertContains(preview, changes[0]['rewritten'])
         self.assertContains(preview, changes[1]['rewritten'])
-        with patch('m8_renderer.views.PDFExporter.generate', return_value=b'%PDF-test') as pdf:
+        with patch('m8_renderer.views.PDFExporter.generate', return_value=valid_pdf_fixture()) as pdf:
             export = self.client.post(f'/api/cvs/{self.cv.id}/export/pdf/')
             self.assertEqual(export.status_code, 200)
             self.assertEqual(pdf.call_args.args[0]['cv_data'], approved)

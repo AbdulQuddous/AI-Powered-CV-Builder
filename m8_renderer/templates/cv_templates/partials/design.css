@@ -1,0 +1,81 @@
+@page { size: A4; margin: 16mm 16mm 17mm; }
+* { box-sizing: border-box; }
+body { margin: 0; color: #27343e; background: white; font-family: {{ design.font_stack }}; font-size: 9.5pt; line-height: 1.48; overflow-wrap: anywhere; }
+.document { width: 100%; }
+.header { margin-bottom: 6mm; padding-bottom: 5mm; border-bottom: 1.5pt solid {{ design.accent }}; break-inside: avoid; }
+.name { margin: 0; color: {{ design.accent }}; font-size: {{ design.name_size }}pt; line-height: 1.12; font-weight: 700; letter-spacing: -.6pt; }
+.target-role { font-size: 12pt; margin-top: 2mm; }
+.contact { font-family: Arial, sans-serif; margin-top: 3mm; font-size: 8pt; line-height: 1.6; color: #475561; overflow-wrap: anywhere; word-break: break-word; }
+.section { margin: 0 0 5mm; }
+.section-title { font-size: 10pt; color: {{ design.accent }}; margin: 0 0 2.5mm; padding-bottom: 1.3mm; font-weight: 700; break-after: avoid; page-break-after: avoid; }
+.entry { margin-bottom: 3.5mm; }
+.entry-title { font-size: 9.7pt; font-weight: 700; margin: 0 0 1mm; break-after: auto; break-inside: auto; }
+.entry-subtitle { font-size: 8.3pt; color: #53616a; margin-bottom: 1.5mm; break-after: auto; }
+/* Terminal headings are content, not a reason to keep following entries together. */
+.entry-title:not(:last-child), .entry-subtitle:not(:last-child) { break-after: avoid; }
+p { margin: 0; } .summary, .entry-description { white-space: pre-line; }
+ul { margin: 1.4mm 0 0; padding-left: 4mm; } li { margin-bottom: 1mm; }
+p, li { orphans: 2; widows: 2; } .entry-description { margin: 1mm 0; }
+.skill { display: inline; } .skill:not(:last-child)::after { content: ' · '; color: #677580; }
+.heading-rule .section-title { border-bottom: .6pt solid #bdc9ce; }
+.heading-caps .section-title { text-transform: uppercase; letter-spacing: 1.3pt; font-size: 9pt; }
+.heading-bar .section-title { border-left: 3pt solid {{ design.accent }}; background: #f0f3f4; padding: 1.4mm 2mm; }
+.heading-double .section-title { border-bottom: 2.4pt double {{ design.accent }}; font-variant: small-caps; font-size: 11pt; }
+.header-center .header { text-align: center; }
+.header-banner .header { padding: 5mm; background: {{ design.accent }}; border: 0; }
+.header-banner .name, .header-banner .target-role, .header-banner .contact { color: white; }
+.header-stack .header { border: 0; padding: 0 0 2mm 4mm; border-left: 4pt solid {{ design.accent }}; }
+.header-stack .target-role { text-transform: uppercase; font-size: 10pt; letter-spacing: 1pt; }
+.header-split .header { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); column-gap: 6mm; padding-right: 0; min-height: 23mm; align-items: start; }
+.header-split .name { grid-column: 1; grid-row: 1; }
+.header-split .target-role { grid-column: 1; grid-row: 2; }
+.header-split .contact { grid-column: 2; grid-row: 1 / span 2; margin: 0; border-left: .7pt solid #bdc9ce; padding-left: 3mm; }
+.density-compact { font-size: 9pt; line-height: 1.38; } .density-compact .section { margin-bottom: 3.5mm; }
+.density-compact .entry { margin-bottom: 2.5mm; }
+.density-airy { line-height: 1.6; } .density-airy .section { margin-bottom: 6.5mm; }
+.skills-tags .skill { display: inline-block; background: #edf1f3; border: .5pt solid #d4dde0; padding: .7mm 1.7mm; margin: 0 1mm 1mm 0; font-family: Arial,sans-serif; font-size: 8pt; }
+.skills-tags .skill::after, .skills-list .skill::after { content: ''; }
+.skills-list .skill { display: block; margin-bottom: 1mm; }
+.family-split .layout, .family-sidebar .layout, .family-asymmetry .layout, .family-portfolio .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, {{ design.sidebar_width }}%); gap: 6mm; align-items: start; }
+.main-column, .side-column { min-width: 0; }
+.aside-left .side-column { grid-column: 1; grid-row: 1; }
+.aside-left .main-column { grid-column: 2; grid-row: 1; }
+.aside-left .layout { grid-template-columns: minmax(0, {{ design.sidebar_width }}%) minmax(0, 1fr); }
+.family-sidebar .side-column { background: #edf2f3; padding: 4mm; border-top: 3pt solid {{ design.accent }}; }
+.family-sidebar .side-column .section-title { font-size: 8.5pt; letter-spacing: .2pt; }
+.family-compact .section { border-top: .5pt solid #c5cdd3; padding-top: 2mm; }
+.family-compact .section-title { margin-bottom: 1.4mm; }
+.family-compact .entry-title { display: inline; } .family-compact .entry-subtitle { margin-top: .5mm; }
+.family-executive .name { font-size: 33pt; font-weight: 400; }
+.family-executive .header { border-bottom-width: 3pt; padding-bottom: 7mm; }
+.family-executive .summary { font-size: 11pt; line-height: 1.65; }
+.family-executive .section-title { letter-spacing: 1.1pt; }
+.family-minimal .header { border-bottom-width: .5pt; margin-bottom: 9mm; }
+.family-minimal .name { font-weight: 400; } .family-minimal .section-title { color: #333; }
+.family-minimal .entry-subtitle { font-style: italic; }
+.family-technical .name { letter-spacing: -1.2pt; }
+.family-technical .target-role { font-family: 'DejaVu Sans Mono', monospace; font-size: 10pt; }
+.family-technical .section { border-left: .8pt solid #b9c9ce; padding-left: 4mm; }
+.family-technical .section-title { font-family: 'DejaVu Sans Mono', monospace; }
+.family-asymmetry .name { font-size: 37pt; max-width: 130mm; letter-spacing: -1.5pt; }
+.family-asymmetry .side-column { border-top: 7pt solid {{ design.accent }}; padding-top: 5mm; }
+.family-asymmetry .section-title { text-transform: uppercase; }
+.family-traditional .name { font-variant: small-caps; font-weight: 400; letter-spacing: 1pt; }
+.family-traditional .header { border-bottom: 3pt double {{ design.accent }}; }
+.family-traditional .entry-title { font-style: italic; }
+.family-ats .name { font-size: 24pt; letter-spacing: 0; }
+.family-ats .section-title { color: #20272e; }
+.family-ats .header-split .contact { position: static; }
+.family-academic .entry { padding-left: 4mm; border-left: .6pt solid #c4cccf; }
+.family-academic .section-title { font-variant: small-caps; }
+.family-academic .entry-subtitle { font-style: italic; }
+.family-portfolio .header { padding-top: 8mm; }
+.family-portfolio .section[data-section='projects'] .entry { border-top: 1pt solid {{ design.accent }}; padding-top: 3mm; margin-top: 3mm; }
+.family-portfolio .section[data-section='projects'] .entry-title { font-size: 13pt; }
+@media screen {
+ html { background: #e8edf0; } body { padding: 24px; }
+ .document { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 16mm 16mm 17mm; background: white; box-shadow: 0 5px 28px #1d314226; }
+}
+@media print { .document { max-width: none; padding: 0; box-shadow: none; } }
+.family-ats.header-split .header { display: block; padding-right: 0; }
+.family-ats.header-split .contact { position: static; width: auto; border: 0; padding: 0; margin-top: 3mm; }

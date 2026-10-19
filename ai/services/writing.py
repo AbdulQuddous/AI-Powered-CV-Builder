@@ -1,5 +1,4 @@
 import json
-import re
 
 from jsonschema import validate, ValidationError
 
@@ -11,6 +10,7 @@ from ai.llm.factory import get_llm_provider
 from ai.prompts.cv_tasks import WRITING_SYSTEM
 from ai.schemas.contracts import WRITING_SCHEMA
 from ai.services.cache import cached_ai_result
+from ai.services.tailoring import wording_rejection, log_validation_failure
 
 
 def improve_text(
@@ -51,6 +51,21 @@ def improve_text(
         "mode": mode,
     }
 
+    def checked_response(response):
+        try:
+            validate(instance=response, schema=WRITING_SCHEMA)
+        except ValidationError as exc:
+            raise AIStructuredOutputError('Invalid rewriting response.', reason='schema_invalid') from exc
+        rewritten = response['rewritten']
+        if len(rewritten) > 5000:
+            raise AIStructuredOutputError('Rewritten content exceeds the supported length.', reason='schema_invalid')
+        # The JD guides relevance, but only the selected text establishes facts.
+        reason = wording_rejection(text, rewritten, text, allow_existing_contacts=True)
+        if reason:
+            log_validation_failure(reason)
+            raise AIStructuredOutputError('Rewritten content changed an unsupported factual claim.', reason='factual_validation')
+        return response
+
     def generate():
         provider = llm or get_llm_provider()
 
@@ -58,8 +73,10 @@ def improve_text(
             system_prompt=WRITING_SYSTEM,
             user_prompt=(
                 f"Operation: {mode}\n"
-                "Improve the following CV content while "
-                "preserving all factual information.\n\n"
+                "Tailor the organization and emphasis to the supplied job context using "
+                "only facts in the selected text. Lead with relevant evidence rather than "
+                "only substituting synonyms. Preserve facts and proficiency levels. "
+                "Explain the actual improvements in the change notes.\n\n"
                 + json.dumps(
                     payload,
                     ensure_ascii=False,
@@ -70,48 +87,15 @@ def improve_text(
             max_output_tokens=2500,
         )
 
-        try:
-            validate(
-                instance=response,
-                schema=WRITING_SCHEMA,
-            )
-        except ValidationError as exc:
-            raise AIStructuredOutputError(
-                "Invalid rewriting response."
-            ) from exc
-
-        rewritten = response["rewritten"]
-
-        # Reject newly introduced numerical claims.
-        # This is a defensive check, not a full
-        # factual-consistency guarantee.
-        source_numbers = set(
-            re.findall(
-                r"\b\d+(?:[.,]\d+)*%?",
-                text,
-            )
-        )
-
-        output_numbers = set(
-            re.findall(
-                r"\b\d+(?:[.,]\d+)*%?",
-                rewritten,
-            )
-        )
-
-        if output_numbers - source_numbers:
-            raise AIStructuredOutputError(
-                "Rewritten content contains unsupported numbers."
-            )
-
-        return response
+        return checked_response(response)
 
     response, cache_hit = cached_ai_result(
         user_id=user_id,
-        operation=f"cv_{mode}",
+        operation=f"cv_{mode}_v2",
         payload=payload,
         generate=generate,
     )
+    response = checked_response(response)
 
     return {
         "original": text,

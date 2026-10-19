@@ -1,16 +1,21 @@
 """Deterministic profile questions and recommendations; never adds CV facts."""
 from chatbot.services.state_manager import PERSONAL_FIELD_ORDER
+from chatbot.services.career_profiles import career_profile
+from chatbot.services.career_guidance import recommendations
 
 OPTIONAL_SECTIONS = ('certifications', 'achievements', 'languages')
 
 
 def profile(state):
-    return state.get('question_profile') or state.get('career_level') or 'fresher'
+    return career_profile(state)
 
 
 def next_step(state):
     if state.get('pending_selection'):
         return {'section': state['pending_selection']['section'], 'field': 'select_entry'}
+    if state.get('date_confirmation_pending'):
+        pending = state['date_confirmation_pending']
+        return {'section': pending['section'], 'field': pending['field']}
     focus = state.get('pending_field')
     if focus:
         return focus
@@ -55,6 +60,11 @@ def question(state):
     from chatbot.services.response_normalizer import QUESTION_MAP
     step = next_step(state)
     section, field = step['section'], step['field']
+    if section == 'target' and field == 'career_level':
+        return 'What is your career level: Student, Fresher, Junior, Mid-Level, Senior or Executive? You may also choose other.'
+    if state.get('date_confirmation_pending'):
+        from chatbot.services.date_confirmation import confirmation_question
+        return confirmation_question(state)
     if section == 'languages' and field == 'proficiency':
         return 'Would you like to specify language proficiency? You can say "English professional, Urdu native", or keep it unspecified.'
     if state.get('pending_selection'):
@@ -70,6 +80,10 @@ def question(state):
             return 'Have you completed any internships, freelance work or professional experience? You can skip this if you have none.'
         return 'What relevant professional experience would you like to include? Share the company and job title; one employer is enough.'
     if section == 'experience' and field == 'responsibilities':
+        if profile(state) == 'junior':
+            return 'What did you deliver or contribute in this role? Include collaboration and any confirmed outcomes; metrics are optional.'
+        if profile(state) == 'mid_level':
+            return 'What did you own and deliver independently? Include technical decisions, collaboration and confirmed outcomes; metrics are optional.'
         if profile(state) == 'senior':
             return 'What did you own or design in this role? Include leadership, mentoring or technical decisions and confirmed results where relevant.'
         if profile(state) == 'executive':
@@ -86,33 +100,3 @@ def question(state):
     if section == 'review':
         return 'Please review your collected information. You can correct a field, or finish the interview when ready.'
     return QUESTION_MAP.get((section, field), f'Please provide {field.replace("_", " ")}, or skip if it is optional.')
-
-
-def recommendations(state):
-    data = state.get('collected_data') or state.get('edit_updates') or {}
-    messages = []
-    skills = data.get('skills') or []
-    if len(skills) > 15:
-        messages.append('You have a large skills list. Consider highlighting your strongest relevant skills; I can help group them for readability. All skills are retained.')
-    if len(data.get('certifications') or []) > 5:
-        messages.append('Consider featuring around 3–5 of your most relevant certifications. All certifications are retained until you choose.')
-    if len(data.get('projects') or []) > 5:
-        messages.append('Consider selecting the strongest three to five projects for your target role. All projects are retained.')
-    if len(data.get('experience') or []) > 5:
-        messages.append('The canonical CV supports at most five displayed experiences. Please select five; all source entries remain in this conversation.')
-    if profile(state) in ('student', 'fresher'):
-        messages.append('Aim for a concise page when practical; final page count depends on the rendered template.')
-    else:
-        messages.append('One or two pages may be useful depending on relevant career history and the selected template.')
-    for entry in data.get('education') or []:
-        import re
-        grade = re.fullmatch(r'(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)', str(entry.get('grade', '')).replace(' ', ''))
-        if grade and float(grade[2]) > 0 and float(grade[1]) / float(grade[2]) < .6:
-            messages.append('Grades are optional. You can omit your grade and focus on relevant coursework, projects and confirmed achievements if you prefer.')
-            break
-    role = (state.get('target_role') or '').lower()
-    if 'python' in role or 'django' in role:
-        messages.append("If you have used REST APIs, Git or Django REST Framework, you may want to include them. They have not been added.")
-    elif 'frontend' in role or 'front end' in role:
-        messages.append("If you have used React, TypeScript or responsive design, you may want to include them. They have not been added.")
-    return messages

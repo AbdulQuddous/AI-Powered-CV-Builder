@@ -1,0 +1,7 @@
+@import "tailwindcss" source(none);
+@source "../m9_dashboard/templates";
+@source "../m9_dashboard/static/m9_dashboard/js";
+@source "../m7_editor/templates";
+@source "../m7_editor/static/m7_editor/js";
+
+/* One locally built utility sheet for the application, never the CV document. */

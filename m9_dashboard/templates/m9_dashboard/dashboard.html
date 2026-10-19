@@ -14,9 +14,7 @@
     <title>My CVs | CV Maker</title>
     {{ cv_schema|json_script:"m9-cv-schema" }}
 
-    <script
-        src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4">
-    </script>
+    <link rel="stylesheet" href="{% static 'm9_dashboard/css/utilities.css' %}?v={{ dashboard_asset_version }}">
 
     <link
         rel="stylesheet"
@@ -24,166 +22,27 @@
     >
     <link rel="stylesheet" href="{% static 'm9_dashboard/css/import_cv.css' %}?v={{ dashboard_asset_version }}">
     <link rel="stylesheet" href="{% static 'm9_dashboard/css/ai_review.css' %}?v={{ dashboard_asset_version }}">
+    <link rel="stylesheet" href="{% static 'm9_dashboard/css/workspace.css' %}?v={{ dashboard_asset_version }}">
 </head>
 
-<body class="bg-slate-50 text-slate-800 antialiased">
+<body class="workspace-app workspace-dashboard">
 
-<div class="min-h-screen lg:flex">
-
-    <!-- SIDEBAR -->
-    <aside
-        class="w-full bg-slate-950 text-white
-               lg:fixed lg:inset-y-0 lg:left-0 lg:w-64"
-    >
-
-        <div class="flex h-full flex-col">
-
-            <!-- Logo -->
-            <a
-                href="/dashboard/"
-                class="flex items-center gap-3 px-6 py-7"
-            >
-
-                <div
-                    class="flex h-11 w-11 items-center
-                           justify-center rounded-xl
-                           bg-indigo-500 text-xl font-bold"
-                >
-                    CV
-                </div>
-
-                <div>
-                    <h1 class="text-xl font-bold">
-                        CV Maker
-                    </h1>
-
-                    <p class="text-xs text-slate-400">
-                        Your career workspace
-                    </p>
-                </div>
-
-            </a>
-
-            <!-- Navigation -->
-            <nav
-                class="flex gap-2 px-4 pb-4
-                       lg:flex-col lg:gap-3"
-                >
-
-                <a
-                    href="/dashboard/"
-                    aria-current="page"
-                    class="flex items-center gap-3
-                           rounded-xl bg-indigo-600
-                           px-4 py-3 font-medium
-                           text-white transition
-                           hover:bg-indigo-500"
-                >
-                    <span>▦</span>
-                    Dashboard
-                </a>
-
-                <button
-                    id="sidebarCreate"
-                    type="button"
-                    class="flex items-center gap-3
-                           rounded-xl px-4 py-3
-                           text-left text-slate-300
-                           transition hover:bg-slate-800"
-                >
-                    <span>＋</span>
-                    Create New CV
-                </button>
-
-            </nav>
-
-            <div class="hidden flex-1 lg:block"></div>
-
-            <div
-                class="hidden border-t border-slate-800
-                       px-6 py-6 lg:block"
-            >
-                <p class="text-sm font-medium">
-                    Your CV Workspace
-                </p>
-
-                <p class="mt-1 text-xs text-slate-400">
-                    Create, manage and improve
-                    your professional CVs.
-                </p>
-            </div>
-
-        </div>
-
-    </aside>
-
-
-    <!-- MAIN CONTENT -->
-    <main
-        class="min-w-0 flex-1
-               lg:ml-64"
-    >
-
-        <!-- TOP HEADER -->
-        <header
-            class="flex flex-wrap items-center
-                   justify-between gap-4
-                   border-b border-slate-200
-                   bg-white px-5 py-5
-                   md:px-10"
-        >
-
+<div class="workspace-shell">
+    {% include "m9_dashboard/workspace_nav.html" with workspace_page="dashboard" %}
+    <main id="workspace-main" class="workspace-content">
+        <header class="workspace-page-header">
             <div>
-                <p class="text-sm text-slate-500">
-                    CV Maker / Dashboard
-                </p>
-
-                <h2
-                    class="mt-1 text-xl font-bold
-                           text-slate-900"
-                >
-                    My Dashboard
-                </h2>
+                <p class="workspace-breadcrumb">Workspace <span>/</span> Dashboard</p>
+                <h1 class="workspace-page-title">My dashboard</h1>
+                <p class="workspace-page-description">Your CVs, your progress, your next opportunity.</p>
             </div>
-
-            <div class="flex flex-wrap items-center gap-3">
-
-                <button id="importCV" type="button" class="secondary-button">Import Existing CV</button>
-                <button id="createAI" type="button" class="primary-button">Create CV with AI</button>
-                <button id="resumeChat" type="button" class="secondary-button">Resume AI chat</button>
-
-                <span
-                    id="authStatus"
-                    class="rounded-full bg-slate-100
-                           px-3 py-2 text-xs
-                           font-medium text-slate-600"
-                >
-                    Checking session
-                </span>
-
-                <button id="profileBtn" type="button" class="secondary-button hidden">My Profile</button>
-
-                <button
-                    id="logoutBtn"
-                    type="button"
-                    class="hidden rounded-xl
-                           border border-slate-200
-                           px-4 py-2 text-sm
-                           font-medium hover:bg-slate-50"
-                >
-                    Sign out
-                </button>
-
+            <div class="workspace-header-actions">
+                <span id="authStatus" class="rounded-full bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600">Checking session</span>
+                <button id="profileBtn" type="button" class="secondary-button hidden">My profile</button>
+                <button id="logoutBtn" type="button" class="secondary-button hidden">Sign out</button>
             </div>
-
         </header>
-
-
-        <div
-            class="mx-auto max-w-7xl
-                   space-y-8 px-5 py-8 md:px-10"
-        >
-
+        <div class="workspace-dashboard-body">
             <!-- HERO SECTION -->
             <section
                 class="hero-panel relative overflow-hidden
@@ -232,6 +91,7 @@
                     >
                         + Create New CV
                     </button>
+                    <a href="#my-cvs" class="workspace-hero-link">View my CVs <span aria-hidden="true">↓</span></a>
 
                 </div>
 
@@ -240,7 +100,7 @@
 
             <!-- STATISTICS -->
             <section
-                class="grid grid-cols-1
+                class="workspace-stats grid grid-cols-1
                        gap-5 sm:grid-cols-3"
             >
 
@@ -328,24 +188,19 @@
                         </p>
                     </div>
 
-                    <button
-                        id="refreshBtn"
-                        type="button"
-                        class="rounded-xl border
-                               border-slate-200
-                               bg-white px-5 py-3
-                               text-sm font-medium
-                               transition hover:bg-slate-100"
-                    >
-                        ↻ Refresh
-                    </button>
+                    <div class="workspace-header-actions">
+                        <button id="resumeChat" type="button" class="secondary-button">Resume AI chat</button>
+                        <button id="importCV" type="button" class="secondary-button">Import CV</button>
+                        <button id="createAI" type="button" class="primary-button">✦ Create with AI</button>
+                        <button id="refreshBtn" type="button" class="secondary-button" aria-label="Refresh CV list" title="Refresh CV list">↻ Refresh</button>
+                    </div>
 
                 </div>
 
 
                 <!-- SEARCH AND FILTERS -->
                 <div
-                    class="flex flex-col gap-3
+                    class="workspace-cv-filters flex flex-col gap-3
                            md:flex-row"
                 >
 
@@ -645,7 +500,7 @@
                 >
             </div>
 
-            <div>
+            <div id="canonicalCareerField">
                 <label for="careerLevel" class="form-label">
                     Career Level
                 </label>
@@ -655,7 +510,16 @@
                     class="form-input"
                 >
                     {% for level in career_levels %}
-                    <option value="{{ level.value }}">{{ level.label }}</option>
+                    <option value="{{ level.value }}"{% if level.value == 'fresher' %} selected{% endif %}>{{ level.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div id="interviewProfileField" class="hidden">
+                <label for="interviewProfile" class="form-label">Career Level</label>
+                <select id="interviewProfile" class="form-input">
+                    {% for level in interview_profiles %}
+                    <option value="{{ level.value }}"{% if level.value == 'fresher' %} selected{% endif %}>{{ level.label }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -788,6 +652,7 @@
         <button id="chatLatest" type="button" class="secondary-button hidden">Open latest CV in a new chat</button>
         <section id="chatDraftPanel" class="hidden" aria-label="Draft review">
             <div id="chatDraftDetails"></div>
+            <p>Email addresses and phone numbers are checked for valid format, not ownership.</p>
             <p>Optional: Gemini can review your wording. Your contact details are excluded. You can save without this review.</p>
             <label><input id="chatExternalApproval" type="checkbox"> I approve sending this draft to Gemini for review.</label>
             <button id="chatFinalReview" type="button" class="secondary-button">Request Gemini review</button>

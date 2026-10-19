@@ -198,3 +198,16 @@ test('empty sections wait for content, narrow previews scroll internally and res
     controller.destroy();
   } finally { global.matchMedia = previousMatchMedia; }
 });
+
+test('designed live preview preserves columns, section order and skill elements', () => {
+  const document = documentDouble();
+  document.body.dataset = {sideKeys: 'skills,education', sectionOrder: 'summary,projects,experience,skills,education,certifications,achievements,languages'};
+  preview.render(document, cv);
+  const layout = document.main.children[1];
+  assert.equal(layout.className, 'layout');
+  const main = layout.children[0], side = layout.children[1];
+  assert.equal(main.className, 'main-column'); assert.equal(side.className, 'side-column');
+  assert.deepEqual(main.children.slice(0, 3).map(node => node.id), ['m7-preview-summary', 'm7-preview-projects', 'm7-preview-experience']);
+  assert.deepEqual(side.children.map(node => node.id), ['m7-preview-skills', 'm7-preview-education']);
+  assert.equal(side.children[0].children[1].children[0].className, 'skill');
+});

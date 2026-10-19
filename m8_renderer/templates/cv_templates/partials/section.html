@@ -1,0 +1,11 @@
+<section class="section" id="m7-preview-{{ section.key }}" data-section="{{ section.key }}">
+<h2 class="section-title">{{ section.label }}</h2>
+{% if section.text %}<p class="summary">{{ section.text }}</p>{% endif %}
+{% if section.skills %}<p class="skills">{% for skill in section.skills %}<span class="skill">{{ skill }}</span>{% endfor %}</p>{% endif %}
+{% for item in section.items %}<div class="entry">
+{% if item.title %}<h3 class="entry-title">{{ item.title }}</h3>{% endif %}
+{% if item.subtitle %}<div class="entry-subtitle">{{ item.subtitle }}</div>{% endif %}
+{% if item.description %}<p class="entry-description">{{ item.description }}</p>{% endif %}
+{% if item.bullets %}<ul>{% for bullet in item.bullets %}<li>{{ bullet }}</li>{% endfor %}</ul>{% endif %}
+</div>{% endfor %}
+</section>

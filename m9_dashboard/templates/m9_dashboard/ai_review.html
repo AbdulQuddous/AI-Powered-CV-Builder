@@ -61,9 +61,11 @@
         <section id="aiComparison" class="hidden ai-panel ai-review-panel" aria-labelledby="aiComparisonTitle">
             <div class="ai-section-heading">
                 <h3 id="aiComparisonTitle">Review the changes</h3>
-                <span class="ai-review-badge">Not saved yet</span>
+                <span id="aiReviewState" class="ai-review-badge">Not saved yet</span>
             </div>
-            <p class="ai-muted">Check the wording and facts. Only the changes you approve will be saved.</p>
+            <p id="aiReviewContext" class="ai-review-context hidden"></p>
+            <p id="aiReviewCache" class="ai-muted hidden">This review was reused because your CV and job details are unchanged.</p>
+            <p id="aiReviewIntro" class="ai-muted">Check the wording and facts. Only the changes you approve will be saved.</p>
             <div id="aiSingleComparison" class="hidden">
                 <div class="ai-columns">
                     <div><label for="aiOriginal" class="form-label">Current wording</label><textarea id="aiOriginal" class="form-input" rows="5" readonly></textarea></div>
@@ -78,6 +80,7 @@
                 <div id="aiTailorSuggestions" class="ai-follow-up"></div>
             </div>
             <div class="ai-actions ai-save-actions">
+                <button id="aiPolishPart" type="button" class="secondary-button hidden">Polish one part</button>
                 <button id="aiApply" type="button" class="primary-button">Save selected changes</button>
                 <button id="aiDiscard" type="button" class="secondary-button">Discard suggestions</button>
             </div>

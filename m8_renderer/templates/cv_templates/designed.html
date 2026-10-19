@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{ personal.full_name }} — CV</title>
+<style>{% include 'cv_templates/partials/design.css' %}</style></head>
+<body class="family-{{ design.family }} header-{{ design.header }} heading-{{ design.heading }} density-{{ design.density }} skills-{{ design.skills }} aside-{{ design.aside }}" data-section-order="{{ design.section_order }}" data-side-keys="{{ design.side_keys }}">
+<main class="document">
+{% include 'cv_templates/partials/header.html' %}
+<div class="layout">
+<div class="main-column">{% for section in main_sections %}{% include 'cv_templates/partials/section.html' %}{% endfor %}</div>
+{% if design.side_keys %}<aside class="side-column">{% for section in side_sections %}{% include 'cv_templates/partials/section.html' %}{% endfor %}</aside>{% endif %}
+</div></main></body></html>

@@ -9,7 +9,7 @@ function sample(id=12) {
 }
 const insights={valid:true,warnings:[{message:'Phone is missing.',section:'personal',severity:'high'}],suggestions:[{section:'summary',priority:'high',source:'ai',message:'Improve summary.',recommended_action:'Describe supported work.'}],strengths:['Python'],gaps:['Phone'],match_score:65};
 function harness(overrides={}) {
-    const elements=new Map(),calls=[],saved=new Map([[12,sample()],[13,sample(13)]]);
+    const elements=new Map(),calls=[],saved=new Map([[12,sample()],[13,sample(13)]]),windowEvents=new Map();
     const nodes=()=>{
         const classes=new Set(['hidden']),attributes={};
         return {value:'',textContent:'',disabled:false,checked:false,children:[],options:[],listeners:{},dataset:{},
@@ -24,7 +24,7 @@ function harness(overrides={}) {
     const get=id=>{if(!elements.has(id))elements.set(id,nodes());return elements.get(id);};
     get('m9-cv-schema').textContent=fs.readFileSync('shared/schemas/cv_schema.json','utf8');
     const storage=new Map([['cv_access','jwt']]);
-    const window={location:{href:'http://localhost/dashboard/',origin:'http://localhost',search:''},history:{replaceState() {}}};
+    const window={location:{href:'http://localhost/dashboard/',origin:'http://localhost',search:''},history:{replaceState() {}},addEventListener:(name,fn)=>windowEvents.set(name,fn)};
     const c=vm.createContext({window,console,URL,URLSearchParams,Headers,FormData,AbortController,setTimeout,clearTimeout,
         Option:function(text,value){this.text=text;this.value=value;},
         document:{getElementById:get,createElement:nodes,createTextNode:text=>text,addEventListener(){},querySelector:()=>null,body:{style:{}}},
@@ -60,7 +60,7 @@ function harness(overrides={}) {
     });
     for(const file of ['dashboard','ai_api','ai_ui','ai_review','import_cv'])vm.runInContext(fs.readFileSync(`m9_dashboard/static/m9_dashboard/js/${file}.js`,'utf8'),c);
     vm.runInContext('window.M6Review.init({fetch:apiFetch,ai:window.M6Api.create(apiFetch),requireLogin,openModal,refresh:async()=>{}});window.M4Import.init({fetch:apiFetch,ai:window.M6Api.create(apiFetch),requireLogin,openModal,refresh:async()=>{}})',c);
-    return {c,get,calls,saved,open:id=>vm.runInContext(`window.M6Review.open(${id})`,c),click:id=>get(id).listeners.click(),change:id=>get(id).listeners.input()};
+    return {c,get,calls,saved,open:id=>vm.runInContext(`window.M6Review.open(${id})`,c),click:id=>get(id).listeners.click(),change:id=>get(id).listeners.input(),focus:()=>windowEvents.get('focus')?.()};
 }
 const text=node=>node.textContent+' '+(node.value || '')+' '+node.children.map(text).join(' ');
 const find=(node,id)=>node.id===id?node:node.children.map(child=>find(child,id)).find(Boolean);
@@ -306,7 +306,10 @@ test('a whole-CV response with no wording changes offers no save action',async()
     const h=harness({fetch:url=>url==='/api/ai/tailor/'?{ok:true,status:200,json:async()=>({data:{cv_id:12,version:1,summary:'Your wording is clear.',changes:[],suggestions:['Add only relevant verified details.'],cached:false}})}:null});
     await h.open(12);await h.click('aiTailor');
     assert.equal(h.get('aiApply').disabled,true);assert.equal(changeChecks(h).length,0);
-    assert.match(text(h.get('aiTailorSummary')),/Your wording is clear/);
+    assert.match(text(h.get('aiTailorSummary')),/No wording changes were proposed.*saved CV is unchanged/);
+    assert.equal(h.get('aiApply').classList.contains('hidden'),true);
+    assert.equal(h.get('aiReviewState').textContent,'No changes to save');
+    assert.equal(h.get('aiComparisonTitle').textContent,'Advice for your CV');
     await h.click('aiApply');assert.equal(h.calls.filter(x=>x.method==='PATCH').length,0);
 });
 
@@ -426,4 +429,87 @@ test('reloading a changed CV retains job details and clears the stale proposal',
     await h.click('aiReload');
     assert.equal(h.get('aiRole').value,'Python Engineer');assert.equal(h.get('aiJob').value,'Develop Django APIs');
     assert.equal(h.get('aiComparison').classList.contains('hidden'),true);
+});
+
+test('partial review shows per-field omission reasons and an accurate ready count',async()=>{
+    const warning='Some suggested changes were left out because they could not be verified against your CV.';
+    const h=harness({fetch:url=>url==='/api/ai/tailor/'
+        ? {ok:true,status:200,json:async()=>({data:{cv_id:12,version:1,summary:'1 wording change passed the checks.',
+            changes:[{path:'/summary',original:sample().data.summary,rewritten:'Developed Django APIs.',reason:'Clarify wording.'}],suggestions:[],
+            warnings:[warning,'Work experience 1, bullet 3: excluded because a number changed. Original wording kept.',
+                'Project 1, description: excluded because the suggestion changed your stated responsibility. Original wording kept.'],cached:false}})}:null});
+    await h.open(12);await h.click('aiTailor');
+    assert.match(text(h.get('aiTailorWarnings')),/Why 2 suggestions were left out/);
+    assert.match(text(h.get('aiTailorWarnings')),/Work experience 1, bullet 3/);
+    assert.match(text(h.get('aiTailorWarnings')),/stated responsibility/);
+    assert.match(h.get('aiStatus').textContent,/1 wording change is ready.*Other suggestions were left out/);
+    assert.equal(h.calls.filter(x=>x.method==='PATCH').length,0);
+});
+
+test('window focus is rate limited while explicit AI requests always check the saved CV',async()=>{
+    const h=harness();vm.runInContext('Date.now = () => 1000000',h.c);
+    await h.open(12);await h.focus();await h.focus();
+    assert.equal(h.calls.filter(x=>x.url==='/api/cvs/12/').length,1);
+    vm.runInContext('Date.now = () => 1060001',h.c);await h.focus();await h.focus();
+    assert.equal(h.calls.filter(x=>x.url==='/api/cvs/12/').length,2);
+    await h.click('aiTailor');
+    assert.equal(h.calls.filter(x=>x.url==='/api/cvs/12/').length,3);
+    assert.equal(h.calls.filter(x=>x.url==='/api/ai/tailor/').length,1);
+    assert.match(h.get('aiStatus').textContent,/2 wording changes are ready/);
+    await h.focus();assert.equal(h.calls.filter(x=>x.url==='/api/cvs/12/').length,3);
+});
+
+test('focus recheck clears stale proposals and explains a changed CV without overwriting it',async()=>{
+    const h=harness();vm.runInContext('Date.now = () => 1000000',h.c);
+    await h.open(12);h.get('aiJob').value='Build reliable Django APIs.';await h.click('aiTailor');
+    h.saved.get(12).version=2;h.saved.get(12).data.summary='Updated elsewhere.';
+    vm.runInContext('Date.now = () => 1060001',h.c);await h.focus();
+    assert.equal(h.get('aiComparison').classList.contains('hidden'),true);
+    assert.match(h.get('aiStatus').textContent,/saved CV changed.*Previous suggestions were cleared/);
+    assert.equal(h.get('aiJob').value,'Build reliable Django APIs.');
+    assert.equal(h.saved.get(12).data.summary,'Updated elsewhere.');
+    assert.equal(h.calls.filter(x=>x.method==='PATCH').length,0);
+    assert.equal(h.calls.filter(x=>x.url.startsWith('/api/ai/')).length,1);
+});
+
+test('reported advice-only review hides copied CV text and allows explicit polishing without an automatic call',async()=>{
+    const h=harness({fetch:url=>url==='/api/ai/tailor/'?{ok:true,status:200,json:async()=>({data:{
+        cv_id:12,version:1,summary:sample().data.summary,changes:[],
+        suggestions:['Mention cloud experience only if you have it.'],cached:true}})}:null});
+    await h.open(12);h.get('aiRole').value='DevOps Engineer';h.change('aiRole');await h.click('aiTailor');
+    assert.equal(h.get('aiApply').classList.contains('hidden'),true);
+    assert.equal(h.get('aiApply').disabled,true);
+    assert.doesNotMatch(h.get('aiApply').textContent,/Save 0/);
+    assert.equal(h.get('aiPolishPart').classList.contains('hidden'),false);
+    assert.match(h.get('aiReviewContext').textContent,/Review focus: DevOps Engineer.*Saved CV target: Backend Developer/);
+    assert.equal(h.get('aiReviewCache').classList.contains('hidden'),false);
+    assert.doesNotMatch(h.get('aiTailorSummary').textContent,/I develop Django APIs/);
+    assert.match(h.get('aiTailorSummary').textContent,/saved CV is unchanged/);
+    assert.equal(h.calls.filter(x=>x.url.startsWith('/api/ai/')).length,1);
+    await h.click('aiPolishPart');
+    assert.equal(h.get('aiModePart').getAttribute('aria-selected'),'true');
+    assert.equal(h.get('aiSource').value,sample().data.summary);
+    assert.equal(h.calls.filter(x=>x.url.startsWith('/api/ai/')).length,1);
+    await h.click('aiRewrite');
+    assert.equal(h.calls.filter(x=>x.url==='/api/ai/rewrite/').length,1);
+    assert.equal(h.get('aiApply').classList.contains('hidden'),false);
+    assert.equal(h.get('aiApply').textContent,'Save this change');
+    assert.equal(h.calls.filter(x=>x.method==='PATCH').length,0);
+    await h.click('aiApply');
+    assert.equal(h.saved.get(12).data.summary,'Developed Django APIs.');
+    assert.equal(h.saved.get(12).data.meta.target_role,'Backend Developer');
+    assert.equal(h.saved.get(12).version,2);
+});
+
+test('closing advice-only review never writes or hides the target inputs',async()=>{
+    const h=harness({fetch:url=>url==='/api/ai/tailor/'?{ok:true,status:200,json:async()=>({data:{
+        cv_id:12,version:1,summary:'Already clear.',changes:[],suggestions:[],cached:false}})}:null});
+    await h.open(12);h.get('aiJob').value='Graduate software development';await h.click('aiTailor');
+    assert.equal(h.get('aiReviewCache').classList.contains('hidden'),true);
+    assert.equal(h.get('aiDiscard').textContent,'Close review');
+    await h.click('aiDiscard');
+    assert.equal(h.get('aiComparison').classList.contains('hidden'),true);
+    assert.equal(h.get('aiJob').value,'Graduate software development');
+    assert.match(h.get('aiStatus').textContent,/Review closed.*saved CV is unchanged/);
+    assert.equal(h.calls.filter(x=>x.method==='PATCH').length,0);
 });

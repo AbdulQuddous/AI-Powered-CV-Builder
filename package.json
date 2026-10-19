@@ -1,0 +1,11 @@
+{
+  "name": "cv-maker-workspace-ui",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i ui/workspace.input.css -o m9_dashboard/static/m9_dashboard/css/utilities.css --minify"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.1.10",
+    "tailwindcss": "4.1.10"
+  }
+}

@@ -119,3 +119,90 @@ def repair_split_education(session, state):
     if previous_step['section'] == 'education':
         state['pending_field'] = previous_step
     return state
+
+
+def repair_structured_education(session, state):
+    """Unpack a proven JSON-as-degree mistake in an unsaved, single-qualification draft.
+
+    Only the normal owner-scoped message transaction persists this repair. Original
+    messages remain intact; ambiguous qualifications and saved documents are untouched.
+    """
+    from chatbot.services.education_answers import structured_education, parse_education, reversed_date_range
+    from chatbot.services.structured_answers import looks_structured
+    from chatbot.services.field_validation import validate_value
+    from django.core.exceptions import ValidationError as FieldError
+    from chatbot.services.state_manager import get_default_education_fields, get_required_conversation_step
+
+    if (session.cv_id or state.get('mode') == 'edit_existing' or state.get('chat_saved_cv_id')
+            or state.get('pending_entry') or state.get('edit_saved_cv_id')):
+        return state
+    entries = (state.get('collected_data') or {}).get('education') or []
+    if not 1 <= len(entries) <= 2 or not all(isinstance(entry, dict) for entry in entries):
+        return state
+    anchors = [(entry[key], key) for entry in entries for key in ('degree', 'institution')
+               if isinstance(entry.get(key), str) and looks_structured(entry[key])]
+    if len(anchors) != 1:
+        return state
+    raw, bad_field = anchors[0]
+    decoded = structured_education(raw)
+    if not decoded or not decoded.get('degree') or not decoded.get('institution'):
+        return state
+    # A matching accepted proposal and its exact user source prove the old mistake.
+    source_seen, proven = False, False
+    for message in session.messages.order_by('created_at', 'id').values('role', 'content', 'cv_updates'):
+        if message['role'] == 'user':
+            if re.search(r'\b(?:add|another|second|new)\b.*\b(?:education|degree|university|qualification)\b', message['content'], re.I):
+                return state
+            if re.search(r'\b(?:change|correct|update|edit)\b.*\b(?:education|degree|university|institution|specialization)\b', message['content'], re.I):
+                return state
+            source_seen = ' '.join(message['content'].split()) == ' '.join(raw.split())
+        elif source_seen:
+            updates = (message['cv_updates'] or {}).get('education') or []
+            if isinstance(updates, list) and len(updates) == 1 and isinstance(updates[0], dict) and updates[0].get(bad_field) == raw:
+                proven = True
+            source_seen = False
+    if not proven:
+        return state
+    subject = (parse_education(decoded['degree']) or {}).get('field_of_study')
+    merged = deepcopy(decoded)
+    accepted = {}
+    for entry in entries:
+        for key, value in entry.items():
+            if not meaningful(value) or value == raw:
+                continue
+            if key in ('degree', 'institution') and str(value).casefold() != str(decoded[key]).casefold():
+                return state
+            if key == 'field_of_study' and decoded.get(key) and value == subject:
+                continue  # Keep the explicit specialization instead of the broader degree subject.
+            if key in accepted and accepted[key] != value:
+                return state
+            accepted[key] = value
+    merged.update(accepted)
+    try:
+        for key, value in merged.items():
+            if key != 'is_current':
+                validate_value(key, value)
+        if reversed_date_range(merged.get('start_date'), merged.get('end_date')):
+            return state
+        if merged.get('is_current') and merged.get('end_date') not in (None, '', 'present'):
+            return state
+    except FieldError:
+        return state
+    state = deepcopy(state)
+    previous = get_required_conversation_step(state)
+    state['collected_data']['education'] = [merged]
+    fields = get_default_education_fields()
+    fields.update({key: 'collected' for key in fields if meaningful(merged.get(key))})
+    state['education_fields'] = fields
+    state['completed_sections'] = [key for key in state.get('completed_sections', []) if key != 'education']
+    if previous['section'] == 'education':
+        state['pending_field'] = previous  # The user's reply still answers the last question shown.
+    statuses = state.setdefault('field_status', {})
+    for key in list(statuses):
+        if key.startswith('education.'):
+            statuses.pop(key)
+    statuses.update({f'education.0.{key}': 'answered' for key in fields if meaningful(merged.get(key))})
+    if state.get('undo_state', {}).get('collected_data', {}).get('education') == entries:
+        state['undo_state']['collected_data']['education'] = [deepcopy(merged)]
+        state['undo_state']['education_fields'] = deepcopy(fields)
+    return state

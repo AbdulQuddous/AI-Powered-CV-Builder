@@ -17,10 +17,15 @@ LANGUAGES = (
 _LANGUAGE = re.compile(r'(?:' + '|'.join(re.escape(v) for v in sorted(LANGUAGES, key=len, reverse=True)) + r')\b', re.I)
 _CANONICAL = {v.casefold(): v for v in LANGUAGES}
 _UNSPECIFIED = r'(?:(?:keep|leave)(?:\s+(?:these|them|it|all|the languages|languages|language proficiency|proficiency))?(?:\s+as)?\s+unspecified|(?:keep|leave)\s+it\s+blank|(?:no|without)\s+proficiency|unspecified)'
+_UNCHANGED = r'(?:keep\s+(?:as\s+it|it\s+as\s+(?:it\s+is|is)|as\s+is)|leave\s+(?:it\s+)?as\s+is)'
 
 
 def proficiency_unspecified(text):
     return bool(re.fullmatch(_UNSPECIFIED + r'[.!]?', text.strip(), re.I))
+
+
+def keep_languages_unchanged(text):
+    return bool(re.fullmatch(_UNCHANGED + r'[.!]?', text.strip(), re.I))
 
 
 def labelled_summary(text):
@@ -32,6 +37,8 @@ def labelled_summary(text):
 
 
 def parse_languages(text):
+    if proficiency_unspecified(text) or keep_languages_unchanged(text):
+        return []
     entries = []
     for value in re.split(r'[,;\n]|\band\b', text.strip().rstrip('.'), flags=re.I):
         value = value.strip()
@@ -49,6 +56,36 @@ def parse_languages(text):
         if match:
             entry['proficiency'] = match[2].casefold()
         entries.append(entry)
+    return entries
+
+
+def structured_section_answer(text, section):
+    """Convert explicit list values to interview fields before scalar splitting."""
+    from chatbot.services.structured_answers import section_list
+    values = section_list(text, section)
+    if not values:
+        return None
+    if section == 'achievements':
+        return [value.strip() for value in values] if all(isinstance(value, str) and value.strip() for value in values) else None
+    fields = {'certifications': {'name', 'issuer', 'date', 'url'},
+              'languages': {'name', 'proficiency'}}[section]
+    entries = []
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            if section == 'languages':
+                names = parse_languages(value)
+                if not names:
+                    return None
+                entries.extend(names)
+                continue
+            value = {'name': value.strip()}
+        if not isinstance(value, dict) or not value.get('name') or set(value) - fields:
+            return None
+        if not all(isinstance(item, str) for item in value.values()):
+            return None
+        if section == 'languages' and (proficiency_unspecified(value['name']) or keep_languages_unchanged(value['name'])):
+            return None
+        entries.append({key: item.strip() for key, item in value.items()})
     return entries
 
 

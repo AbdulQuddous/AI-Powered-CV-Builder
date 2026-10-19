@@ -9,13 +9,16 @@ from django.core.validators import EmailValidator, URLValidator
 
 from chatbot.services.conversation_router import empty_ai_response
 from cvs.validation import validator
+from chatbot.services.structured_answers import looks_structured, parse_structured
+from chatbot.services.education_answers import reversed_date_range
 
 
 ALIASES = {'drf': 'Django REST Framework', 'js': 'JavaScript', 'javascript': 'JavaScript', 'nodejs': 'Node.js',
            'node.js': 'Node.js', 'nextjs': 'Next.js', 'next.js': 'Next.js',
            'postgres': 'PostgreSQL', 'postgresql': 'PostgreSQL', 'restapi': 'REST APIs',
            'restapis': 'REST APIs', 'rest api': 'REST APIs', 'rest apis': 'REST APIs',
-           'django restframework': 'Django REST Framework', 'django/drf': 'Django REST Framework'}
+           'django restframework': 'Django REST Framework', 'django/drf': 'Django REST Framework',
+           'djnago': 'Django'}
 KNOWN_SKILLS = ['Django REST Framework', 'REST APIs', 'Python', 'Django', 'PostgreSQL',
                 'JavaScript', 'TypeScript', 'HTML', 'CSS', 'React', 'MySQL', 'Git',
                 'C++', 'C#', 'Node.js', '.NET', 'DRF', 'JS', 'Bootstrap', 'Docker',
@@ -49,6 +52,18 @@ def unique_skills(values):
 
 def extract_skills(text):
     """Accept lists; parse prose only when every listed skill is explicitly named."""
+    if looks_structured(text):
+        value = parse_structured(text)
+        if isinstance(value, dict) and set(value) == {'skills'}:
+            value = value['skills']
+        if isinstance(value, dict):
+            groups = list(value.values())
+            if not groups or not all(isinstance(group, list) for group in groups):
+                return None
+            value = [skill for group in groups for skill in group]
+        if not isinstance(value, list) or not value or not all(isinstance(skill, str) and skill.strip() for skill in value):
+            return None
+        return unique_skills(value)
     text = text.strip().rstrip('.')
     text = re.sub(r'^(?:i\s+(?:would\s+)?like\s+to\s+(?:highlight|include|add)|'
                   r'(?:my\s+)?(?:technical\s+)?skills\s+(?:are|include)|'
@@ -96,6 +111,9 @@ def validate_value(field, value):
             EmailValidator()(value)
         except ValidationError:
             raise ValidationError("That doesn't look like a valid email address. Include @ and a valid domain, for example name@gmail.com.")
+    elif field in ('company', 'role', 'job_title', 'degree', 'institution', 'field_of_study') and (
+            re.fullmatch(r'(?:https?://|www\.)\S+', value, re.I) or looks_structured(value)):
+        raise ValidationError('Please provide the actual name or title, rather than a website URL or unparsed JSON.')
     elif field == 'phone':
         # Conservative international format check; no claim of number ownership.
         # National numbers outside the explicitly supported PK mobile format need a country code.
@@ -104,12 +122,14 @@ def validate_value(field, value):
         digits = re.sub(r'\D', '', value)
         if not (re.fullmatch(r'03\d{9}', digits) or (value.startswith('+') and 8 <= len(digits) <= 15 and digits[0] != '0')):
             raise ValidationError('Please include your country code (for example +923001234567), or a Pakistani mobile such as 03001234567.')
+        parsed = None
         try:
             parsed = phonenumbers.parse(value, None if value.startswith('+') else 'PK')
             if not phonenumbers.is_valid_number(parsed):
                 raise phonenumbers.NumberParseException(0, 'Invalid number')
         except phonenumbers.NumberParseException:
-            raise ValidationError('That phone number is not valid for its country. Please check the number and country code.')
+            country = f'+{parsed.country_code}' if parsed is not None else 'the supplied country code'
+            raise ValidationError(f'That number does not match the numbering rules for {country}. Check the area code and subscriber number, or provide another number with its country code.')
     elif field in ('url', 'linkedin', 'github', 'portfolio'):
         try:
             URLValidator(schemes=['http', 'https'])(value)
@@ -171,6 +191,9 @@ def validated_updates(response, state):
         if entries is not None:
             clean_entries = []
             for index, item in enumerate(entries):
+                confirmation = state.get('date_confirmation_pending') or {}
+                if confirmation.get('section') == section:
+                    index = confirmation['index']
                 if isinstance(item, str) and section in ('languages', 'certifications'):
                     item = {'name': item}
                 if not isinstance(item, dict):
@@ -222,7 +245,7 @@ def validated_updates(response, state):
                         old = existing[pending['index']]
                 merged = {**old, **clean}
                 start, end = merged.get('start_date'), merged.get('end_date')
-                if start and end and end != 'present' and start > end:
+                if reversed_date_range(start, end):
                     for date_field in ('start_date', 'end_date'):
                         if date_field in clean:
                             clean.pop(date_field)

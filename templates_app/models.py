@@ -11,6 +11,10 @@ class CVTemplate(models.Model):
         MINIMAL = "minimal", "Minimal"
         CREATIVE = "creative", "Creative"
         TECHNICAL = "technical", "Technical"
+        SIMPLE = "simple", "Simple"
+        ATS = "ats", "ATS-Friendly"
+        MINIMALIST = "minimalist", "Minimalist"
+        EXECUTIVE = "executive", "Executive"
 
     id = models.SlugField(
         primary_key=True,

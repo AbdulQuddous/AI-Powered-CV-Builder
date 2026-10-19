@@ -26,7 +26,8 @@
             font-family: Arial, sans-serif;
             color: #263238;
             font-size: 10pt;
-            line-height: 1.5;
+            line-height: 1.4;
+            overflow-wrap: anywhere;
         }
 
         .document {
@@ -36,8 +37,8 @@
         }
 
         .header {
-            margin-bottom: 16px;
-            padding-bottom: 12px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
             border-bottom: 2px solid #1e4975;
         }
 
@@ -62,17 +63,19 @@
         }
 
         .section {
-            margin-bottom: 16px;
+            margin-bottom: 10px;
         }
 
         .section-title {
-            margin: 0 0 10px;
-            padding-bottom: 4px;
+            margin: 0 0 6px;
+            padding-bottom: 3px;
             font-size: 11pt;
             font-weight: 700;
             color: #1e4975;
             text-transform: uppercase;
             border-bottom: 1px solid #d5dce4;
+            break-after: avoid;
+            page-break-after: avoid;
         }
 
         .summary {
@@ -85,9 +88,7 @@
         }
 
         .entry {
-            margin-bottom: 12px;
-            break-inside: avoid;
-            page-break-inside: avoid;
+            margin-bottom: 6px;
         }
 
         .entry-title {
@@ -115,6 +116,12 @@
         .entry li {
             margin-bottom: 3px;
         }
+
+        /* Keep entry headings with their own body, never with the next entry.
+           A terminal title/subtitle must allow a break or title-only optional
+           sections become one unbreakable chain across the end of the CV. */
+        .entry-title:not(:last-child), .entry-subtitle:not(:last-child) { break-after: avoid; }
+        p, li { orphans: 2; widows: 2; }
 
         /* Classic template */
 
@@ -217,9 +224,7 @@
             Professional Summary
         </h2>
 
-        <p class="summary">
-            {{ summary }}
-        </p>
+        <p class="summary">{{ summary }}</p>
 
     </section>
     {% endif %}
@@ -269,9 +274,7 @@
             {% endif %}
 
             {% if item.description %}
-            <p class="entry-description">
-                {{ item.description }}
-            </p>
+            <p class="entry-description">{{ item.description }}</p>
             {% endif %}
 
             {% if item.bullets %}

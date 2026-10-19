@@ -36,6 +36,26 @@ not certified ATS scores.
 """
 
 
+JOB_FOCUS_RULES = """
+JOB-FOCUSED EDITING:
+- When a target role or job description is supplied, identify the most relevant
+  facts already in the source and lead with them. Reorder and group that evidence
+  to make the connection to the role clear; swapping synonyms alone is not tailoring.
+- For a summary, prioritize relevant contributions, then supporting technologies
+  and delivery/testing experience. Keep the graduate/intern identity, dates,
+  qualifications, tools, scope and original proficiency levels accurate.
+- A candidate's use of AI coding assistance is not evidence of building ML models.
+  Existing AI application, ATS, API or backend work may be emphasized when present;
+  production ML deployment, model training, scalability and MLOps require explicit
+  source evidence. A job requirement is never that evidence.
+- Do not upgrade comfortable/familiar into skilled/proficient/expert. Preserve
+  ongoing versus completed work and supporting versus owning responsibilities.
+- Explain the actual relevance or organization improvements in the change notes.
+  If an important job requirement lacks evidence, mention it as a gap or question
+  in feedback, never as a new CV claim. Do not force edits when none are useful.
+"""
+
+
 WRITING_SYSTEM = """
 You improve professional CV wording.
 
@@ -62,4 +82,4 @@ STRICT REWRITING RULES:
 - Do not claim measurable improvements unless supplied.
 - Prefer precise technical wording over impressive-sounding language.
 - Preserve the original level of responsibility and technical scope.
-"""
+""" + JOB_FOCUS_RULES

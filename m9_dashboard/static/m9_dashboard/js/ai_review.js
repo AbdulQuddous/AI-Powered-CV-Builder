@@ -12,9 +12,19 @@
     const badResponse = () => Object.assign(new Error('Invalid AI response'), {status: 502});
     let api, selected = null, generation = 0, busy = false, mode = 'whole', loadingId = null;
     let validation = null, analysis = null, fingerprint = null, pending = null, tailored = null, fields = [], retry = null;
+    const FOCUS_RECHECK_MS = 60000;
+    let lastCheckedAt = 0;
     const active = () => mode === 'whole' ? tailored : pending;
     const approved = () => mode === 'whole' ? (tailored?.changes || []).filter(change => change.accepted) : pending ? [pending] : [];
     const key = () => JSON.stringify([selected.id, selected.version, selected.data, role(), job()]);
+    function proposalStatus() {
+        if (mode === 'part') return pending ? 'Your rewrite is ready to review.' : 'Your saved CV is up to date.';
+        if (!tailored) return 'Your saved CV is up to date.';
+        const count = tailored.changes.length;
+        if (!count) return 'CV review complete. Advice is ready below; there are no wording changes to save.';
+        return `${count} wording ${count === 1 ? 'change is' : 'changes are'} ready to review.` +
+            (tailored.warnings?.length ? ' Other suggestions were left out; see the explanation below.' : ' Save only the changes you want.');
+    }
 
     function status(message) {
         $('aiStatus').textContent = message;
@@ -30,7 +40,7 @@
         busy = value;
         if (message) status(message);
         $('aiModal').setAttribute('aria-busy', String(value));
-        for (const id of ['aiValidate','aiOptimize','aiTailor','aiRewrite','aiDiscard','aiReload','aiField','aiRole','aiJob','aiPDF','aiModeWhole','aiModePart']) {
+        for (const id of ['aiValidate','aiOptimize','aiTailor','aiRewrite','aiDiscard','aiReload','aiField','aiRole','aiJob','aiPDF','aiModeWhole','aiModePart','aiPolishPart']) {
             $(id).disabled = value || !selected;
         }
         $('aiRetry').disabled = value;
@@ -38,15 +48,27 @@
         $('aiDiscard').disabled = value || !active();
         $('aiRewrite').disabled = value || !selected || !fields.length;
         const count = approved().length;
-        $('aiApply').textContent = mode === 'part' ? 'Save this change' : `Save ${count} ${count === 1 ? 'change' : 'changes'}`;
+        const hasChanges = mode === 'part' ? Boolean(pending) : Boolean(tailored?.changes.length);
+        $('aiApply').classList.toggle('hidden', !hasChanges);
+        $('aiApply').textContent = mode === 'part' ? 'Save this change' : count ? `Save ${count} ${count === 1 ? 'change' : 'changes'}` : 'Select changes to save';
         for (const check of $('aiTailorChanges').querySelectorAll('input[type="checkbox"]')) check.disabled = value;
     }
     function renderProposal() {
         const proposal = active();
+        const adviceOnly = mode === 'whole' && tailored && !tailored.changes.length;
         ui().comparison(mode === 'part' ? pending : null);
         ui().tailoring(mode === 'whole' ? tailored : null, () => setBusy(busy));
         $('aiComparison').classList.toggle('hidden', !proposal);
-        $('aiComparisonTitle').textContent = mode === 'whole' ? 'Review the whole-CV improvements' : 'Review the rewrite';
+        $('aiComparisonTitle').textContent = adviceOnly ? 'Advice for your CV' : mode === 'whole' ? 'Review the whole-CV improvements' : 'Review the rewrite';
+        $('aiReviewState').textContent = adviceOnly ? 'No changes to save' : 'Not saved yet';
+        $('aiReviewState').classList.toggle('ai-review-badge-neutral', Boolean(adviceOnly));
+        $('aiReviewIntro').textContent = adviceOnly ? 'For a focused wording review, choose Polish one part.' : 'Check the wording and facts. Only the changes you approve will be saved.';
+        $('aiPolishPart').classList.toggle('hidden', !adviceOnly);
+        $('aiDiscard').textContent = adviceOnly ? 'Close review' : 'Discard suggestions';
+        const context = mode === 'whole' && tailored ? tailored.reviewContext : '';
+        $('aiReviewContext').textContent = context || '';
+        $('aiReviewContext').classList.toggle('hidden', !context);
+        $('aiReviewCache').classList.toggle('hidden', !(mode === 'whole' && tailored?.cached));
         setBusy(busy);
     }
     function invalidate(message = '') {
@@ -70,7 +92,7 @@
             : 'A target role or job description is optional. Add one to guide the rewrite.';
         clearError();
         renderProposal();
-        if (selected) status(active() ? 'Your suggestions are ready to review.' : whole
+        if (selected) status(active() ? proposalStatus() : whole
             ? 'Add a target role or job description, then request improvements.'
             : 'Choose a part of your CV, then request a rewrite.');
         if (focus) $(whole ? 'aiModeWhole' : 'aiModePart').focus();
@@ -107,6 +129,7 @@
         if (!cv?.data || !Number.isSafeInteger(cv.id) || !Number.isInteger(cv.version)) throw badResponse();
         const changed = !selected || selected.id !== cv.id || selected.version !== cv.version || JSON.stringify(selected.data) !== JSON.stringify(cv.data);
         selected = cv;
+        lastCheckedAt = Date.now();
         if (changed) {
             invalidate();
             populateFields();
@@ -116,6 +139,7 @@
         $('aiEditor').removeAttribute('aria-disabled');
     }
     async function fresh(run) {
+        lastCheckedAt = Date.now();
         const response = await api.fetch(`/api/cvs/${selected.id}/`);
         const cv = await response.json();
         if (run !== generation) return false;
@@ -126,6 +150,7 @@
         generation++;
         selected = loadingId = null; fields = [];
         busy = false;
+        lastCheckedAt = 0;
         clearError();
         invalidate();
         $('aiSource').value = '';
@@ -221,9 +246,13 @@
                 seen.add(change.path);
                 return {...change, label: field.label, path: field.path.slice(), accepted: true};
             });
-            tailored = {...result, changes, cvId: source.id, version: source.version, document: source.data};
+            const reviewRole = role() || 'Pasted job description';
+            const sourceRole = source.data.meta?.target_role || '';
+            const reviewContext = `Review focus: ${reviewRole}${job() && role() ? ' · Job description included' : ''}` +
+                (sourceRole && sourceRole.toLowerCase() !== reviewRole.toLowerCase() ? ` · Saved CV target: ${sourceRole}` : '');
+            tailored = {...result, changes, reviewContext, cvId: source.id, version: source.version, document: source.data};
             renderProposal();
-            status(changes.length ? 'Improvements are ready. Review each change, then save the ones you want.' : 'Review complete. No wording changes were suggested.');
+            status(proposalStatus());
             $('aiComparison').scrollIntoView?.({behavior: 'smooth', block: 'nearest'});
         }, tailor);
     }
@@ -297,11 +326,12 @@
     }
     function discard() {
         if (busy) return;
+        const adviceOnly = mode === 'whole' && tailored && !tailored.changes.length;
         if (mode === 'whole') tailored = null;
         else pending = null;
         clearError();
         renderProposal();
-        status('Suggestions discarded. Your saved CV is unchanged.');
+        status(adviceOnly ? 'Review closed. Your saved CV is unchanged.' : 'Suggestions discarded. Your saved CV is unchanged.');
     }
     function reload() {
         if (!selected) return loadingId ? open(loadingId) : null;
@@ -340,6 +370,7 @@
             });
         }
         $('aiTailor').addEventListener('click', tailor);
+        $('aiPolishPart').addEventListener('click', () => switchMode('part', true));
         $('aiValidate').addEventListener('click', health);
         $('aiOptimize').addEventListener('click', analyze);
         $('aiRewrite').addEventListener('click', write);
@@ -351,10 +382,13 @@
         for (const id of ['aiRole','aiJob']) $(id).addEventListener('input', roleChanged);
         $('aiReload').addEventListener('click', reload);
         global.addEventListener?.('focus', () => {
-            if (!selected || busy || $('aiModal').classList.contains('hidden')) return;
-            operation('Checking your saved CV…', async run => {
+            if (!selected || busy || $('aiModal').classList.contains('hidden') || Date.now() - lastCheckedAt < FOCUS_RECHECK_MS) return;
+            return operation('Checking your saved CV…', async run => {
                 const previousVersion = selected.version;
-                if (await fresh(run) && selected.version === previousVersion) status(active() ? 'Your suggestions are ready to review.' : 'Your saved CV is up to date.');
+                const previousData = JSON.stringify(selected.data);
+                if (await fresh(run)) status(selected.version !== previousVersion || JSON.stringify(selected.data) !== previousData
+                    ? 'Your saved CV changed. Previous suggestions were cleared; request a new review.'
+                    : proposalStatus());
             });
         });
         switchMode('whole');
