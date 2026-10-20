@@ -99,5 +99,8 @@ def guard_extraction(response, message, state):
                         entry[field] = year
                         unsupported.append(f'{section}.{field} month')
     if unsupported:
-        result.setdefault('_control', {})['evidence_warning'] = 'Please confirm extracted details that were not explicit in your answer: ' + ', '.join(dict.fromkeys(unsupported)) + '.'
+        warning = ('Let’s fill in only the education details you know.'
+                   if all(field.startswith('education.') for field in unsupported) else
+                   'Please confirm extracted details that were not explicit in your answer: ' + ', '.join(dict.fromkeys(unsupported)) + '.')
+        result.setdefault('_control', {})['evidence_warning'] = warning
     return result

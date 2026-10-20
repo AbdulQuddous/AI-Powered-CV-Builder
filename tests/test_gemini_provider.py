@@ -5,6 +5,8 @@ from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase, override_settings
 from google.genai import types
+from google.genai.errors import APIError
+import httpx
 from rest_framework import serializers
 
 from ai.exceptions import AIProviderError, AIStructuredOutputError
@@ -181,3 +183,62 @@ class GeminiProviderTests(SimpleTestCase):
                 with self.assertLogs("ai.views", level="WARNING"):
                     response = BaseAIAPIView().execute(serializers.Serializer, SimpleNamespace(data={}), handler)
                 self.assertEqual(response.data["error"]["reason"], reason)
+
+    def test_sdk_http_failures_expose_fixed_reasons_without_raw_details_or_retries(self):
+        for code, reason in [(400, 'invalid_request'), (401, 'authentication_failed'),
+                             (403, 'permission_denied'), (404, 'model_not_found'),
+                             (429, 'quota_exceeded'), (500, 'provider_unavailable'), (504, 'timeout')]:
+            with self.subTest(code=code):
+                self.client.models.generate_content.reset_mock()
+                self.client.models.generate_content.side_effect = APIError(code, {
+                    'error': {'message': self.private_text, 'status': 'UNTRUSTED_PRIVATE_STATUS'}})
+                with self.assertLogs('ai', level='WARNING') as logs:
+                    response = BaseAIAPIView().execute(serializers.Serializer, SimpleNamespace(data={}), lambda data: self.generate(None))
+                self.assertEqual(response.status_code, 503)
+                self.assertEqual(response.data['error']['code'], 'ai_provider_unavailable')
+                self.assertEqual(response.data['error'].get('reason', 'provider_unavailable'), reason)
+                self.client.models.generate_content.assert_called_once()
+                exposed = json.dumps(response.data) + '\n'.join(logs.output)
+                self.assertIn('reason=' + reason, exposed)
+                self.assertIn('upstream_code=' + str(code), exposed)
+                for value in [*self.private_text.split(), 'UNTRUSTED_PRIVATE_STATUS']:
+                    self.assertNotIn(value, exposed)
+                self.assertTrue(all(record.exc_info is None for record in logs.records))
+
+    def test_invalid_api_key_metadata_is_classified_without_reading_provider_message(self):
+        self.client.models.generate_content.side_effect = APIError(400, {'error': {
+            'message': self.private_text, 'details': [{'reason': 'API_KEY_INVALID'}]}})
+        with self.assertRaises(AIProviderError) as error:
+            self.generate(None)
+        self.assertEqual(error.exception.reason, 'authentication_failed')
+
+    def test_timeout_connection_and_malformed_error_details_are_safe(self):
+        for cause, reason in [(httpx.ReadTimeout(self.private_text), 'timeout'),
+                              (httpx.ConnectError(self.private_text), 'connection_failed'),
+                              (APIError(400, {'error': {'message': self.private_text, 'details': None}}), 'invalid_request')]:
+            with self.subTest(reason=reason):
+                self.client.models.generate_content.side_effect = cause
+                with self.assertRaises(AIProviderError) as error:
+                    self.generate(None)
+                self.assertEqual(error.exception.reason, reason)
+                self.assertNotIn(self.private_text, str(error.exception))
+
+    def test_missing_key_or_sdk_initialization_error_is_a_configuration_failure(self):
+        self.client_factory.reset_mock()
+        with override_settings(GEMINI_API_KEY=''), self.assertRaises(AIProviderError) as error:
+            GeminiProvider()
+        self.assertEqual(error.exception.reason, 'configuration_error')
+        self.client_factory.assert_not_called()
+        self.client_factory.side_effect = ValueError(self.private_text)
+        with self.assertRaises(AIProviderError) as error:
+            GeminiProvider()
+        self.assertEqual(error.exception.reason, 'configuration_error')
+        self.assertNotIn(self.private_text, str(error.exception))
+
+    def test_unknown_provider_reason_is_not_exposed_in_response_or_logs(self):
+        error = AIProviderError(self.private_text, reason=self.private_text)
+        with self.assertLogs('ai.views', level='WARNING') as logs:
+            response = BaseAIAPIView().execute(serializers.Serializer, SimpleNamespace(data={}), Mock(side_effect=error))
+        self.assertEqual(response.data['error']['code'], 'ai_provider_unavailable')
+        self.assertNotIn('reason', response.data['error'])
+        self.assertNotIn(self.private_text, json.dumps(response.data) + '\n'.join(logs.output))

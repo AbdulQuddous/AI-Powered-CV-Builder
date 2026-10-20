@@ -75,6 +75,19 @@ def question(state):
     if state.get('mode') == 'edit_existing' and not state.get('pending_field'):
         from chatbot.services.existing_cv_conversation import question as edit_question
         return edit_question(state)
+    if section == 'education':
+        from chatbot.services.education_answers import active_education
+        entry = active_education(state)
+        if entry.get('is_current'):
+            if field == 'degree':
+                return 'Which degree or course are you studying? You can include your university and expected graduation date in the same message.'
+            if field == 'institution':
+                return 'Which university or college are you studying at?'
+            if field == 'field_of_study':
+                return 'What is your subject or major?'
+            if field == 'end_date':
+                place = f' from {entry["institution"]}' if entry.get('institution') else ''
+                return f'When do you expect to graduate{place}? You can say June 2028 or 2028-06, or just the year if the month is unknown.'
     if section == 'experience' and field == 'company':
         if profile(state) in ('student', 'fresher', 'junior'):
             return 'Have you completed any internships, freelance work or professional experience? You can skip this if you have none.'

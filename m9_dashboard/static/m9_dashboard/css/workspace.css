@@ -1,4 +1,11 @@
 /* Shared application theme. CV documents live in isolated frames. */
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../fonts/InterVariable-latin.woff2') format('woff2');
+}
 :root {
   --workspace-accent: #4f46e5;
   --workspace-accent-hover: #4338ca;

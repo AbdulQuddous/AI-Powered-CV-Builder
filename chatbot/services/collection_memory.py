@@ -30,6 +30,11 @@ def merge_collection_entries(entries, updates, section, step, *, index=None):
             entry = entries[0]
             conflicts = any(meaningful(entry.get(key)) and meaningful(update.get(key))
                             and str(entry[key]).casefold() != str(update[key]).casefold() for key in keys)
+            if section == 'education' and not any(meaningful(entry.get(key)) for key in keys):
+                # "I'm currently studying" has status but no identity yet. The
+                # answer to its next degree question completes that same row.
+                entry.update({key: update[key] for key in keys if meaningful(update.get(key))})
+                return merge_entries(entries, updates, section)
             if not conflicts and not meaningful(entry.get(step['field'])):
                 updates[0] = {**{key: entry[key] for key in keys if meaningful(entry.get(key))}, **update}
         elif len(entries) > 1:
@@ -64,6 +69,75 @@ def sync_project_progress(state, index=None):
     else:
         completed.discard('projects'); missing.add('projects')
     state['completed_sections'], state['missing_sections'] = sorted(completed), sorted(missing)
+
+
+def repair_study_status(session, state):
+    """Join an evidenced status-only legacy row to its one subsequent degree.
+
+    This repairs unsaved collection state only. Explicit additional degrees,
+    contradictory status and ambiguous history remain untouched.
+    """
+    from chatbot.services.education_answers import parse_education
+    if state.get('mode') == 'edit_existing' or state.get('pending_entry') or state.get('pending_selection'):
+        return state
+    entries = (state.get('collected_data') or {}).get('education') or []
+    if (len(entries) != 2 or entries[0] != {'is_current': True}
+            or not isinstance(entries[1], dict) or not isinstance(entries[1].get('degree'), str)
+            or not entries[1]['degree']
+            or entries[1].get('is_current') is False):
+        return state
+    source, status_seen, degree_seen = None, False, False
+    for message in session.messages.order_by('created_at', 'id').values('role', 'content', 'intent', 'cv_updates'):
+        if message['role'] == 'user':
+            source = message['content']
+            if re.search(r'\b(?:add|another|second|new)\b.*\b(?:education|degree|university|qualification)\b', source, re.I):
+                return state
+            continue
+        if not source or message['intent'] == 'irrelevant':
+            continue
+        parsed = parse_education(source) or {}
+        updates = (message['cv_updates'] or {}).get('education') or []
+        if len(updates) > 1:
+            return state
+        update = updates[0] if updates and isinstance(updates[0], dict) else {}
+        if parsed == {'is_current': True} and update == parsed:
+            status_seen = True
+        if (status_seen and parsed.get('is_current') and parsed.get('degree')
+                and parsed['degree'].casefold() == entries[1]['degree'].casefold()
+                and str(update.get('degree', '')).casefold() == entries[1]['degree'].casefold()):
+            degree_seen = True
+        if update.get('is_current') is False:
+            return state
+        source = None
+    if not degree_seen:
+        return state
+    from chatbot.services.state_manager import get_default_education_fields
+    state = deepcopy(state)
+    merged = {**entries[0], **entries[1]}
+
+    def collapse(target):
+        target['collected_data']['education'] = [deepcopy(merged)]
+        fields = get_default_education_fields()
+        fields.update({key: 'collected' for key in fields if meaningful(merged.get(key))})
+        target['education_fields'] = fields
+        for key in ('pending_field', 'date_confirmation_pending'):
+            pending = target.get(key) or {}
+            if pending.get('section') == 'education' and pending.get('index') == 1:
+                pending['index'] = 0
+        statuses = target.setdefault('field_status', {})
+        shifted = {key.replace('education.1.', 'education.0.', 1): value
+                   for key, value in statuses.items() if key.startswith('education.1.')}
+        for key in list(statuses):
+            if key.startswith('education.1.'):
+                statuses.pop(key)
+        statuses.update(shifted)
+        statuses.update({f'education.0.{key}': 'answered' for key in fields if meaningful(merged.get(key))})
+
+    collapse(state)
+    undo = state.get('undo_state') or {}
+    if (undo.get('collected_data') or {}).get('education') == entries:
+        collapse(undo)
+    return state
 
 
 def repair_split_education(session, state):
@@ -183,8 +257,6 @@ def repair_structured_education(session, state):
             if key != 'is_current':
                 validate_value(key, value)
         if reversed_date_range(merged.get('start_date'), merged.get('end_date')):
-            return state
-        if merged.get('is_current') and merged.get('end_date') not in (None, '', 'present'):
             return state
     except FieldError:
         return state

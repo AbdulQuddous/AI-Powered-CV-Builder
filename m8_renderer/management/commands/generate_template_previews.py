@@ -32,7 +32,7 @@ class Command(BaseCommand):
         manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
         sources = sorted((settings.BASE_DIR / 'm8_renderer/templates/cv_templates').rglob('*'))
         sources += [settings.BASE_DIR / 'templates_app/catalogue.json']
-        sources += [settings.BASE_DIR / 'm8_renderer/services' / name for name in ('renderer.py', 'context_builder.py', 'designs.py', 'pdf_exporter.py')]
+        sources += [settings.BASE_DIR / 'm8_renderer/services' / name for name in ('renderer.py', 'context_builder.py', 'skill_groups.py', 'designs.py', 'pdf_exporter.py')]
         digest = hashlib.sha256(b''.join(p.read_bytes() for p in sources if p.is_file()) + json.dumps(sample_cv(), sort_keys=True).encode()).hexdigest()
         templates = list(TemplateService.list_available_templates())
         selected = options['templates'] or list(catalogue())

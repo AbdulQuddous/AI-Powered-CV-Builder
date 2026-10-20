@@ -59,7 +59,8 @@ QUESTION_MAP = {
 
     # --- grouped education first ---
     ("education", "degree"): (
-        "What degree did you complete or are you currently studying?"
+        "What degree or course are you studying or have you completed? "
+        "You can share your subject, university and graduation or expected completion date together."
     ),
 
     # --- targeted follow-ups ---

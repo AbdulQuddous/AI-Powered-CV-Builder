@@ -3,6 +3,8 @@ from base64 import b64decode
 from copy import deepcopy
 from hashlib import sha256
 from io import BytesIO
+import json
+from pathlib import Path
 import re
 from zipfile import ZipFile
 
@@ -90,6 +92,28 @@ class ExportParityTests(TestCase):
         self.assertAlmostEqual(document.sections[0].page_width.mm, 210, delta=.1)
         self.assertAlmostEqual(document.sections[0].page_height.mm, 297, delta=.1)
         self.assertEqual(response['X-CV-Layout'], 'editable')
+
+    def test_grouped_skills_share_saved_preview_pdf_and_fixed_word_without_changing_data(self):
+        fixtures = json.loads((Path(__file__).parent / 'fixtures/skill_groups.json').read_text())
+        data = sample_cv()
+        data['meta']['template_id'] = 'ats_chronicle'
+        data['skills'] = fixtures[0]['skills']
+        cv = create_cv(user=self.user, values={'name': 'Grouped skills', 'data': data})
+        root = f'/api/cvs/{cv.pk}/'
+        preview = self.client.get(root + 'preview/document/?expected_version=1')
+        pdf = self.client.post(root + 'export/pdf/?expected_version=1')
+        word = self.client.post(root + 'export/docx/?layout=fixed&expected_version=1')
+        self.assertEqual((preview.status_code, pdf.status_code, word.status_code), (200, 200, 200))
+        self.assertEqual(word['X-CV-Page-Count'], preview['X-CV-Page-Count'])
+        self.assertEqual(word['X-CV-PDF-SHA256'], sha256(pdf.content).hexdigest())
+        self.assertEqual(preview['X-CV-PDF-SHA256'], word['X-CV-PDF-SHA256'])
+        images = [b64decode(encoded) for encoded in re.findall(rb'src="data:image/png;base64,([^\"]+)"', preview.content)]
+        with ZipFile(BytesIO(word.content)) as archive:
+            media = [archive.read(name) for name in archive.namelist() if name.startswith('word/media/')]
+            self.assertCountEqual(media, images)
+        cv.refresh_from_db()
+        self.assertEqual(cv.data, data)
+        self.assertEqual(cv.version, 1)
 
     def test_preview_and_download_reject_stale_versions_and_wrong_owners(self):
         cv = self.document(); root = f'/api/cvs/{cv.pk}/'

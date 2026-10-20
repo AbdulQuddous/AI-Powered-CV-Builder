@@ -251,10 +251,12 @@ def validated_updates(response, state):
                             clean.pop(date_field)
                             statuses[f'{section}.{index}.{date_field}'] = 'invalid'
                     errors.append('Your ending date is earlier than your starting date. Could you check the dates?')
-                if merged.get('is_current') and end and end != 'present':
+                # Ongoing study can have an expected graduation date. Current
+                # employment retains its separate, stricter end-date rule.
+                if section == 'experience' and merged.get('is_current') and end and end != 'present':
                     clean.pop('end_date', None)
                     statuses[f'{section}.{index}.end_date'] = 'invalid'
-                    errors.append('Current work or study cannot also have a completion date. Please clarify.')
+                    errors.append('A current job cannot also have an ending date. Please confirm whether you still work there or provide its ending date.')
                 if clean:
                     clean_entries.append(clean)
             response['cv_updates'][section] = (clean_entries[0] if clean_entries else None) if section == 'personal' else (clean_entries or None)

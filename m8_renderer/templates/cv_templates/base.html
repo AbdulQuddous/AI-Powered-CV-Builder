@@ -87,6 +87,8 @@
             margin: 0;
         }
 
+        {% include 'cv_templates/partials/skills.css' %}
+
         .entry {
             margin-bottom: 6px;
         }
@@ -239,9 +241,7 @@
             Skills
         </h2>
 
-        <p class="skills">
-            {{ skills|join:", " }}
-        </p>
+        {% include 'cv_templates/partials/skills.html' %}
 
     </section>
     {% endif %}

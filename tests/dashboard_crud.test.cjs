@@ -191,6 +191,29 @@ test('AI and manual creation show the appropriate career selector',async()=>{
     assert.equal(h.get('interviewProfileField').classList.contains('hidden'),true);
 });
 
+test('late template loading cannot overwrite a reopened form or submit while loading',async()=>{
+    let finish,requests=0;
+    const h=harness({fetch:url=>{
+        if(url!=='/api/templates/')return null;
+        requests++;
+        return requests===1?new Promise(resolve=>{finish=resolve;})
+            :{ok:true,status:200,json:async()=>[{id:'modern',name:'Modern'},{id:'classic',name:'Classic'}]};
+    }});
+    const earlier=h.run("openCreateCV('manual',{cv_name:'Previous draft',template_id:'classic'})");
+    while(!finish)await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(h.get('createSubmit').disabled,true);
+    await h.run('handleCreateCV({preventDefault(){}})');
+    assert.equal(h.calls.some(call=>call.method==='POST'),false);
+    h.run("closeModal('createModal')");
+    await h.run("openCreateCV('ai',{cv_name:'Current draft',template_id:'modern',target_role:'Developer'})");
+    finish({ok:true,status:200,json:async()=>[{id:'classic',name:'Old catalogue'}]});
+    await earlier;
+    assert.equal(h.get('cvName').value,'Current draft');
+    assert.equal(h.get('templateId').value,'modern');
+    assert.equal(h.run('state.createMode'),'ai');
+    assert.equal(h.get('createSubmit').disabled,false);
+});
+
 test('AI startup validation returns to the creation form with the actual field error',async()=>{
     const h=harness({fetch:url=>url==='/api/chat/sessions/'
         ? {ok:false,status:400,json:async()=>({error:{code:'validation_error',details:{career_level:['Choose a supported career level.']}}})}
@@ -259,6 +282,36 @@ test('listing preserves search/filter/sort, shows career level, and Edit/View re
     h.get('searchInput').value='';h.get('sortSelect').value='name';h.run('renderCVs()');assert.equal(h.get('cardsGrid').children.length,2);
     await h.action('view');assert.match(h.get('previewFrame').srcdoc,/Saved CV/);
     await h.action('edit');assert.equal(h.c.window.location.href,'/cvs/12/edit/');
+});
+
+test('empty onboarding starts the AI flow without creating a CV',async()=>{
+    const h=harness();h.saved.clear();await h.load();
+    assert.equal(h.get('emptyTitle').textContent,'Your first CV is waiting');
+    assert.equal(h.get('emptyActions').classList.contains('hidden'),false);
+    assert.equal(h.get('emptyIllustration').classList.contains('hidden'),false);
+    assert.equal(h.get('clearFilters').classList.contains('hidden'),true);
+    await h.click('emptyCreate');
+    assert.equal(h.run('state.createMode'),'ai');
+    assert.equal(h.get('createSubmit').textContent,'Start AI interview');
+    assert.equal(h.get('createModal').classList.contains('hidden'),false);
+    assert.equal(h.calls.filter(call=>call.method==='POST').length,0);
+});
+
+test('unmatched search offers filter recovery while retaining saved CVs and statistics',async()=>{
+    const h=harness();await h.load();h.get('searchInput').value='does-not-match';
+    h.get('templateFilter').value='modern';h.run('renderCVs()');
+    assert.equal(h.get('emptyTitle').textContent,'No matching CVs');
+    assert.equal(h.get('emptyActions').classList.contains('hidden'),true);
+    assert.equal(h.get('emptyIllustration').classList.contains('hidden'),true);
+    assert.equal(h.get('clearFilters').classList.contains('hidden'),false);
+    assert.equal(h.get('summaryTotal').textContent,2);
+    const requestCount=h.calls.length;
+    await h.click('clearFilters');
+    assert.equal(h.get('searchInput').value,'');assert.equal(h.get('templateFilter').value,'');
+    assert.equal(h.get('cardsGrid').children.length,2);
+    assert.equal(h.get('emptyState').classList.contains('hidden'),true);
+    assert.equal(h.c.document.activeElement,h.get('searchInput'));
+    assert.equal(h.calls.length,requestCount);
 });
 
 test('cancelled deletion makes no DELETE request and restores focus',async()=>{

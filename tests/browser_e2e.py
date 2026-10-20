@@ -420,6 +420,132 @@ class BrowserJourneys(StaticLiveServerTestCase):
         self.assertEqual(cv.data['projects'][0]['description'], 'Built an employee management system with Django.')
         self.assertEqual(cv.version, 2); self.assertEqual(cv.versions.count(), 2)
 
+    @override_settings(GEMINI_API_KEY='test-only-no-real-provider-access', M6_GEMINI_MODEL='browser-jd-evidence')
+    def test_whole_cv_gemini_job_alignment_requires_jd_reviews_evidence_and_saves_approved_text(self):
+        from google.genai import types
+        from ai.llm.gemini_client import GeminiProvider
+        from tests.test_job_focused_writing import ORIGINAL, FOCUSED, JD
+        from ai.services.job_alignment import job_requirements
+        requirements = job_requirements(JD)
+        cv = self.saved_cv(summary=ORIGINAL); original = deepcopy(cv.data)
+        result = {
+            'job_alignment': [
+                {'requirement_id': next(key for key, text in requirements.items() if 'AI-powered features' in text),
+                 'status': 'partial', 'evidence_paths': ['/summary']},
+                {'requirement_id': next(key for key, text in requirements.items() if 'deploy production-grade' in text),
+                 'status': 'missing', 'evidence_paths': []}],
+            'summary': 'Emphasize confirmed AI application contributions for this job.',
+            'changes': [{'path': '/summary', 'original': ORIGINAL, 'rewritten': FOCUSED,
+                         'reason': 'Leads with confirmed AI workflow contributions relevant to AI-powered features.'}],
+            'suggestions': ['Add a specific deployment example only if you have done it.']}
+        response = types.GenerateContentResponse(candidates=[types.Candidate(
+            content=types.Content(role='model', parts=[types.Part.from_text(text=json.dumps(result))]),
+            finish_reason=types.FinishReason.STOP)])
+        self.reload_dashboard(); b = self.browser; b.click('[data-action="intelligence"]')
+        b.wait('!document.getElementById("aiTailor").disabled')
+        b.value('#aiRole', 'AI Engineer')
+        with patch('ai.llm.gemini_client.genai.Client') as client_factory:
+            generate = client_factory.return_value.models.generate_content
+            generate.return_value = response
+            with patch('ai.services.tailoring.get_llm_provider', return_value=GeminiProvider()):
+                b.click('#aiTailor')
+                b.wait('document.getElementById("aiJob").getAttribute("aria-invalid") === "true"')
+                generate.assert_not_called()
+                self.assertEqual(b.js('return document.activeElement.id'), 'aiJob')
+                b.value('#aiJob', JD); b.click('#aiTailor')
+                b.wait('document.querySelectorAll("#aiJobAlignment .ai-requirement").length === 2 && !document.getElementById("aiApply").disabled')
+            generate.assert_called_once()
+            request = generate.call_args.kwargs
+            prompt = json.loads(request['contents'])
+            self.assertEqual(prompt['job_description'], JD)
+            self.assertEqual(prompt['target_role'], 'AI Engineer')
+            self.assertIn('job_alignment', request['config'].response_json_schema['required'])
+            self.assertNotIn('maxItems', request['config'].response_json_schema['properties']['job_alignment'])
+        evidence = b.js('return document.getElementById("aiJobAlignment").textContent')
+        self.assertEqual(b.js('return getComputedStyle(document.querySelector(".ai-requirements")).listStyleType'), 'none')
+        self.assertIn('Related evidence', evidence)
+        self.assertIn('AI-powered CV workflows', evidence)
+        self.assertIn('Not evidenced in your CV', evidence)
+        self.assertIn('deploy production-grade', evidence)
+        cv.refresh_from_db(); self.assertEqual(cv.data, original); self.assertEqual(cv.version, 1)
+        for width in (1440, 390):
+            b.command(f'/session/{b.session}/window/rect', {'width': width, 'height': 1000})
+            self.assertLessEqual(b.js('return document.documentElement.scrollWidth'), b.js('return innerWidth'))
+            self.assertTrue(b.js('const card=document.querySelector(".ai-card");return card.scrollWidth <= card.clientWidth'))
+            output = os.environ.get('M6_SCREENSHOTS')
+            if output:
+                import base64
+                root = Path(output); root.mkdir(parents=True, exist_ok=True)
+                b.js('document.getElementById("aiJobAlignment").scrollIntoView({block:"start",behavior:"instant"})')
+                (root / f'jd-evidence-{width}.png').write_bytes(base64.b64decode(b.command(f'/session/{b.session}/screenshot', None, 'GET')))
+        b.click('#aiApply'); b.wait('/saved 1 change/i.test(document.getElementById("aiStatus").textContent)')
+        cv.refresh_from_db(); expected = deepcopy(original); expected['summary'] = FOCUSED
+        self.assertEqual(cv.data, expected)
+        self.assertEqual(cv.version, 2); self.assertEqual(cv.versions.count(), 2)
+
+    def test_unverified_job_fit_note_does_not_block_valid_wording_review_or_approved_save(self):
+        from tests.test_job_focused_writing import ORIGINAL, FOCUSED
+        cv = self.saved_cv(summary=ORIGINAL); original = deepcopy(cv.data)
+        job = (Path(__file__).parent / 'fixtures/full_stack_ai_job.txt').read_text()
+        result = {'summary': 'Emphasize confirmed application contributions.',
+            'job_alignment': [{'requirement': 'Create full stack AI solutions with Django', 'status': 'partial',
+                               'evidence': [{'path': '/summary', 'quote': 'Python, Django'}]},
+                              {'requirement': 'Strong skills in Python, Node.js, or FastAPI/Django.', 'status': 'partial',
+                               'evidence': [{'path': '/summary', 'quote': 'Python, Django'}]}],
+            'changes': [{'path': '/summary', 'original': ORIGINAL, 'rewritten': FOCUSED,
+                         'reason': 'Highlights confirmed AI application work.'}], 'suggestions': []}
+        self.reload_dashboard(); b = self.browser; b.click('[data-action="intelligence"]')
+        b.wait('!document.getElementById("aiTailor").disabled')
+        b.value('#aiRole', 'Full Stack AI Developer'); b.value('#aiJob', job)
+        with patch.object(IntelligenceProvider, 'generate_structured', return_value=result) as provider:
+            b.click('#aiTailor')
+            b.wait('document.querySelectorAll("#aiTailorChanges .ai-change-card").length === 1 && !document.getElementById("aiApply").disabled')
+            provider.assert_called_once()
+        self.assertTrue(b.js('return document.getElementById("aiError").classList.contains("hidden")'))
+        self.assertIn('job-fit notes could not be verified', b.js('return document.getElementById("aiJobAlignment").textContent'))
+        self.assertNotIn('Create full stack AI solutions', b.js('return document.getElementById("aiJobAlignment").textContent'))
+        self.assertIn('Strong skills in Python', b.js('return document.getElementById("aiJobAlignment").textContent'))
+        self.assertEqual(b.js('return document.querySelectorAll("#aiJobAlignment .ai-requirement").length'), 1)
+        self.assertEqual(b.js('return document.getElementById("aiJob").value'), job)
+        cv.refresh_from_db(); self.assertEqual(cv.data, original); self.assertEqual(cv.version, 1)
+        b.click('#aiApply'); b.wait('/saved 1 change/i.test(document.getElementById("aiStatus").textContent)')
+        cv.refresh_from_db(); expected = deepcopy(original); expected['summary'] = FOCUSED
+        self.assertEqual(cv.data, expected); self.assertEqual(cv.version, 2)
+
+    @override_settings(GEMINI_API_KEY='test-only-no-real-provider-access', M6_GEMINI_MODEL='browser-quota-test')
+    def test_gemini_quota_failure_has_specific_feedback_and_explicit_retry_preserves_jd(self):
+        from google.genai import types
+        from google.genai.errors import APIError
+        from ai.llm.gemini_client import GeminiProvider
+        cv = self.saved_cv(); original = deepcopy(cv.data)
+        result = {
+            'job_alignment': [{'requirement': 'Django', 'status': 'supported',
+                               'evidence': [{'path': '/summary', 'quote': 'Django'}]}],
+            'summary': 'Clarify the Django application contribution.',
+            'changes': [{'path': '/projects/0/description', 'original': original['projects'][0]['description'],
+                         'rewritten': 'Built an employee management system with Django.', 'reason': 'Clarifies the Django contribution.'}],
+            'suggestions': []}
+        response = types.GenerateContentResponse(candidates=[types.Candidate(
+            content=types.Content(role='model', parts=[types.Part.from_text(text=json.dumps(result))]),
+            finish_reason=types.FinishReason.STOP)])
+        self.reload_dashboard(); b = self.browser; b.click('[data-action="intelligence"]')
+        b.wait('!document.getElementById("aiTailor").disabled')
+        b.value('#aiRole', 'Backend Developer'); b.value('#aiJob', 'Build Django applications.')
+        with patch('ai.llm.gemini_client.genai.Client') as factory:
+            generate = factory.return_value.models.generate_content
+            generate.side_effect = [APIError(429, {'error': {'message': 'private-provider-detail', 'status': 'RESOURCE_EXHAUSTED'}}), response]
+            with patch('ai.services.tailoring.get_llm_provider', return_value=GeminiProvider()):
+                b.click('#aiTailor')
+                b.wait('/Gemini request quota/.test(document.getElementById("aiError").textContent) && !document.getElementById("aiRetry").disabled')
+                generate.assert_called_once()
+                self.assertNotIn('private-provider-detail', b.js('return document.getElementById("aiError").textContent'))
+                self.assertEqual(b.js('return document.getElementById("aiJob").value'), 'Build Django applications.')
+                cv.refresh_from_db(); self.assertEqual(cv.data, original); self.assertEqual(cv.version, 1)
+                b.click('#aiRetry')
+                b.wait('document.querySelectorAll("#aiTailorChanges .ai-change-card").length === 1 && !document.getElementById("aiApply").disabled')
+                self.assertEqual(generate.call_count, 2)
+        cv.refresh_from_db(); self.assertEqual(cv.data, original); self.assertEqual(cv.version, 1)
+
     @override_settings(GEMINI_API_KEY='test-only-no-real-provider-access', M6_GEMINI_MODEL='browser-synthetic-gemini')
     def test_gemini_sdk_partial_review_accepts_case_changes_and_omits_unconfirmed_skill(self):
         from google.genai import types
@@ -527,6 +653,7 @@ class BrowserJourneys(StaticLiveServerTestCase):
         self.reload_dashboard(); self.browser.click('[data-action="intelligence"]')
         self.browser.wait('!document.getElementById("aiTailor").disabled')
         self.browser.value('#aiRole', 'DevOps Engineer')
+        self.browser.value('#aiJob', 'Maintain cloud infrastructure and deployment pipelines.')
         with patch.object(IntelligenceProvider, 'generate_structured', return_value=response) as provider:
             self.browser.click('#aiTailor')
             self.browser.wait('!document.getElementById("aiPolishPart").classList.contains("hidden") && !document.getElementById("aiTailor").disabled')
@@ -596,6 +723,7 @@ class BrowserJourneys(StaticLiveServerTestCase):
         self.browser.wait('!document.getElementById("aiTailor").disabled')
         for _ in range(3): self.browser.js('window.dispatchEvent(new Event("focus"))')
         self.assertEqual(self.browser.js('return window.cvDetailReads'), 1)
+        self.browser.value('#aiJob', 'Design AWS infrastructure and CI/CD workflows. Preserve availability and automation.')
         with patch.object(IntelligenceProvider, 'generate_structured', return_value=result) as provider:
             self.browser.click('#aiTailor')
             self.browser.wait('document.querySelectorAll("#aiTailorChanges .ai-change-card").length === 1 && !document.getElementById("aiApply").disabled')
@@ -621,10 +749,45 @@ class BrowserJourneys(StaticLiveServerTestCase):
         self.assertEqual(cv.data, expected)
         self.assertEqual(cv.version, 2); self.assertEqual(cv.versions.count(), 2)
 
+    def test_current_education_and_expected_graduation_do_not_repeat_questions(self):
+        from chatbot.models import ChatSession
+        b = self.browser
+        b.click('#createAI'); b.wait('document.getElementById("templateId").options.length >= 3')
+        for field, value in [('cvName', 'Current student CV'), ('targetRole', 'Backend Developer'),
+                             ('interviewProfile', 'student'), ('templateId', 'modern')]:
+            b.value('#' + field, value)
+        b.click('#createSubmit'); b.wait('chat.session !== null && !chat.busy')
+        with patch('chatbot.services.conversation_service.QwenClient.generate',
+                   side_effect=AssertionError('Explicit education answers should not require model guesses')):
+            for message in ['Sana Student', 'student@example.com', '+923001234567', 'Rawalpindi, Pakistan',
+                            'skip', 'skip', 'skip', 'I am currently studying']:
+                b.value('#chatInput', message); b.click('#chatSend'); b.wait('!chat.busy')
+            self.assertIn('Which degree or course are you studying?', b.js('return chat.session.messages.at(-1).content'))
+            b.value('#chatInput', 'i am studying in BS Computer Science at HITEC University')
+            b.click('#chatSend'); b.wait('!chat.busy')
+            prompt = b.js('return chat.session.messages.at(-1).content')
+            self.assertIn('expect to graduate from HITEC University', prompt)
+            self.assertNotIn('Which institution', prompt)
+            b.value('#chatInput', 'I  excpect to graduate in 2028-06')
+            b.click('#chatSend'); b.wait('!chat.busy && chat.session.current_section === "skills"')
+        session = ChatSession.objects.get(user=self.user)
+        self.assertEqual(session.conversation_state['collected_data']['education'], [{
+            'degree': 'BS Computer Science', 'institution': 'HITEC University',
+            'field_of_study': 'Computer Science', 'is_current': True, 'end_date': '2028-06',
+        }])
+        self.assertNotIn('completion date', b.js('return chat.session.messages.at(-1).content'))
+        self.assertTrue(b.js('return document.querySelector("#chatError").classList.contains("hidden")'))
+        output = os.environ.get('EDUCATION_SCREENSHOTS')
+        if output:
+            import base64
+            root = Path(output); root.mkdir(parents=True, exist_ok=True)
+            screenshot = b.command(f'/session/{b.session}/screenshot', None, 'GET')
+            (root / 'ongoing-education-date.png').write_bytes(base64.b64decode(screenshot))
+
     def test_grouped_education_and_explicit_dates_preserve_the_university(self):
         self.browser.click('#createAI'); self.browser.wait("document.getElementById('templateId').options.length>=3")
         for field, value in [('cvName', 'Grouped education CV'), ('targetRole', 'Frontend Developer'),
-                             ('careerLevel', 'experienced'), ('templateId', 'modern')]:
+                             ('interviewProfile', 'mid_level'), ('templateId', 'modern')]:
             self.browser.value('#' + field, value)
         self.browser.click('#createSubmit'); self.browser.wait("chat.session!==null && !chat.busy")
         for message in ['My name is Faizan Zafar', 'faizan@example.com', '03154992049', 'Islamabad',

@@ -46,3 +46,38 @@ interview through M2 save, malformed contacts/lists, metadata preservation,
 date confirmation/retry, and owner-scoped recovery.
 `tests/test_chat_date_followups.py` covers the reported date loop, grouped typo,
 paired/partial corrections, omissions, interval validation and recovery guards.
+
+## Ongoing education and expected graduation
+
+`I am currently studying` records study status without inventing a degree.
+The next question asks which degree/course the user is studying and invites
+the university and expected completion date in the same reply. Answers such as
+`i am studying in BS Computer Science at HITEC University` capture degree,
+subject and institution together. The chatbot then asks only for the expected
+graduation date, using the known university name.
+
+`I expect to graduate in June 2028`, `I excpect to graduate in 2028-06` and the
+same phrase without `I` are recognized locally. The bounded `excpect` typo does
+not change academic names or guess missing dates. Year-only answers stay
+year-only; invalid months and definitely reversed ranges still need correction.
+
+Ongoing education can include an expected end date. The current-employment rule
+remains separate: a job marked current cannot have a completed end date. Study
+status remains source-only and the confirmed graduation date survives M10 draft
+conversion and explicit M2 save. No CV schema or database migration is needed.
+
+For older unsaved interviews, accepted user/assistant history can prove that
+an initial status-only education row belongs with the one subsequent degree.
+The next chat turn can join those fragments before accepting the date retry.
+This repair refuses saved-CV editing, explicit additional qualifications,
+contradictory status, multiple named degrees and unsupported history. It does
+not edit a saved CV or invent a missing institution/date. Ordinary status-only
+answers now merge into the same active qualification and retain confirmed months.
+
+`tests/test_chat_current_education.py` covers the reported exchange, grouped and
+partial answers, the expected-date typo, validation recovery, safe legacy repair,
+undo, preservation of confirmed dates, employment rules and approved saving.
+The browser journey
+`tests.browser_e2e.BrowserJourneys.test_current_education_and_expected_graduation_do_not_repeat_questions`
+checks the actual chat interface with synthetic contact details and no live AI
+request.

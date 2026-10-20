@@ -112,9 +112,14 @@ class DOCXExporter:
         if context["skills"]:
             add_heading("Skills")
 
-            document.add_paragraph(
-                ", ".join(context["skills"])
-            )
+            if context['skill_groups']:
+                for group in context['skill_groups']:
+                    paragraph = document.add_paragraph()
+                    if group['label']:
+                        paragraph.add_run(group['label'] + ': ').bold = True
+                    paragraph.add_run(', '.join(group['items']))
+            else:
+                document.add_paragraph(', '.join(context['skills']))
 
         # -------------------------
         # Other CV sections

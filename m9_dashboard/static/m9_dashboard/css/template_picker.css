@@ -1,0 +1,71 @@
+.workspace-dashboard .create-cv-card { width: min(1080px, 100%); max-width: 1080px; padding: 28px 30px 0; }
+.create-cv-layout { display: grid; grid-template-columns: minmax(240px, .7fr) minmax(0, 1.3fr); gap: 25px 32px; margin-top: 27px; }
+.create-cv-details { display: flex; flex-direction: column; gap: 19px; padding-right: 28px; border-right: 1px solid #ebedf4; }
+.create-step-label { display: flex; align-items: center; gap: 9px; margin: 0 0 1px; padding: 0; color: #8c82ad; font-size: 11px; font-weight: 650; }
+.create-step-label span { color: #4a536c; font-size: 13px; }
+.create-template-tip { display: flex; gap: 10px; padding: 16px; margin-top: 1px; border: 1px solid #e7e3f4; border-radius: 16px; background: #f8f6fd; }
+.create-template-tip > span { color: #a192bd; font-size: 21px; }
+.create-template-tip p { margin: 0; color: #78718b; font-size: 11px; line-height: 1.9; }
+.create-template-tip strong { display: block; margin-bottom: 3px; color: #6b5d82; font-size: 12px; }
+.create-template-picker { min-width: 0; margin: 0; padding: 0; border: 0; }
+.create-picker-help { margin: 9px 0 16px; color: #68758a; font-size: 11px; }
+.create-template-tools { display: grid; grid-template-columns: minmax(0, 1fr) 155px; gap: 9px; }
+.workspace-dashboard .create-template-tools .form-input { min-height: 41px; padding: 9px 11px; background: #fafbfe; font-size: 11px; }
+.create-template-count { margin: 11px 0; color: #6c768b; font-size: 10px; }
+.create-template-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: start; gap: 12px; max-height: min(430px, 46vh); overflow-y: auto; padding: 3px 7px 8px 3px; scrollbar-width: thin; scrollbar-color: #cecadd transparent; scroll-padding: 8px; }
+.create-template-option { position: relative; overflow: hidden; min-width: 0; border: 1px solid #e4e6f0; border-radius: 14px; background: #fff; transition: border-color .18s, box-shadow .18s; }
+.create-template-option.is-selected { border-color: #6aa99f; box-shadow: 0 0 0 2px #0d94881c; background: #f8fcfb; }
+.create-template-option:focus-within { outline: 3px solid #56aaa3; outline-offset: 2px; }
+.create-template-choice { display: block; cursor: pointer; }
+.create-template-choice input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); opacity: 0; }
+.create-template-thumb { position: relative; display: grid; place-items: center; aspect-ratio: 1 / 1.15; overflow: hidden; padding: 12px 18px; border-bottom: 1px solid #e9eaf3; background: #f0f2f8; }
+.create-template-thumb img { display: block; max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain; filter: drop-shadow(0 3px 5px #28365c21); transition: transform .2s; }
+.create-template-choice:hover .create-template-thumb img { transform: translateY(-2px); }
+.create-template-check { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 20px; height: 20px; border: 1px solid #c9cddd; border-radius: 50%; color: transparent; background: #ffffffed; font-size: 12px; }
+.is-selected .create-template-check { border-color: #318e82; color: #fff; background: #318e82; }
+.create-template-meta { display: block; padding: 10px 10px 7px; }
+.create-template-name { display: block; overflow-wrap: anywhere; color: #35415b; font-size: 11px; font-weight: 650; line-height: 1.5; }
+.create-template-style { display: block; margin-top: 4px; color: #76698e; font-size: 9px; line-height: 1.5; }
+.create-template-preview-button { width: 100%; min-height: 34px; padding: 6px; border-top: 1px solid #eceef5; background: #fafbfe; color: #70668a; font-size: 9px; font-weight: 600; }
+.create-template-preview-button:hover { color: #4f497a; background: #f0edf8; }
+.create-template-empty { padding: 26px 16px; border: 1px dashed #d9dce8; border-radius: 12px; text-align: center; color: #68758a; font-size: 12px; }
+.create-template-error { margin-top: 12px; padding: 10px 12px; border: 1px solid #ecdac8; border-radius: 11px; color: #7f684d; background: #fffbf4; font-size: 11px; line-height: 1.7; }
+.create-template-error .dash-inline-link { min-height: 30px; margin-left: 4px; }
+.create-template-detail { max-height: min(520px, 55vh); overflow-y: auto; padding: 0 5px 5px; scrollbar-width: thin; }
+.create-template-preview-heading { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; background: white; }
+.create-template-preview-heading .dash-text-button { min-height: 36px; padding-left: 0; font-size: 11px; }
+.create-template-preview-heading h3 { margin: 0; color: #46506a; font-size: 12px; font-weight: 650; }
+.workspace-dashboard .create-template-preview-heading .secondary-button { min-height: 38px; padding: 8px 12px; font-size: 11px; }
+.create-template-large-image { padding: 18px 26px; border: 1px solid #e5e7f1; border-radius: 14px; background: #f0f2f8; }
+.create-template-large-image img { display: block; width: min(100%, 330px); height: auto; margin: auto; box-shadow: 0 4px 14px #29374f18; }
+.create-template-detail > p { margin: 12px 0; color: #69758b; font-size: 11px; line-height: 1.8; }
+.create-cv-error { grid-column: 1 / -1; margin: 0; }
+.create-cv-footer { position: sticky; bottom: 0; z-index: 2; grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; margin-top: 0; padding: 19px 0 23px; border-top: 1px solid #e9ebf3; background: #fff; }
+.create-cv-footer p { margin: 0; color: #7b8295; font-size: 11px; }
+.create-cv-footer strong { color: #427d79; font-weight: 650; }
+.create-cv-footer p span { display: block; margin-top: 3px; color: #7b8295; font-size: 10px; }
+.create-cv-footer-actions { display: flex; align-items: center; gap: 10px; }
+@media (max-width: 900px) {
+  .create-cv-layout { grid-template-columns: minmax(210px, .8fr) minmax(0, 1.2fr); gap: 22px; }
+  .create-cv-details { padding-right: 20px; }
+  .create-template-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 639px) {
+  .workspace-dashboard .create-cv-card { padding: 22px 18px 0; }
+  .create-cv-layout { grid-template-columns: minmax(0, 1fr); gap: 22px; margin-top: 23px; }
+  .create-cv-details { padding-right: 0; padding-bottom: 20px; border-right: 0; border-bottom: 1px solid #ebedf4; gap: 16px; }
+  .create-template-tip { display: none; }
+  .create-template-tools { grid-template-columns: minmax(0, 1fr) 125px; }
+  .create-template-grid { max-height: 400px; gap: 10px; }
+  .create-template-thumb { padding: 12px 22px; }
+  .create-template-preview-button { min-height: 44px; font-size: 10px; }
+  .create-cv-footer { padding-bottom: 18px; gap: 12px; }
+  .create-cv-footer-actions { width: 100%; }
+  .create-cv-footer-actions button { flex: 1; padding-right: 10px; padding-left: 10px; font-size: 12px; }
+  .create-cv-footer p span { display: none; }
+  .create-template-detail { max-height: 520px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .create-template-option, .create-template-thumb img { transition: none; }
+  .create-template-choice:hover .create-template-thumb img { transform: none; }
+}

@@ -23,6 +23,8 @@ const state = {
     signingIn: false,
     signingOut: false,
     createMode: 'manual',
+    createTemplateGeneration: 0,
+    templatesLoading: false,
 };
 
 const profile = {generation: 0, loaded: null, loading: false, saving: false, saved: false};
@@ -158,6 +160,7 @@ function clearFormError(id) {
 
 
 function setButtonBusy(button, busy, busyText) {
+    button.setAttribute('aria-busy', String(busy));
     if (busy) {
         button.dataset.originalText = button.textContent;
         button.textContent = busyText;
@@ -185,6 +188,12 @@ function openModal(id) {
 
 
 function closeModal(id) {
+    if (id === 'createModal') {
+        state.createTemplateGeneration++;
+        state.templatesLoading = false;
+        $('createSubmit').disabled = state.creating;
+        window.M9TemplatePicker?.closePreview();
+    }
     if (id === 'chatSessionsModal') { sessionList.generation++; sessionList.busy = false; }
     $(id).classList.add("hidden");
 
@@ -686,6 +695,8 @@ async function loadCVs() {
     $("loadingState").classList.remove("hidden");
     $("cardsGrid").classList.add("hidden");
     $("emptyState").classList.add("hidden");
+    $('refreshBtn').disabled = true;
+    $('refreshBtn').setAttribute('aria-busy', 'true');
 
     try {
         let nextURL = "/api/cvs/";
@@ -773,6 +784,8 @@ async function loadCVs() {
 
         $("loadingState").classList.add("hidden");
         $("cardsGrid").classList.remove("hidden");
+        $('refreshBtn').disabled = false;
+        $('refreshBtn').setAttribute('aria-busy', 'false');
     }
 }
 
@@ -919,7 +932,7 @@ function renderCVs() {
     const cvs = getFilteredCVs();
 
     $("resultsCount").textContent =
-        `Showing ${cvs.length} of ${state.cvs.length} CVs`;
+        state.cvs.length ? `Showing ${cvs.length} of ${state.cvs.length} CVs` : 'A fresh start, with room for every ambition.';
 
     if (cvs.length === 0) {
         $("emptyState").classList.remove("hidden");
@@ -928,11 +941,15 @@ function renderCVs() {
 
         $("emptyTitle").textContent = hasCVs
             ? "No matching CVs"
-            : "No CVs yet";
+            : "Your first CV is waiting";
 
         $("emptyDescription").textContent = hasCVs
-            ? "Try changing your search or filters."
-            : "Create your first CV to get started.";
+            ? "Your CVs are still here. Try a different name or role, or clear your filters to see them all."
+            : "A little guidance, a little inspiration, and a CV you’ll feel good about. Let’s bring your story to life.";
+
+        $('emptyState').classList.toggle('dash-empty-filtered', hasCVs);
+        for (const id of ['emptyActions', 'emptyIllustration', 'emptyEyebrow']) $(id).classList.toggle('hidden', hasCVs);
+        $('clearFilters').classList.toggle('hidden', !hasCVs);
 
         $("emptyCreate").classList.toggle(
             "hidden",
@@ -971,12 +988,8 @@ function renderCVs() {
         card.innerHTML = `
             <div class="flex items-start justify-between gap-3">
 
-                <div
-                    class="flex h-14 w-14 items-center
-                           justify-center rounded-2xl
-                           bg-indigo-50 text-3xl"
-                >
-                    📄
+                <div class="dash-cv-symbol" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M9 7h6M9 11h6M9 15h4M9 18h2"/></svg>
                 </div>
 
                 <span
@@ -1216,8 +1229,14 @@ async function duplicateCV(id, button) {
 // 14. LOAD AVAILABLE TEMPLATES — M3
 // ======================================================
 
-async function loadCreateTemplates() {
+async function loadCreateTemplates(preferredId = 'modern') {
     const select = $("templateId");
+    const run = ++state.createTemplateGeneration, owner = getAuthIdentity();
+    const current = () => run === state.createTemplateGeneration && owner === getAuthIdentity();
+    state.templatesLoading = true;
+    $('createSubmit').disabled = true;
+    window.M9TemplatePicker?.loading();
+    let applied = false;
 
     try {
         const response = await apiFetch(
@@ -1225,6 +1244,7 @@ async function loadCreateTemplates() {
         );
 
         const payload = await response.json();
+        if (!current()) return false;
 
         const templates =
             Array.isArray(payload)
@@ -1237,13 +1257,13 @@ async function loadCreateTemplates() {
                             ? payload.data.results
                             : [];
 
-        if (!templates.length) {
-            return;
-        }
+        const choices = templates.map(template => ({...template, id: String(template.id || template.slug || '')}))
+            .filter(template => /^[a-zA-Z0-9_-]+$/.test(template.id));
+        if (!choices.length) throw new Error('No template designs were returned.');
 
         select.replaceChildren();
 
-        templates.forEach((template) => {
+        choices.forEach((template) => {
             const id = String(
                 template.id || template.slug || ""
             );
@@ -1260,24 +1280,30 @@ async function loadCreateTemplates() {
             );
         });
 
-        const modernOption = [...select.options].find(
-            (option) => option.value === "modern"
-        );
-
-        if (modernOption) {
-            select.value = "modern";
-        }
+        select.value = choices.some(row => row.id === preferredId) ? preferredId
+            : choices.some(row => row.id === 'modern') ? 'modern' : choices[0].id;
+        window.M9TemplatePicker?.setTemplates(choices);
+        applied = true;
 
     } catch (error) {
-        /*
-         * Template discovery is optional.
-         * Keep the default Modern option.
-         */
+        if (!current()) return false;
+        select.replaceChildren();
+        select.add(new Option('Modern', 'modern'));
+        select.value = 'modern';
+        window.M9TemplatePicker?.error();
+        applied = true;
         console.warn(
             "Template list unavailable:",
             error.message
         );
+    } finally {
+        if (current()) {
+            state.templatesLoading = false;
+            $('createSubmit').disabled = state.creating;
+            window.M9TemplatePicker?.setDisabled(state.creating);
+        }
     }
+    return applied;
 }
 
 
@@ -1301,8 +1327,9 @@ async function openCreateCV(mode = 'manual', selection = null) {
     clearFormError("createError");
 
     openModal("createModal");
+    $('cvName').focus();
 
-    await loadCreateTemplates();
+    if (!await loadCreateTemplates(selection?.template_id || 'modern')) return;
     if (selection) {
         if ([...$('templateId').options].some(option => option.value === selection.template_id)) $('templateId').value = selection.template_id;
         $('targetRole').value = selection.target_role || '';
@@ -1311,12 +1338,13 @@ async function openCreateCV(mode = 'manual', selection = null) {
         const profile = ({experienced: 'mid_level', mid: 'mid_level'})[selection.career_level] || selection.career_level;
         if ([...$('interviewProfile').options].some(option => option.value === profile)) $('interviewProfile').value = profile;
     }
+    window.M9TemplatePicker?.sync();
 }
 
 
 async function handleCreateCV(event) {
     event.preventDefault();
-    if (state.creating || !requireLogin()) return;
+    if (state.creating || state.templatesLoading || !requireLogin()) return;
 
     const button = $("createSubmit");
 
@@ -1346,6 +1374,7 @@ async function handleCreateCV(event) {
 
     setButtonBusy(button, true, "Creating...");
     state.creating = true;
+    window.M9TemplatePicker?.setDisabled(true);
     const access = getAuthIdentity();
 
     try {
@@ -1397,6 +1426,7 @@ async function handleCreateCV(event) {
 
     } finally {
         state.creating = false;
+        window.M9TemplatePicker?.setDisabled(false);
         setButtonBusy(button, false);
     }
 }
@@ -1927,6 +1957,8 @@ async function saveChatCV() {
 function registerEvents() {
     if (state.eventsRegistered) return;
     state.eventsRegistered = true;
+    window.M9TemplatePicker?.init();
+    $('createTemplateRetry').addEventListener('click', () => loadCreateTemplates($('templateId').value));
     window.M9Crud.init({fetch: apiFetch, requireLogin, openModal, closeModal,
         normalizeList: normalizeListResponse, onDeleted: onCVDeleted, onRestored: onCVRestored, notify: showToast});
     const ai = window.M6Api.create(apiFetch);
@@ -1948,6 +1980,13 @@ function registerEvents() {
         });
     }
     $("createAI").addEventListener("click", () => openCreateCV('ai'));
+    $('emptyCreate').addEventListener('click', () => openCreateCV('ai'));
+    $('clearFilters').addEventListener('click', () => {
+        $('searchInput').value = '';
+        $('templateFilter').value = '';
+        renderCVs();
+        $('searchInput').focus();
+    });
     $('resumeChat').addEventListener('click', openSavedChats);
     $('chatSessionsMore').addEventListener('click', loadSavedChatPage);
     $("chatForm").addEventListener("submit", sendChatMessage);
@@ -2007,7 +2046,6 @@ function registerEvents() {
     [
         "heroCreate",
         "sidebarCreate",
-        "emptyCreate",
     ].forEach((id) => {
         $(id).addEventListener(
             "click",

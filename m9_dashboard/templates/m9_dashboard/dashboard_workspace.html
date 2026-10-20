@@ -1,0 +1,95 @@
+{% load static %}
+<header class="workspace-page-header dash-topbar">
+    <div>
+        <p class="workspace-breadcrumb">Your career, in progress</p>
+        <h1 class="workspace-page-title">My workspace<span class="dash-heading-dot" aria-hidden="true">.</span></h1>
+    </div>
+    <div class="workspace-header-actions dash-account-actions">
+        <span id="authStatus" class="dash-session-status">Checking session</span>
+        <button id="profileBtn" type="button" class="secondary-button hidden">My profile</button>
+        <button id="logoutBtn" type="button" class="dash-text-button hidden">Sign out</button>
+    </div>
+</header>
+
+<div class="workspace-dashboard-body">
+    <section class="hero-panel dash-welcome" aria-labelledby="welcomeTitle">
+        <div class="dash-welcome-copy">
+            <p class="dash-eyebrow"><span class="dash-welcome-dot" aria-hidden="true"></span>A LITTLE MOMENTUM. A WORLD OF POSSIBILITIES.</p>
+            <h2 id="welcomeTitle">Your next chapter<br>starts <span>here.</span></h2>
+            <p class="dash-welcome-description">You bring the experience. We’ll help you tell the story.<br class="dash-desktop-break"> Create a CV that feels like you, ready for what’s next.</p>
+            <div class="dash-welcome-actions">
+                <button id="heroCreate" type="button" class="primary-button">{% include 'm9_dashboard/dashboard_icon.html' with icon='plus' %}Create a CV</button>
+                <a href="/templates/" class="dash-text-link">Explore templates {% include 'm9_dashboard/dashboard_icon.html' with icon='arrow' %}</a>
+            </div>
+        </div>
+        <div class="dash-welcome-aside" aria-label="How it works">
+            <span class="dash-aside-spark" aria-hidden="true">✦</span>
+            <p>Your story.<br><strong>A fresh perspective.</strong></p>
+            <ol class="dash-story-steps">
+                <li><span>01</span>Bring your experience</li>
+                <li><span>02</span>Make it your own</li>
+                <li><span>03</span>Go for what’s next</li>
+            </ol>
+        </div>
+    </section>
+
+    <section class="workspace-stats" aria-label="Your workspace at a glance">
+        <a class="stat-card dash-stat dash-stat-teal" href="#my-cvs">
+            <div class="dash-stat-top"><p>Total CVs</p><span class="dash-stat-icon">{% include 'm9_dashboard/dashboard_icon.html' with icon='folder' %}</span></div>
+            <h3 id="summaryTotal">—</h3>
+            <p class="dash-stat-caption">Your stories, all in one place<span aria-hidden="true">↗</span></p>
+        </a>
+        <a class="stat-card dash-stat dash-stat-violet" href="/templates/">
+            <div class="dash-stat-top"><p>Templates Used</p><span class="dash-stat-icon">{% include 'm9_dashboard/dashboard_icon.html' with icon='grid' %}</span></div>
+            <h3 id="summaryTemplates">—</h3>
+            <p class="dash-stat-caption">A look for every opportunity<span aria-hidden="true">↗</span></p>
+        </a>
+        <a class="stat-card dash-stat dash-stat-coral" href="#my-cvs">
+            <div class="dash-stat-top"><p>Last Updated</p><span class="dash-stat-icon">{% include 'm9_dashboard/dashboard_icon.html' with icon='clock' %}</span></div>
+            <h3 id="summaryUpdated">—</h3>
+            <p class="dash-stat-caption">Every step is a step forward<span aria-hidden="true">↗</span></p>
+        </a>
+    </section>
+
+    <section id="my-cvs" class="dash-library" aria-labelledby="cvLibraryTitle">
+        <div class="dash-library-heading">
+            <div><p class="dash-eyebrow">MADE BY YOU. READY FOR WHAT’S NEXT.</p><h2 id="cvLibraryTitle">My CVs</h2><p id="resultsCount">Your saved CVs will appear here.</p></div>
+            <div class="workspace-header-actions dash-library-actions">
+                <button id="resumeChat" type="button" class="dash-text-button">{% include 'm9_dashboard/dashboard_icon.html' with icon='chat' %}Resume AI chat</button>
+                <button id="importCV" type="button" class="secondary-button">{% include 'm9_dashboard/dashboard_icon.html' with icon='upload' %}Import CV</button>
+                <button id="createAI" type="button" class="primary-button dash-ai-button">{% include 'm9_dashboard/dashboard_icon.html' with icon='sparkle' %}Create with AI</button>
+            </div>
+        </div>
+
+        <div class="workspace-cv-filters">
+            <label class="dash-search"><span class="dash-search-icon">{% include 'm9_dashboard/dashboard_icon.html' with icon='search' %}</span><input id="searchInput" type="search" aria-label="Search CVs" placeholder="Find a CV by name or role…" class="filter-control"></label>
+            <select id="templateFilter" aria-label="Filter by template" class="filter-control"><option value="">All templates</option></select>
+            <select id="sortSelect" aria-label="Sort CVs" class="filter-control"><option value="recent">Recently updated</option><option value="oldest">Oldest updated</option><option value="name">Name A–Z</option></select>
+            <button id="refreshBtn" type="button" class="dash-refresh" aria-label="Refresh CV list" title="Refresh CV list">{% include 'm9_dashboard/dashboard_icon.html' with icon='refresh' %}</button>
+        </div>
+
+        <div id="feedback" role="alert" class="hidden dash-feedback"></div>
+        <div id="loadingState" class="hidden dash-loading" role="status"><div class="dashboard-spinner"></div><p>Bringing your workspace together…</p></div>
+
+        <div id="emptyState" class="hidden dash-empty">
+            <div id="emptyIllustration" class="dash-empty-art" aria-hidden="true"><img src="{% static 'm9_dashboard/img/career-workspace.svg' %}" alt="" width="420" height="330"></div>
+            <div class="dash-empty-copy">
+                <p id="emptyEyebrow" class="dash-eyebrow">EVERY GREAT NEXT STEP STARTS SOMEWHERE</p>
+                <h3 id="emptyTitle">Your first CV is waiting</h3>
+                <p id="emptyDescription">A little guidance, a little inspiration, and a CV you’ll feel good about. Let’s bring your story to life.</p>
+                <div id="emptyActions" class="dash-empty-actions">
+                    <div class="dash-empty-buttons">
+                        <button id="emptyCreate" type="button" class="primary-button dash-ai-button">{% include 'm9_dashboard/dashboard_icon.html' with icon='sparkle' %}Create with AI</button>
+                        <a href="/templates/" class="secondary-button dash-template-button">Start from a template {% include 'm9_dashboard/dashboard_icon.html' with icon='arrow' %}</a>
+                    </div>
+                    <p class="dash-import-prompt">Already have a CV? <button id="emptyImport" type="button" class="dash-inline-link">Import it here</button></p>
+                    <div class="dash-empty-reassurance"><span>{% include 'm9_dashboard/dashboard_icon.html' with icon='check' %}Go at your own pace</span><span>{% include 'm9_dashboard/dashboard_icon.html' with icon='check' %}You’re in control</span></div>
+                </div>
+                <button id="clearFilters" type="button" class="secondary-button hidden">Clear search &amp; filters</button>
+            </div>
+        </div>
+
+        <div id="cardsGrid" class="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3"></div>
+    </section>
+    <footer class="dash-footer"><span><span class="dash-footer-spark" aria-hidden="true">✦</span>Made for your next move.</span><a href="/templates/">Find your style {% include 'm9_dashboard/dashboard_icon.html' with icon='arrow' %}</a></footer>
+</div>

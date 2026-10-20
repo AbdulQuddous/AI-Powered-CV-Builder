@@ -35,6 +35,7 @@
         $('aiError').textContent = '';
         $('aiError').classList.add('hidden');
         $('aiRetry').classList.add('hidden');
+        for (const id of ['aiRole', 'aiJob']) $(id).removeAttribute('aria-invalid');
     }
     function setBusy(value, message) {
         busy = value;
@@ -89,12 +90,15 @@
         $('aiWholeMode').classList.toggle('hidden', !whole);
         $('aiPartMode').classList.toggle('hidden', whole);
         $('aiJobHelp').textContent = whole
-            ? 'Paste a job description or enter a target role to focus the improvements.'
+            ? 'Enter your target role and paste the job description. Gemini will tailor the wording to this job using your existing CV.'
             : 'A target role or job description is optional. Add one to guide the rewrite.';
+        for (const id of ['aiRole', 'aiJob']) $(id).setAttribute('aria-required', String(whole));
+        $('aiRoleRequirement').textContent = whole ? '(required)' : '(optional)';
+        $('aiJobRequirement').textContent = whole ? '(required)' : '(optional)';
         clearError();
         renderProposal();
         if (selected) status(active() ? proposalStatus() : whole
-            ? 'Add a target role or job description, then request improvements.'
+            ? 'Enter a target role and job description, then tailor your whole CV.'
             : 'Choose a part of your CV, then request a rewrite.');
         if (focus) $(whole ? 'aiModeWhole' : 'aiModePart').focus();
     }
@@ -183,7 +187,7 @@
             if (run !== generation) return;
             adopt(cv);
             $('aiRole').value = cv.data.meta?.target_role || '';
-            status('Add a target role or job description, then request improvements.');
+            status('Enter a target role and job description, then tailor your whole CV.');
         } catch (error) { if (run === generation) showError(error, () => open(id)); }
         finally {
             if (run === generation) {
@@ -197,9 +201,20 @@
         const run = generation;
         clearError();
         setBusy(true, message);
+        let focusField = null;
         try { await action(run); }
-        catch (error) { if (run === generation) showError(error, retryAction); }
-        finally { if (run === generation) setBusy(false); }
+        catch (error) {
+            if (run === generation) {
+                showError(error, retryAction);
+                focusField = error.fieldId;
+            }
+        }
+        finally {
+            if (run === generation) {
+                setBusy(false);
+                if (focusField) $(focusField).focus();
+            }
+        }
     }
     function health() {
         return operation('Checking for missing CV details…', async run => {
@@ -231,8 +246,16 @@
         }, analyze);
     }
     function tailor() {
-        return operation('Improving your CV for this job. This may take a moment…', async run => {
-            if (!role() && !job()) throw invalid('Enter a target role or paste a job description first.');
+        return operation('Gemini is matching the job requirements and tailoring your CV…', async run => {
+            for (const [id, value, message] of [
+                ['aiRole', role(), 'Enter the target role you are applying for.'],
+                ['aiJob', job(), 'Paste the job description so Gemini can tailor your whole CV to its requirements.']
+            ]) {
+                if (!value) {
+                    $(id).setAttribute('aria-invalid', 'true');
+                    throw Object.assign(invalid(message), {fieldId: id});
+                }
+            }
             if (!await fresh(run)) return;
             if (!fields.length) throw invalid('Add a summary, work bullet or project description in the CV editor first.');
             const source = copy(selected);
@@ -240,6 +263,10 @@
             const result = await api.ai.tailor(source.id, source.version, role(), job());
             if (run !== generation || signature !== key()) return;
             if (result.cv_id !== source.id || result.version !== source.version || typeof result.summary !== 'string' || !Array.isArray(result.changes) || !Array.isArray(result.suggestions) || (result.warnings !== undefined && (!Array.isArray(result.warnings) || !result.warnings.every(item => typeof item === 'string')))) throw badResponse();
+            if (result.job_alignment !== undefined && (!Array.isArray(result.job_alignment) || result.job_alignment.length > 6 || !result.job_alignment.every(item =>
+                item && typeof item.requirement === 'string' && ['supported', 'partial', 'missing'].includes(item.status) && Array.isArray(item.evidence) && item.evidence.every(evidence =>
+                    evidence && typeof evidence.path === 'string' && typeof evidence.quote === 'string')))) throw badResponse();
+            if (result.job_alignment_warning !== undefined && typeof result.job_alignment_warning !== 'string') throw badResponse();
             const seen = new Set();
             const changes = result.changes.map(change => {
                 const field = fields.find(item => item.pointer === change.path);

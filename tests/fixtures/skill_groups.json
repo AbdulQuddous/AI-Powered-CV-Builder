@@ -1,0 +1,64 @@
+[
+  {
+    "name": "reported flattened categories",
+    "skills": ["Programming & Fundamentals: Python", "JavaScript", "Object-Oriented Programming (OOP)", "Data Structures & Algorithms (DSA)", "Problem Solving Full-Stack & APIs: Django", "Django REST Framework", "REST APIs", "HTTP", "JSON", "HTML", "CSS", "Bootstrap", "Django Templates", "React (basics) Databases & AI: PostgreSQL", "MySQL", "SQL", "Django ORM", "Gemini API", "Prompt Engineering", "NLP", "Whisper", "Sentence Transformers Development Practices & Tools: Git", "GitHub", "Branching", "Code Reviews", "Postman", "API Testing", "Debugging", "SDLC", "AI Coding Tools (Codex)", "Team Collaboration"],
+    "groups": [
+      {"label": "Programming & Fundamentals", "items": ["Python", "JavaScript", "Object-Oriented Programming (OOP)", "Data Structures & Algorithms (DSA)", "Problem Solving"]},
+      {"label": "Full-Stack & APIs", "items": ["Django", "Django REST Framework", "REST APIs", "HTTP", "JSON", "HTML", "CSS", "Bootstrap", "Django Templates", "React (basics)"]},
+      {"label": "Databases & AI", "items": ["PostgreSQL", "MySQL", "SQL", "Django ORM", "Gemini API", "Prompt Engineering", "NLP", "Whisper", "Sentence Transformers"]},
+      {"label": "Development Practices & Tools", "items": ["Git", "GitHub", "Branching", "Code Reviews", "Postman", "API Testing", "Debugging", "SDLC", "AI Coding Tools (Codex)", "Team Collaboration"]}
+    ]
+  },
+  {
+    "name": "reference document rows",
+    "skills": ["Programming & Fundamentals: Python, JavaScript, Problem Solving", "Web & Backend: Django, REST APIs, React (basics)", "AI Integration & Databases: Gemini API, NLP, PostgreSQL", "Tools & Engineering: Git, AI-Assisted Coding (Codex), Code Review"],
+    "groups": [
+      {"label": "Programming & Fundamentals", "items": ["Python", "JavaScript", "Problem Solving"]},
+      {"label": "Web & Backend", "items": ["Django", "REST APIs", "React (basics)"]},
+      {"label": "AI Integration & Databases", "items": ["Gemini API", "NLP", "PostgreSQL"]},
+      {"label": "Tools & Engineering", "items": ["Git", "AI-Assisted Coding (Codex)", "Code Review"]}
+    ]
+  },
+  {
+    "name": "flat skills keep the existing design",
+    "skills": ["Python", "Django", "Git", "Django"],
+    "groups": []
+  },
+  {
+    "name": "custom categories and parenthesized separators",
+    "skills": ["Git", "Design & Research: Figma · Interviews (remote, in person); A/B Testing", "Communication:", "English", "Urdu"],
+    "groups": [
+      {"label": "", "items": ["Git"]},
+      {"label": "Design & Research", "items": ["Figma", "Interviews (remote, in person)", "A/B Testing"]},
+      {"label": "Communication", "items": ["English", "Urdu"]}
+    ]
+  },
+  {
+    "name": "multiline and inline rows",
+    "skills": ["Programming & Fundamentals: Python · JavaScript Full-Stack & APIs: Django · REST APIs\nDatabases & AI: PostgreSQL • SQL\r\nDevelopment Practices & Tools: Git; GitHub"],
+    "groups": [
+      {"label": "Programming & Fundamentals", "items": ["Python", "JavaScript"]},
+      {"label": "Full-Stack & APIs", "items": ["Django", "REST APIs"]},
+      {"label": "Databases & AI", "items": ["PostgreSQL", "SQL"]},
+      {"label": "Development Practices & Tools", "items": ["Git", "GitHub"]}
+    ]
+  },
+  {
+    "name": "url and technical colons are not categories",
+    "skills": ["https://example.com", "mailto: engineer@example.com", "C++", "1:1 mentoring", "std::vector", "https: //example.com"],
+    "groups": []
+  },
+  {
+    "name": "empty heading is retained and duplicates are preserved",
+    "skills": ["Programming: Python, Python", "Tools:"],
+    "groups": [
+      {"label": "Programming", "items": ["Python", "Python"]},
+      {"label": "", "items": ["Tools:"]}
+    ]
+  },
+  {
+    "name": "unicode categories and literal markup",
+    "skills": ["Compétences: Analyse, <script>alert(1)</script>"],
+    "groups": [{"label": "Compétences", "items": ["Analyse", "<script>alert(1)</script>"]}]
+  }
+]

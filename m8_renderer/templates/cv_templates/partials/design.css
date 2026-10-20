@@ -36,6 +36,7 @@ p, li { orphans: 2; widows: 2; } .entry-description { margin: 1mm 0; }
 .skills-tags .skill { display: inline-block; background: #edf1f3; border: .5pt solid #d4dde0; padding: .7mm 1.7mm; margin: 0 1mm 1mm 0; font-family: Arial,sans-serif; font-size: 8pt; }
 .skills-tags .skill::after, .skills-list .skill::after { content: ''; }
 .skills-list .skill { display: block; margin-bottom: 1mm; }
+{% include 'cv_templates/partials/skills.css' %}
 .family-split .layout, .family-sidebar .layout, .family-asymmetry .layout, .family-portfolio .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, {{ design.sidebar_width }}%); gap: 6mm; align-items: start; }
 .main-column, .side-column { min-width: 0; }
 .aside-left .side-column { grid-column: 1; grid-row: 1; }

@@ -4,6 +4,8 @@ import logging
 from django.conf import settings
 from google import genai
 from google.genai import types
+from google.genai.errors import APIError
+import httpx
 
 from ai.exceptions import (
     AIProviderError,
@@ -26,6 +28,27 @@ def _token_count(usage, name):
     return value if type(value) is int and value >= 0 else None
 
 
+def provider_failure_reason(error):
+    """Return fixed codes only; SDK messages may contain credentials or CV text."""
+    if isinstance(error, APIError):
+        details = error.details.get('error', {}) if isinstance(error.details, dict) else {}
+        detail_items = details.get('details', []) if isinstance(details, dict) else []
+        detail_items = detail_items if isinstance(detail_items, list) else []
+        reasons = {item.get('reason') for item in detail_items
+                   if isinstance(item, dict) and isinstance(item.get('reason'), str)}
+        if reasons & {'API_KEY_INVALID', 'API_KEY_EXPIRED'}:
+            return 'authentication_failed'
+        return {400: 'invalid_request', 401: 'authentication_failed',
+                403: 'permission_denied', 404: 'model_not_found',
+                408: 'timeout', 429: 'quota_exceeded', 504: 'timeout'}.get(
+                    error.code if type(error.code) is int else None, 'provider_unavailable')
+    if isinstance(error, (httpx.TimeoutException, TimeoutError)):
+        return 'timeout'
+    if isinstance(error, httpx.TransportError):
+        return 'connection_failed'
+    return 'provider_unavailable'
+
+
 class GeminiProvider:
     """
     Gemini implementation of LLMInterface.
@@ -41,20 +64,21 @@ class GeminiProvider:
 
         if not api_key:
             raise AIProviderError(
-                "Gemini API key is not configured."
+                "Gemini API key is not configured.", reason='configuration_error',
             )
 
         self.model = settings.M6_GEMINI_MODEL
 
-        self.client = genai.Client(
-            api_key=api_key,
-            http_options=types.HttpOptions(
-                timeout=settings.M6_TIMEOUT_MS,
-                retry_options=types.HttpRetryOptions(
-                    attempts=1,
+        try:
+            self.client = genai.Client(
+                api_key=api_key,
+                http_options=types.HttpOptions(
+                    timeout=settings.M6_TIMEOUT_MS,
+                    retry_options=types.HttpRetryOptions(attempts=1),
                 ),
-            ),
-        )
+            )
+        except Exception as exc:
+            raise AIProviderError('Gemini client could not be configured.', reason='configuration_error') from exc
 
     def generate_structured(
         self,
@@ -78,8 +102,12 @@ class GeminiProvider:
             )
 
         except Exception as exc:
+            reason = provider_failure_reason(exc)
+            code = getattr(exc, 'code', None)
+            safe_code = code if type(code) is int and 100 <= code <= 599 else None
+            logger.warning('M6 Gemini request failed. reason=%s upstream_code=%s', reason, safe_code)
             raise AIProviderError(
-                "Gemini request failed."
+                "Gemini request failed.", reason=reason,
             ) from exc
 
         candidates = getattr(response, "candidates", None) or []

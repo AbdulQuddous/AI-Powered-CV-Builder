@@ -51,6 +51,16 @@
 .ai-follow-up:empty { display: none; }
 .ai-follow-up { margin-top: 20px; }
 .ai-follow-up h4 { font-size: 14px; }
+.ai-job-alignment { margin: 18px 0; padding: 16px; border: 1px solid #dbe4ed; border-radius: 12px; background: #f8fafc; }
+.ai-job-alignment h4 { margin: 0 0 6px; font-size: 15px; }
+.ai-card .ai-requirements { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 12px; }
+.ai-requirement { padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; min-width: 0; }
+.ai-requirement-status { display: inline-block; font-size: 12px; font-weight: 650; color: #115e59; }
+.ai-requirement-partial { color: #854d0e; }
+.ai-requirement-missing { color: #9a3412; }
+.ai-requirement-text { margin: 6px 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.ai-requirement-evidence { margin: 6px 0 0; color: #475569; font-size: 13px; overflow-wrap: anywhere; }
+.ai-job-fields [aria-invalid="true"] { border-color: #be123c; }
 .ai-card ul { padding-left: 20px; list-style: disc; }
 .ai-card li { margin-bottom: 8px; overflow-wrap: anywhere; line-height: 1.6; }
 .ai-more-tools { margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 20px; }

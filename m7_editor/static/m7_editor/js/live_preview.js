@@ -8,6 +8,52 @@
     ? value.map(item => item && typeof item === 'object'
       ? first(item, 'name', 'title', 'text', 'value') : text(item)).filter(Boolean) : [];
   const join = (...values) => values.filter(Boolean).join(' | ');
+  // Mirrors M8 skill_groups.py; shared fixtures cover both implementations.
+  const inlineSkillLabels = [
+    'Programming & Fundamentals', 'Full-Stack & APIs', 'Databases & AI',
+    'Development Practices & Tools', 'Web & Backend',
+    'AI Integration & Databases', 'Tools & Engineering'
+  ];
+  function splitSkills(value) {
+    const items = [];
+    let start = 0, depth = 0;
+    for (let index = 0; index < value.length; index++) {
+      const char = value[index];
+      if ('(['.includes(char)) depth++;
+      else if (')]'.includes(char)) depth = Math.max(0, depth - 1);
+      else if (',;·•'.includes(char) && depth === 0) {
+        if (value.slice(start, index).trim()) items.push(value.slice(start, index).trim());
+        start = index + 1;
+      }
+    }
+    if (value.slice(start).trim()) items.push(value.slice(start).trim());
+    return items;
+  }
+  function groupSkills(skills) {
+    const groups = [];
+    let current = {label: '', items: []};
+    const flush = () => {
+      if (current.items.length) groups.push(current);
+      else if (current.label) groups.push({label: '', items: [`${current.label}:`]});
+    };
+    const inline = new RegExp(`(?<!\\w)(?:${inlineSkillLabels.join('|')})\\s*:(?=\\s|$)`, 'gi');
+    for (const value of skills) {
+      for (const line of value.split(/\r\n|[\n\r\v\f\u0085\u2028\u2029]/)) {
+        const starts = [...new Set([0, ...Array.from(line.matchAll(inline), match => match.index)])].sort((a, b) => a - b);
+        starts.forEach((start, index) => {
+          const part = line.slice(start, starts[index + 1] ?? line.length).trim();
+          const match = /^([^:\n]{1,80}):(?:\s+|$)(.*)$/.exec(part);
+          const label = match?.[1].trim() || '';
+          if (label && /^\p{L}/u.test(label) && !['http', 'https', 'mailto', 'urn'].includes(label.toLowerCase())) {
+            flush();
+            current = {label, items: splitSkills(match[2])};
+          } else current.items.push(...splitSkills(part));
+        });
+      }
+    }
+    flush();
+    return groups.some(group => group.label) ? groups : [];
+  }
   const dates = item => {
     const start = first(item, 'start_date');
     const end = item.is_current ? 'Present' : first(item, 'end_date');
@@ -71,7 +117,7 @@
       targetRole: text(cv.meta?.target_role),
       contact: ['email', 'phone', 'location', 'linkedin', 'github', 'portfolio']
         .map(key => text(cv.personal?.[key])).filter(Boolean),
-      summary: text(cv.summary), skills: strings(cv.skills), sections
+      summary: text(cv.summary), skills: strings(cv.skills), skillGroups: groupSkills(strings(cv.skills)), sections
     };
   }
 
@@ -114,9 +160,22 @@
     }
     if (data.summary) add(section('summary', 'Professional Summary'), 'p', 'summary', data.summary);
     if (data.skills.length) {
-      const skills = add(section('skills', 'Skills'), 'p', 'skills');
-      if (order.length) data.skills.forEach(skill => add(skills, 'span', 'skill', skill));
-      else skills.textContent = data.skills.join(', ');
+      const node = section('skills', 'Skills');
+      if (data.skillGroups.length) {
+        const groups = add(node, 'div', 'skill-groups');
+        for (const group of data.skillGroups) {
+          const row = add(groups, 'p', 'skill-group');
+          if (group.label) {
+            add(row, 'strong', 'skill-group-label', `${group.label}:`);
+            row.appendChild(document.createTextNode(' '));
+          }
+          add(row, 'span', 'skill-group-values', group.items.join(', '));
+        }
+      } else {
+        const skills = add(node, 'p', 'skills');
+        if (order.length) data.skills.forEach(skill => add(skills, 'span', 'skill', skill));
+        else skills.textContent = data.skills.join(', ');
+      }
     }
     for (const group of data.sections) {
       const node = section(group.key, group.label);

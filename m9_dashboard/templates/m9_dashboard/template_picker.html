@@ -1,0 +1,20 @@
+{% load static %}
+<fieldset id="createTemplatePicker" class="create-template-picker" data-fallback-preview="{% static 'cv_templates/previews/modern.webp' %}">
+    <legend class="create-step-label">02 <span>Choose your look</span></legend>
+    <p class="create-picker-help">Pick a design you can see. These previews use sample content.</p>
+    <div id="createTemplateBrowse">
+        <div class="create-template-tools">
+            <label class="create-template-search"><span class="sr-only">Search template designs</span><input id="createTemplateSearch" type="search" class="form-input" placeholder="Search designs…"></label>
+            <label><span class="sr-only">Filter template styles</span><select id="createTemplateCategory" class="form-input"><option value="">All styles</option><option value="ats">ATS-Friendly</option><option value="simple">Simple</option><option value="modern">Modern</option><option value="professional">Professional</option><option value="creative">Creative</option><option value="minimalist">Minimalist</option><option value="executive">Executive</option></select></label>
+        </div>
+        <p id="createTemplateCount" class="create-template-count" role="status">Loading designs…</p>
+        <div id="createTemplateGrid" class="create-template-grid" aria-busy="true"></div>
+        <p id="createTemplateEmpty" class="create-template-empty hidden">No designs match. Try a different search or style.</p>
+    </div>
+    <section id="createTemplateDetail" class="create-template-detail hidden" aria-labelledby="createTemplatePreviewName">
+        <div class="create-template-preview-heading"><button id="createTemplateBack" type="button" class="dash-text-button">← All designs</button><h3 id="createTemplatePreviewName"></h3><button id="createTemplateUse" type="button" class="secondary-button">Use this template</button></div>
+        <div class="create-template-large-image"><img id="createTemplatePreviewImage" alt="" width="594" height="840"></div>
+        <p id="createTemplatePreviewDescription"></p>
+    </section>
+    <div id="createTemplateError" class="create-template-error hidden" role="status"><span id="createTemplateErrorText"></span><button id="createTemplateRetry" type="button" class="dash-inline-link">Retry designs</button></div>
+</fieldset>

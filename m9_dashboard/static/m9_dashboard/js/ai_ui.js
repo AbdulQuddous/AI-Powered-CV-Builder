@@ -59,8 +59,26 @@
         $('aiTailorChanges').replaceChildren();
         $('aiTailorSuggestions').replaceChildren();
         $('aiTailorWarnings').replaceChildren();
+        $('aiJobAlignment').replaceChildren();
+        $('aiJobAlignment').classList.toggle('hidden', !(proposal?.job_alignment?.length || proposal?.job_alignment_warning));
         $('aiTailorSummary').textContent = proposal ? proposal.changes.length ? proposal.summary : 'No wording changes were proposed. Your saved CV is unchanged.' : '';
         if (!proposal) return;
+        if (proposal.job_alignment_warning) node('p', proposal.job_alignment_warning, $('aiJobAlignment'), 'ai-muted');
+        if (proposal.job_alignment?.length) {
+            node('h4', 'How your CV relates to this job', $('aiJobAlignment'));
+            node('p', 'Based on your saved CV. Review the evidence; missing requirements stay as advice.', $('aiJobAlignment'), 'ai-muted');
+            const list = node('ul', '', $('aiJobAlignment'), 'ai-requirements');
+            const statuses = {supported: 'CV evidence found', partial: 'Related evidence — check fit', missing: 'Not evidenced in your CV'};
+            for (const item of proposal.job_alignment) {
+                const row = node('li', '', list, 'ai-requirement');
+                node('span', statuses[item.status], row, `ai-requirement-status ai-requirement-${item.status}`);
+                node('p', item.requirement, row, 'ai-requirement-text');
+                for (const evidence of item.evidence) {
+                    const section = evidence.path.split('/')[1] || 'CV';
+                    node('p', `${label(section)}: “${evidence.quote}”`, row, 'ai-requirement-evidence');
+                }
+            }
+        }
         const warnings = proposal.warnings || [];
         if (warnings.length) node('p', warnings[0], $('aiTailorWarnings'));
         if (warnings.length > 1) {
@@ -171,6 +189,20 @@
         });
     }
     function error(error) {
+        if (error.status === 503) {
+            const reasons = {
+                invalid_request: 'Gemini could not accept the review request. Refresh the page and try again. If it continues, ask the site administrator to check the AI request configuration.',
+                configuration_error: 'The AI service is not configured correctly. Ask the site administrator to check the Gemini configuration.',
+                authentication_failed: 'Gemini rejected the service credentials. Ask the site administrator to check the API key.',
+                permission_denied: 'The AI service does not have permission to use Gemini. Ask the site administrator to check access.',
+                quota_exceeded: 'The Gemini request quota has been reached. Try again later, or ask the site administrator to check the AI quota.',
+                model_not_found: 'The configured Gemini model is unavailable. Ask the site administrator to check the model setting.',
+                timeout: 'Gemini took too long to respond. Try again; your job details are still here.',
+                connection_failed: 'The server could not connect to Gemini. Try again shortly; your job details are still here.',
+            };
+            const message = reasons[error.details?.error?.reason];
+            if (message) return message;
+        }
         if (error.status === 400) {
             const message = error.userMessage || error.details?.error?.message || error.message;
             if (typeof message === 'string' && message && message !== 'Request failed (400).') return message;

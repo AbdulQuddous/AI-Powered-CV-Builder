@@ -72,7 +72,11 @@ employer, skill, metrics or qualifications. Do not turn 'Software Engineering' i
 'BS Software Engineering'. Preserve original names and descriptions; normalize only
 unambiguous skill aliases. Missing facts must be absent, never guessed. Do not copy
 context into updates. Several sections can be supplied together. Year-only dates stay
-years. Current employment has is_current true and no end_date. Never infer a job title
+years. Current employment has is_current true and no end_date. Ongoing education
+can have an explicitly stated expected graduation end_date. "I am currently
+studying" supplies study status only, not a degree title, institution or dates.
+Keep every explicit academic fact in a grouped answer together; do not invent
+a start date from a graduation date. Never infer a job title
 from a target role. Never infer employment_type or technologies from a target role.
 Never infer language proficiency from a language name. If someone only says Urdu,
 return {"name":"Urdu"} without a proficiency field.

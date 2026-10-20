@@ -275,3 +275,42 @@ Export update files: `m8_renderer/services/document_artifacts.py`, `fixed_docx_e
 Browser screenshots of actual PDF-page previews: [one page](export-preview/one-page-preview.png), [multiple pages](export-preview/multiple-page-preview.png). Browser test CVs use fictional data. User-provided comparison files and regenerated personal exports are kept outside the repository in private temporary storage.
 
 Export-update verification: full regression discovered 364 tests, with 359 passing and 5 opt-in browser tests skipped. The two editor export browser journeys were also run explicitly and passed. All 8 JavaScript test files passed; all 50 cached thumbnails match fresh rendering. The specifically supplied CV 18 was verified as 2 PDF pages, 2 saved-preview pages, and 2 fixed Word pages/images, with its exported text preserved. Its original CV record and supplied download files were not changed.
+
+## Explicit skill categories
+
+Skill lists with category labels now render as separate compact rows, with a bold
+category label followed by comma-separated values. For example:
+
+**Programming & Fundamentals:** Python, JavaScript, Problem Solving
+
+**Full-Stack & APIs:** Django, Django REST Framework, REST APIs
+
+**Databases & AI:** PostgreSQL, SQL, Gemini API
+
+**Development Practices & Tools:** Git, GitHub, Postman
+
+The original string-array M10 contract is unchanged. Users can enter a category
+and its values in one editor entry (`Programming: Python, JavaScript`), or enter
+a category heading followed by individual skill entries. The renderer also
+recovers the explicit category boundaries in the reported older flattened list,
+including `Problem Solving Full-Stack & APIs: Django`. Inline recovery uses a
+bounded set of full labels from the supplied examples; arbitrary custom labels
+are supported at the start of an entry or line. Plain skill lists retain their
+existing inline, tag or list design. No categories or skills are inferred from
+the target role, and values are neither removed nor deduplicated.
+
+`skill_groups.py` builds presentation-only rows without modifying the CV JSON.
+Shared template partials apply the same layout to all 50 built-in templates;
+M7's local preview mirrors it using plain DOM text. Editable Word creates a
+paragraph per category with a bold label. Saved previews and exact Word continue
+to use the PDF pages. Large groups can continue across pages; no fixed height,
+clipping or forced one-page reduction is applied. Commas within parentheses are
+preserved. Labels and values remain escaped text.
+
+Shared fixtures in `tests/fixtures/skill_groups.json` cover the reported list,
+the Word reference's grouping style, custom labels, multiline input, duplicates,
+literal markup, technical colons and unlabelled lists. Regression coverage also
+checks all built-in renderers, long-group pagination, editable Word formatting,
+saved preview/PDF/exact Word parity and a real Chromium download journey.
+The preview generator tracks the new helper as an input; regenerating the gallery
+updated its source manifest while all 50 existing thumbnail files stayed identical.

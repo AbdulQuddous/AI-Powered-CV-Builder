@@ -23,23 +23,23 @@
 
         <section class="ai-job-context" aria-labelledby="aiJobHeading">
             <h3 id="aiJobHeading">What job are you applying for?</h3>
-            <p class="ai-muted" id="aiJobHelp">Paste a job description or enter a target role to focus the improvements.</p>
+            <p class="ai-muted" id="aiJobHelp">Enter your target role and paste the job description. Gemini will tailor the wording to this job using your existing CV.</p>
             <div class="ai-job-fields">
                 <div>
-                    <label class="form-label" for="aiRole">Target role</label>
-                    <input id="aiRole" class="form-input" maxlength="200" placeholder="e.g. Python Backend Developer" aria-describedby="aiJobHelp">
+                    <label class="form-label" for="aiRole">Target role <span id="aiRoleRequirement" class="ai-optional">(required)</span></label>
+                    <input id="aiRole" class="form-input" maxlength="200" placeholder="e.g. Python Backend Developer" aria-required="true" aria-describedby="aiJobHelp aiError">
                 </div>
                 <div>
-                    <label class="form-label" for="aiJob">Job description <span class="ai-optional">(optional)</span></label>
-                    <textarea id="aiJob" class="form-input" rows="4" maxlength="10000" placeholder="Paste the job description here. Relevant requirements will guide the wording." aria-describedby="aiJobHelp"></textarea>
+                    <label class="form-label" for="aiJob">Job description <span id="aiJobRequirement" class="ai-optional">(required)</span></label>
+                    <textarea id="aiJob" class="form-input" rows="6" maxlength="10000" placeholder="Paste the responsibilities, required skills and qualifications from the job posting." aria-required="true" aria-describedby="aiJobHelp aiError"></textarea>
                 </div>
             </div>
         </section>
 
         <section id="aiWholeMode" class="ai-workspace" role="tabpanel" aria-labelledby="aiModeWhole">
             <h3>Improve your CV in one go</h3>
-            <p class="ai-muted">AI reviews your summary, work experience, projects and achievements together, using your existing experience.</p>
-            <button id="aiTailor" type="button" class="primary-button">Suggest improvements for whole CV</button>
+            <p class="ai-muted">Gemini matches the job requirements to your CV, then improves your summary, work bullets, projects and achievements together. Missing qualifications stay as advice for you to review.</p>
+            <button id="aiTailor" type="button" class="primary-button">Tailor whole CV with Gemini</button>
         </section>
 
         <section id="aiPartMode" class="hidden ai-workspace" role="tabpanel" aria-labelledby="aiModePart">
@@ -78,6 +78,7 @@
             </div>
             <div id="aiWholeComparison" class="hidden">
                 <p id="aiTailorSummary"></p>
+                <div id="aiJobAlignment" class="ai-job-alignment hidden"></div>
                 <div id="aiTailorWarnings" class="ai-review-notes"></div>
                 <div id="aiTailorChanges"></div>
                 <div id="aiTailorSuggestions" class="ai-follow-up"></div>

@@ -28,7 +28,7 @@ def get_cv_errors(cv):
         error.message for error in validator.iter_errors(cv)
     ]
 
-def gemini_compatible_schema(schema):
+def gemini_compatible_schema(schema, *, compact=False):
     """
     Remove JSON Schema keywords unsupported by Gemini while preserving the local M10 contract.
     Always validate the returned result again against the ORIGINAL M10 schema.
@@ -59,6 +59,21 @@ def gemini_compatible_schema(schema):
         result = {
             key: value for key, value in node.items() if key in supported
         }
+
+        # Nested bounded arrays can make Gemini's constrained-decoding schema
+        # too complex (400 INVALID_ARGUMENT). Keep bounds in descriptions on
+        # the wire, and enforce the ORIGINAL schema in the calling service.
+        if compact:
+            limits = []
+            for keyword, description in (
+                ('minLength', 'Minimum characters'), ('maxLength', 'Maximum characters'),
+                ('minItems', 'Minimum items'), ('maxItems', 'Maximum items'),
+            ):
+                if keyword in node:
+                    result.pop(keyword, None)
+                    limits.append(f'{description}: {node[keyword]}.')
+            if limits:
+                result['description'] = ' '.join([result.get('description', ''), *limits]).strip()
         
         # Preserve fixed-value schema requirements.
         if "const" in node:

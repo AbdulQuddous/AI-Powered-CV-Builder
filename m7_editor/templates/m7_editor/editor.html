@@ -269,6 +269,7 @@
           </div>
           <template x-for="pair in sections.filter(p => !['personal','summary'].includes(p[0]))" :key="pair[0]">
             <div x-show="active===pair[0]" class="space-y-4">
+              <p x-show="pair[0]==='skills'" class="text-sm text-slate-600">Add individual skills, or group them using a category followed by a colon, for example “Programming: Python, JavaScript”. Each category appears on its own row with a bold label in your CV.</p>
               <template x-if="isList(pair[0])">
                 <div class="space-y-4">
                   <template x-for="(item,index) in list(pair[0])" :key="index">

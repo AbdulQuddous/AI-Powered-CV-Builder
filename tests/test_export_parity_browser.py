@@ -66,6 +66,21 @@ class ExportParityBrowserTests(StaticLiveServerTestCase):
         b.js('M1Session.storeTokens(arguments[0])', {'access': str(token.access_token), 'refresh': str(token)})
         b.get(self.live_server_url + f'/cvs/{cv.pk}/edit/')
         b.wait('typeof Alpine !== "undefined" && Alpine.$data(document.querySelector("[x-data]")).loaded !== null')
+        from m8_renderer.services.context_builder import build_context
+        expected_groups = build_context(data)['skill_groups']
+        if expected_groups:
+            b.wait(f'document.querySelector(".m7-live-frame").contentDocument?.querySelectorAll(".skill-group").length === {len(expected_groups)}')
+            rows = b.js('''return Array.from(document.querySelector('.m7-live-frame').contentDocument.querySelectorAll('.skill-group')).map(row => ({
+                label: row.querySelector('strong')?.textContent || '',
+                values: row.querySelector('.skill-group-values').textContent,
+                bold: row.ownerDocument.defaultView.getComputedStyle(row.querySelector('strong')).fontWeight,
+                top: row.getBoundingClientRect().top,
+                fits: row.scrollWidth <= row.clientWidth + 1
+            }))''')
+            self.assertEqual([row['label'] for row in rows], [group['label'] + ':' for group in expected_groups])
+            self.assertEqual([row['values'] for row in rows], [', '.join(group['items']) for group in expected_groups])
+            self.assertTrue(all(int(row['bold']) >= 600 and row['fits'] for row in rows))
+            self.assertEqual([row['top'] for row in rows], sorted(set(row['top'] for row in rows)))
         b.click('#preview-cv-btn')
         b.wait('Alpine.$data(document.querySelector("[x-data]")).m8PreviewOpen')
         # The production iframe has an opaque sandbox origin. WebDriver enters
@@ -109,3 +124,10 @@ class ExportParityBrowserTests(StaticLiveServerTestCase):
         data['summary'] = ('Builds dependable services and shares engineering knowledge. ' * 65)
         data['projects'] *= 5
         self.assertGreater(self.journey(data, 'multiple-page-preview'), 1)
+
+    def test_grouped_skills_match_live_preview_and_both_downloads(self):
+        fixtures = json.loads((Path(__file__).parent / 'fixtures/skill_groups.json').read_text())
+        data = sample_cv()
+        data['meta']['template_id'] = 'ats_chronicle'
+        data['skills'] = fixtures[0]['skills']
+        self.assertGreaterEqual(self.journey(data, 'grouped-skills-preview'), 1)

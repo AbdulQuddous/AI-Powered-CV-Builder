@@ -1,0 +1,9 @@
+{% if skill_groups %}
+<div class="skill-groups">
+{% for group in skill_groups %}<p class="skill-group">{% if group.label %}<strong class="skill-group-label">{{ group.label }}:</strong> {% endif %}<span class="skill-group-values">{{ group.items|join:", " }}</span></p>{% endfor %}
+</div>
+{% elif designed %}
+<p class="skills">{% for skill in skills %}<span class="skill">{{ skill }}</span>{% endfor %}</p>
+{% else %}
+<p class="skills">{{ skills|join:", " }}</p>
+{% endif %}

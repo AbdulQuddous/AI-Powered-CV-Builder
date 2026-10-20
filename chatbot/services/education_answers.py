@@ -12,7 +12,9 @@ _MONTH = '(?:' + '|'.join(sorted(MONTHS, key=len, reverse=True)) + r')\.?'
 DATE = rf'(?:(?:19|20)\d{{2}}(?:-\d{{2}})?|{_MONTH}\s*(?:19|20)\d{{2}}|present|ongoing)'
 _START = rf'\b(?:start(?:ing)?(?:\s+(?:date|year))?|started(?:\s+in)?|from|since)\s*[:=]?\s*(?P<date>{DATE})(?!\w)'
 _COMPLETED = r'(?:completed|sompleted)'
-_END = rf'\b(?:end(?:ing)?(?:\s+(?:date|year))?|(?:expected\s+)?(?:graduation(?:\s+(?:date|year))?|graduated|graduate|graduted|{_COMPLETED})(?:\s+(?:in|on))?|to|until)\s*[:=]?\s*(?P<date>{DATE})(?!\w)'
+_EXPECT = r'(?:expect|excpect)(?:ed|ing)?'
+_GRADUATION = rf'(?:(?:i\s+)?(?:{_EXPECT}(?:\s+to)?|will)\s+(?:graduate|finish|complete)|(?:expected\s+)?(?:graduation(?:\s+(?:date|year))?|graduated|graduate|graduted|{_COMPLETED}))'
+_END = rf'\b(?:end(?:ing)?(?:\s+(?:date|year))?|{_GRADUATION}|to|until)(?:\s+(?:in|on|is|will\s+be))?\s*[:=]?\s*(?P<date>{DATE})(?!\w)'
 _RANGE = rf'(?P<start>{DATE})\s*(?:–|—|-|to|until)\s*(?P<end>{DATE})(?!\w)'
 _QUALIFICATION = (
     r"(?:bachelor(?:'s)?(?:\s+of\s+(?:science|arts|engineering|technology))?|"
@@ -20,7 +22,25 @@ _QUALIFICATION = (
     r'b\.?s\.?c\.?|b\.?s\.?|b\.?a\.?|b\.?e\.?|b\.?tech\.?|'
     r'm\.?s\.?c\.?|m\.?s\.?|m\.?a\.?|m\.?e\.?|m\.?tech\.?|'
     r'ph\.?d\.?|mba|bba|diploma|associate(?:\s+degree)?)')
-_PREFIX = re.compile(r"^(?:(?:i\s+(?:have\s+|am\s+)?|i'm\s+)?(?:" + _COMPLETED + r"|finished|earned|hold|studying|pursuing|graduated with)(?:\s+(?:a|an|my))?\s+|(?:my\s+)?degree\s*(?:is\s+|:\s*))", re.I)
+_PREFIX = re.compile(r"^(?:(?:i\s+(?:have\s+|am\s+)?|i'm\s+)?(?:(?:currently|still)\s+)?(?:" + _COMPLETED + r"|finished|earned|hold|studying|pursuing|enrolled|graduated with)(?:\s+(?:a|an|my|in))?\s+|(?:my\s+)?degree\s*(?:is\s+|:\s*))", re.I)
+_STUDYING = r"(?:(?:i\s+am|i'm)\s+)?(?:(?:currently|still)\s+)?(?:studying|pursuing|enrolled|a student)"
+
+
+def active_education(state):
+    """Use only an unambiguous active entry to personalize follow-up questions."""
+    pending = state.get('pending_entry') or {}
+    if pending.get('section') == 'education':
+        return pending.get('draft') or {}
+    focus = state.get('pending_field') or {}
+    if focus.get('section') == 'education' and type(focus.get('index')) is int:
+        source = 'existing_cv' if state.get('mode') == 'edit_existing' else 'collected_data'
+        entries = (state.get(source) or {}).get('education') or []
+        if 0 <= focus['index'] < len(entries):
+            return entries[focus['index']]
+    if state.get('edit_focus') == 'education' and state.get('edit_draft'):
+        return state['edit_draft'][-1]
+    entries = (state.get('collected_data') or {}).get('education') or []
+    return entries[0] if len(entries) == 1 else {}
 
 
 def reversed_date_range(start, end):
@@ -119,6 +139,9 @@ def parse_education(text, field=None):
     if looks_structured(text):
         return structured_education(text)
     text = ' '.join(text.strip().split()).rstrip('.!')
+    if re.fullmatch(_STUDYING + r'(?:\s+(?:right now|at university|at college))?', text, re.I):
+        return {'is_current': True}
+    studying = bool(re.match(_STUDYING + r'\s+', text, re.I))
     # Accept an explicitly labelled graduation value even with a missing leading
     # quote/g from a pasted fragment. This never treats arbitrary prose as a date.
     labelled_date = re.fullmatch(r'["\']?(?:g?raduation[_ ](?:year|date)|end_date)["\']?\s*:\s*["\']?(' + DATE + r')["\']?', text, re.I)
@@ -146,6 +169,8 @@ def parse_education(text, field=None):
             return None
         degree = (match['qualification'] + (' ' + parts[0] if parts[0] else '')).strip()
         result = {'degree': degree, **dates}
+        if studying:
+            result['is_current'] = True
         if subject:
             result['field_of_study'] = subject
         if len(parts) == 2 and parts[1].strip(' ,;'):

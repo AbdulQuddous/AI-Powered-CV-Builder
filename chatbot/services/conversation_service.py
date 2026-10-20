@@ -10,7 +10,7 @@ from chatbot.services.qwen_client import QwenClient, build_qwen_messages
 from chatbot.services.field_validation import validated_updates
 from chatbot.services.message_routing import route_message, apply_control, present_response
 from chatbot.services.question_engine import question, recommendations
-from chatbot.services.collection_memory import merge_collection_entries, repair_split_education, repair_structured_education, sync_project_progress, FIELD_STATES
+from chatbot.services.collection_memory import merge_collection_entries, repair_split_education, repair_structured_education, repair_study_status, sync_project_progress, FIELD_STATES
 from chatbot.services.content_handling import repair_hostile_experience
 from chatbot.services.optional_section_recovery import repair_optional_answers
 from chatbot.services.project_recovery import repair_project_profile_split
@@ -133,6 +133,7 @@ def process_user_message(
         state['collected_data'] = collected_updates(session)
     state = repair_structured_education(session, state)
     state = repair_split_education(session, state)
+    state = repair_study_status(session, state)
     session.conversation_state = state
     required_step = get_required_conversation_step(state)
     ai_response = route_message(state, user_message, required_step)

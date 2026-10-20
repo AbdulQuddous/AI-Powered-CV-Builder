@@ -15,5 +15,5 @@ def get_llm_provider():
         return GeminiProvider()
 
     raise AIProviderError(
-        "Unsupported AI provider."
+        "Unsupported AI provider.", reason='configuration_error',
     )

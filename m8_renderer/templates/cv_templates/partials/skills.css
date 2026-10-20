@@ -1,0 +1,6 @@
+/* Each explicit category is a compact text row, including in narrow sidebars.
+   Rows can flow over pages so a large skills section never creates a blank gap. */
+.skill-group { margin: 0 0 1.4mm; orphans: 2; widows: 2; }
+.skill-group:last-child { margin-bottom: 0; }
+.skill-group-label { font-weight: 700; }
+.skill-group-values { white-space: normal; }

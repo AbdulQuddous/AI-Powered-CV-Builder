@@ -53,6 +53,7 @@ function documentDouble() {
   const main = new Node('main');
   return {main, createDocumentFragment: () => new Node('fragment'),
     createElement: tag => new Node(tag), querySelector: () => main,
+    createTextNode: text => Object.assign(new Node('#text'), {textContent: text}),
     documentElement: {scrollHeight: 1123}, body: {scrollHeight: 1123}};
 }
 
@@ -210,4 +211,33 @@ test('designed live preview preserves columns, section order and skill elements'
   assert.deepEqual(main.children.slice(0, 3).map(node => node.id), ['m7-preview-summary', 'm7-preview-projects', 'm7-preview-experience']);
   assert.deepEqual(side.children.map(node => node.id), ['m7-preview-skills', 'm7-preview-education']);
   assert.equal(side.children[0].children[1].children[0].className, 'skill');
+});
+
+const skillGroupFixtures = require('./fixtures/skill_groups.json');
+test('skill group fixtures match server presentation and do not rewrite saved data', () => {
+  for (const fixture of skillGroupFixtures) {
+    const input = {skills: fixture.skills};
+    const before = JSON.stringify(input);
+    const data = preview.context(input);
+    assert.deepEqual(data.skillGroups, fixture.groups, fixture.name);
+    assert.deepEqual(data.skills, fixture.skills);
+    assert.equal(JSON.stringify(input), before);
+  }
+});
+
+test('grouped draft skills use bold labels, separate rows and literal user text in every layout', () => {
+  for (const designed of [false, true]) {
+    const document = documentDouble();
+    if (designed) document.body.dataset = {sideKeys: 'skills', sectionOrder: 'skills'};
+    const skills = ['Programming: Python, <img src=x onerror=alert(1)>', 'Tools: Git'];
+    preview.render(document, {skills});
+    const section = designed ? document.main.children[1].children[1].children[0] : document.main.children[1];
+    const rows = section.children[1];
+    assert.equal(rows.className, 'skill-groups');
+    assert.equal(rows.children.length, 2);
+    assert.equal(rows.children[0].children[0].tag, 'strong');
+    assert.equal(rows.children[0].children[0].textContent, 'Programming:');
+    assert.equal(rows.children[0].children[2].textContent, 'Python, <img src=x onerror=alert(1)>');
+    assert.equal(rows.children[1].children[0].textContent, 'Tools:');
+  }
 });

@@ -16,7 +16,8 @@ def design_context(context, row):
     if context['summary']:
         blocks['summary'] = {'key': 'summary', 'label': 'Professional Summary', 'text': context['summary']}
     if context['skills']:
-        blocks['skills'] = {'key': 'skills', 'label': 'Skills', 'skills': context['skills']}
+        blocks['skills'] = {'key': 'skills', 'label': 'Skills', 'skills': context['skills'],
+                            'skill_groups': context['skill_groups']}
     order = ORDERS[design['order']]
     side = ['skills', 'education', 'certifications', 'languages'] if design['family'] in TWO_COLUMN else []
     if design['family'] == 'portfolio':

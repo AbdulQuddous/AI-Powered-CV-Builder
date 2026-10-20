@@ -9,6 +9,16 @@ class InvalidAIInputError(AIError):
 class AIProviderError(AIError):
     """External AI provider could not complete a request."""
 
+    REASONS = frozenset({
+        'provider_unavailable', 'configuration_error', 'authentication_failed',
+        'permission_denied', 'quota_exceeded', 'model_not_found',
+        'invalid_request', 'timeout', 'connection_failed',
+    })
+
+    def __init__(self, message, *, reason='provider_unavailable'):
+        super().__init__(message)
+        self.reason = reason if reason in self.REASONS else 'provider_unavailable'
+
 
 class AIStructuredOutputError(AIError):
     """AI output was rejected, with an optional content-free diagnostic reason."""

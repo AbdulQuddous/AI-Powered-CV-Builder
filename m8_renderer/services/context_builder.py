@@ -1,3 +1,6 @@
+from .skill_groups import group_skills
+
+
 def text(value):
     """
     Return safe plain-text values without converting
@@ -310,6 +313,7 @@ def build_context(cv_data):
         ),
     ]
 
+    skills = string_list(cv_data.get('skills', []))
     return {
         "personal": personal,
         "contact": contact,
@@ -319,9 +323,8 @@ def build_context(cv_data):
         "summary": text(
             cv_data.get("summary")
         ),
-        "skills": string_list(
-            cv_data.get("skills", [])
-        ),
+        "skills": skills,
+        "skill_groups": group_skills(skills),
         "sections": [
             section
             for section in sections

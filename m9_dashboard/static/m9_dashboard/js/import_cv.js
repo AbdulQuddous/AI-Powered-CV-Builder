@@ -273,10 +273,10 @@
     function init(dependencies) {
         api = dependencies;
         resumeId = queryId();
-        $("importCV").addEventListener("click", () => {
+        ['importCV', 'emptyImport'].forEach(id => $(id).addEventListener('click', () => {
             if (!api.requireLogin()) return;
-            api.openModal("importModal");
-        });
+            api.openModal('importModal');
+        }));
         $("importFile").addEventListener("change", event => selectFile(event.target.files));
         $("importUpload").addEventListener("click", upload);
         $("importExtract").addEventListener("click", extract);

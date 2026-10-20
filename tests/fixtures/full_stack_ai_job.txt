@@ -1,0 +1,21 @@
+We are looking for a versatile Full Stack AI Developer to lead and contribute to the end-to-end development of intelligent, production-ready web applications. You will bridge traditional software engineering with modern generative AI, designing responsive user interfaces, scalable backend services, and reliable AI/LLM pipelines.
+
+Key Responsibilities
+
+• Full-Stack Development: Build, test, and maintain modern web applications, including responsive frontends (React, Angular, or Next.js) and robust backend APIs (FastAPI, Node.js, or Django).
+• AI & LLM Integration: Integrate Large Language Models (LLMs), SLMs, and third-party AI APIs into core product features and automated workflows.
+• Data & RAG Architecture: Design and manage vector databases, embed pipelines, and Retrieval-Augmented Generation (RAG) systems.
+• Agentic Workflows: Build autonomous or human-in-the-loop AI agents, chatbots, and decision-support tools.
+• Reliability & Guardrails: Optimize AI output for latency, cost, security, and fallback behaviors to handle model failures gracefully.
+• DevOps & MLOps: Implement CI/CD pipelines, containerization (Docker), and cloud deployment (AWS, Azure, or Google Cloud).
+• Collaboration: Work closely with product managers, UI/UX designers, and data engineers to ship iterative features.
+
+Required Qualifications & Skills
+
+• Experience: [2+ to 5+] years of professional full-stack software development experience, with at least [1+] year focused on AI/LLM integrations.
+• Frontend: Proficiency in JavaScript/TypeScript, React, Angular, or Next.js.
+• Backend: Strong skills in Python, Node.js, or FastAPI/Django.
+• Databases: Working knowledge of SQL (PostgreSQL, MySQL) and NoSQL/Vector databases (Pinecone, Milvus, MongoDB).
+• AI Frameworks: Hands-on experience with tools like LangChain, LlamaIndex, PyTorch, or OpenAI/Azure OpenAI SDKs.
+• Cloud & DevOps: Familiarity with Docker, Git, CI/CD workflows, and major cloud providers (AWS, GCP, or Azure).
+• Education: Bachelor’s degree in Computer Science, Software Engineering, or a related field (or equivalent practical experience).

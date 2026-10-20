@@ -60,7 +60,10 @@ function harness(overrides={}) {
     });
     for(const file of ['dashboard','ai_api','ai_ui','ai_review','import_cv'])vm.runInContext(fs.readFileSync(`m9_dashboard/static/m9_dashboard/js/${file}.js`,'utf8'),c);
     vm.runInContext('window.M6Review.init({fetch:apiFetch,ai:window.M6Api.create(apiFetch),requireLogin,openModal,refresh:async()=>{}});window.M4Import.init({fetch:apiFetch,ai:window.M6Api.create(apiFetch),requireLogin,openModal,refresh:async()=>{}})',c);
-    return {c,get,calls,saved,open:id=>vm.runInContext(`window.M6Review.open(${id})`,c),click:id=>get(id).listeners.click(),change:id=>get(id).listeners.input(),focus:()=>windowEvents.get('focus')?.()};
+    return {c,get,calls,saved,open:async id=>{
+        await vm.runInContext(`window.M6Review.open(${id})`,c);
+        get('aiJob').value='Build Django APIs.';
+    },click:id=>get(id).listeners.click(),change:id=>get(id).listeners.input(),focus:()=>windowEvents.get('focus')?.()};
 }
 const text=node=>node.textContent+' '+(node.value || '')+' '+node.children.map(text).join(' ');
 const find=(node,id)=>node.id===id?node:node.children.map(child=>find(child,id)).find(Boolean);
@@ -296,11 +299,11 @@ test('whole-CV mode is the clear default and selected-text rewriting is separate
 
 test('whole-CV generation sends the saved version and JD without saving',async()=>{
     const h=harness();await h.open(12);const original=clone(h.saved.get(12));
-    h.get('aiRole').value='';h.change('aiRole');
+    h.get('aiRole').value='Backend Developer';h.change('aiRole');
     h.get('aiJob').value='Build and maintain Django APIs.';h.change('aiJob');
     await h.click('aiTailor');
     const call=h.calls.find(x=>x.url==='/api/ai/tailor/');
-    assert.deepEqual(call.body,{cv_id:12,expected_version:1,target_role:'',job_description:'Build and maintain Django APIs.'});
+    assert.deepEqual(call.body,{cv_id:12,expected_version:1,target_role:'Backend Developer',job_description:'Build and maintain Django APIs.'});
     assert.deepEqual(h.saved.get(12),original);
     assert.equal(h.calls.filter(x=>x.method==='PATCH').length,0);
     assert.equal(h.get('aiWholeComparison').classList.contains('hidden'),false);
@@ -311,13 +314,74 @@ test('whole-CV generation sends the saved version and JD without saving',async()
     assert.match(text(h.get('aiTailorSuggestions')),/Only include skills/);
 });
 
-test('whole-CV tailoring asks for a role or job description before requesting AI',async()=>{
+test('whole-CV tailoring asks for the target role before requesting AI',async()=>{
     const h=harness();await h.open(12);h.get('aiRole').value='';h.change('aiRole');
     await h.click('aiTailor');
     assert.equal(h.calls.filter(x=>x.url==='/api/ai/tailor/').length,0);
     assert.equal(h.get('aiError').classList.contains('hidden'),false);
     assert.match(h.get('aiError').textContent,/role|job description/i);
     assert.equal(h.calls.filter(x=>x.method==='PATCH').length,0);
+});
+
+test('whole-CV tailoring requires a JD while single-part rewriting keeps it optional',async()=>{
+    const h=harness();await h.open(12);h.get('aiJob').value='   ';h.change('aiJob');
+    await h.click('aiTailor');
+    assert.equal(h.calls.filter(x=>x.url==='/api/ai/tailor/').length,0);
+    assert.match(h.get('aiError').textContent,/Paste the job description/);
+    assert.equal(h.get('aiJob').getAttribute('aria-invalid'),'true');
+    assert.equal(h.get('aiJob').getAttribute('aria-required'),'true');
+    await h.click('aiModePart');
+    assert.equal(h.get('aiJob').getAttribute('aria-required'),'false');
+    await h.click('aiRewrite');
+    assert.equal(h.calls.filter(x=>x.url==='/api/ai/rewrite/').length,1);
+});
+
+test('provider configuration, rejected requests and quota failures have useful safe messages',async()=>{
+    for (const [reason, expected] of [['invalid_request',/could not accept the review request/],
+        ['quota_exceeded',/Gemini request quota/], ['authentication_failed',/rejected the service credentials/],
+        ['model_not_found',/configured Gemini model/], ['timeout',/took too long/]]) {
+        const h=harness({fetch:url=>url==='/api/ai/tailor/'?{ok:false,status:503,json:async()=>({error:{
+            code:'ai_provider_unavailable',message:'secret raw provider message',reason}})}:null});
+        await h.open(12);const original=clone(h.saved.get(12));await h.click('aiTailor');
+        assert.match(h.get('aiError').textContent,expected);
+        assert.doesNotMatch(h.get('aiError').textContent,/secret raw/);
+        assert.equal(h.get('aiJob').value,'Build Django APIs.');
+        assert.equal(h.get('aiRetry').classList.contains('hidden'),false);
+        assert.deepEqual(h.saved.get(12),original);
+    }
+});
+
+test('job requirements show supporting quotes and gaps without adding facts to saved CV',async()=>{
+    const alignment=[{requirement:'Build Django APIs',status:'supported',evidence:[{path:'/summary',quote:sample().data.summary}]},
+        {requirement:'Deploy with Kubernetes',status:'missing',evidence:[]}];
+    const h=harness({fetch:url=>url==='/api/ai/tailor/'?{ok:true,status:200,json:async()=>({data:{
+        cv_id:12,version:1,summary:'Emphasize API contributions.',changes:[{path:'/summary',original:sample().data.summary,
+            rewritten:'Developed Django APIs.',reason:'Emphasizes the Django API requirement.'}],suggestions:['Confirm deployment experience if available.'],job_alignment:alignment,cached:false}})}:null});
+    await h.open(12);const original=clone(h.saved.get(12).data);await h.click('aiTailor');
+    assert.equal(h.get('aiJobAlignment').classList.contains('hidden'),false);
+    assert.match(text(h.get('aiJobAlignment')),/CV evidence found.*Build Django APIs/);
+    assert.match(text(h.get('aiJobAlignment')),/Not evidenced in your CV.*Deploy with Kubernetes/);
+    assert.match(text(h.get('aiJobAlignment')),/I develop Django APIs/);
+    assert.equal(h.calls.filter(x=>x.method==='PATCH').length,0);
+    await h.click('aiApply');
+    assert.deepEqual(h.saved.get(12).data,{...original,summary:'Developed Django APIs.'});
+    assert.equal(JSON.stringify(h.saved.get(12).data).includes('Kubernetes'),false);
+    h.get('aiJob').value='New JD';h.change('aiJob');
+    assert.equal(h.get('aiJobAlignment').classList.contains('hidden'),true);
+});
+
+test('omitted job-fit notes do not hide verified CV wording changes or allow facts to be inserted',async()=>{
+    const h=harness({fetch:url=>url==='/api/ai/tailor/'?{ok:true,status:200,json:async()=>({data:{
+        cv_id:12,version:1,summary:'One wording change.',job_alignment_warning:'Some job-fit notes could not be verified and were left out. Your saved CV is unchanged.',
+        changes:[{path:'/summary',original:sample().data.summary,rewritten:'Developed Django APIs.',reason:'Clarifies the API work.'}],suggestions:[],cached:false}})}:null});
+    await h.open(12);await h.click('aiTailor');
+    assert.equal(h.get('aiError').classList.contains('hidden'),true);
+    assert.equal(h.get('aiApply').disabled,false);
+    assert.match(text(h.get('aiJobAlignment')),/job-fit notes.*left out/);
+    assert.equal(changeChecks(h).length,1);
+    await h.click('aiApply');
+    assert.equal(h.saved.get(12).data.summary,'Developed Django APIs.');
+    assert.equal(h.saved.get(12).data.job_alignment_warning,undefined);
 });
 
 test('one approval saves all selected whole-CV changes exactly once',async()=>{

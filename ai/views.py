@@ -75,16 +75,16 @@ class BaseAIAPIView(APIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
-        except AIProviderError:
+        except AIProviderError as exc:
+            logger.warning('M6 AI provider request failed. operation=%s reason=%s', type(self).__name__, exc.reason)
+            error = {
+                'code': 'ai_provider_unavailable',
+                'message': 'AI processing is currently unavailable.',
+            }
+            if exc.reason != 'provider_unavailable':
+                error['reason'] = exc.reason
             return Response(
-                {
-                    "error": {
-                        "code": "ai_provider_unavailable",
-                        "message": (
-                            "AI processing is currently unavailable."
-                        ),
-                    }
-                },
+                {'error': error},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 

@@ -686,3 +686,224 @@ unavailable designs and admin email login/navigation. All eight Node test files
 passed, including the polish action and retry tests. No live AI call was made.
 The full Django regression run passed: 461 tests, with seven optional browser
 tests skipped. System checks and the migration consistency check passed.
+
+## 2026-10-20 follow-up: welcoming dashboard redesign
+
+The dashboard now uses a warm light canvas with subtle grain, a pastel welcome
+panel, teal-to-indigo primary actions, violet/coral details, elevated interactive
+stats and a larger illustrated onboarding state. The original SVG illustration
+and Inter variable font are served locally; the font's SIL license is included.
+Navigation remains shared with the editor and gallery. No Admin link appears
+on frontend pages, and CV document templates/export styles remain isolated.
+
+Empty accounts offer AI creation, template selection and import through existing
+flows. The welcome Create a CV action retains manual creation. A filtered list
+with no matches instead offers Clear search & filters, preserving CV data and
+statistics. Existing card actions, authentication and approval/version contracts
+are unchanged. The dashboard also fixes hidden-button CSS precedence and adds
+visible focus, loading feedback and reduced-motion handling.
+
+Verification: 28 focused Django tests and all eight Node test files passed.
+Ten Chromium journeys passed with an isolated database and synthetic CVs,
+covering onboarding actions, desktop/mobile layouts, filter recovery, gallery
+flows, admin direct access, editor navigation/edit/save, and download-menu
+keyboard behavior. New dashboard checks cover 1440, 1024, 768, 390 and 320px
+widths and reduced motion. CSS rebuilt locally; Django system checks passed.
+No live AI provider call or development CV data change was performed.
+See [WORKSPACE_UI.md](WORKSPACE_UI.md) for implementation and preview details.
+
+## 2026-10-20 follow-up: visual template picker
+
+The creation form's name-only template dropdown is now a visual picker shared
+by manual and AI creation. It uses actual catalogue thumbnails, style labels,
+search/filter controls, larger previews and explicit selected-template feedback.
+The larger preview has a visible Use action. Users keep entered details while
+comparing designs; filtering retains the chosen template. Guidance distinguishes
+conventional and visual styles without claiming a universally best template.
+
+The existing template ID and M2/M5 contracts are preserved, including gallery
+handoffs. Loading/submission guards, retry with retained input, and a generation
+guard prevent late catalogue responses from overwriting a reopened form.
+Catalogue failure shows a default preview and explicit retry; backend availability
+validation remains authoritative. Template search does not implicitly submit
+the creation form. Previews use fictional sample content and do not create CVs.
+
+Verification passed: 28 focused Django tests, all eight Node test files and
+13 Chromium journeys covering visual manual/AI selection, retained fields,
+retry, mobile layout, gallery handoffs and editor navigation. A separate native
+Enter-key browser check confirmed search does not create a CV. New Node coverage
+checks that late metadata cannot overwrite reopened forms. No live AI call or
+development CV change was performed. Picker previews are linked in
+[WORKSPACE_UI.md](WORKSPACE_UI.md).
+
+## 2026-10-20 follow-up: ongoing education conversation
+
+The reported education loop had three causes: the grouped parser missed
+“studying in BS…”, the graduation sentence path did not accept “excpect”, and
+education incorrectly shared current employment's completion-date prohibition.
+Ongoing academic study now accepts a stated expected graduation date. The
+employment contradiction and date-order/month checks remain in place.
+
+Status-only replies do not invent a degree. One reply can capture the degree,
+subject and university; the next question requests only missing information and
+uses present-tense wording for ongoing study. Education-only evidence warnings
+use plain language. Qwen's extraction instructions distinguish ongoing study
+from current employment without changing the M5/M10 contracts.
+
+An initially unnamed study-status row is completed by the subsequent degree
+answer, using existing sparse-merge date preservation. For legacy unsaved
+creation interviews, guarded user/accepted-assistant history can prove a split
+status row and degree refer to the same qualification. Explicit additional
+degrees, contradictions, ambiguous evidence and saved-CV editing are excluded.
+Confirmed graduation dates survive canonical draft conversion and explicit save.
+See [CHATBOT_INPUT_CLEANUP.md](CHATBOT_INPUT_CLEANUP.md) for examples and coverage.
+
+Verification passed: the full Django suite ran 486 tests (15 optional tests
+skipped), followed by 134 focused education regressions covering the final
+month-preservation adjustment. All eight Node test files and three Chromium
+education journeys passed. The browser reproduced the reported status-only,
+grouped degree/university and misspelled expected-graduation answers without
+repeating collected fields. System checks and whitespace checks passed. These
+checks used isolated test data and mocked providers; no live Qwen request or
+development CV change was performed.
+
+## 2026-10-20 follow-up: grouped skills in CV documents
+
+The reported skills list contained category labels joined to preceding skills,
+such as `Problem Solving Full-Stack & APIs: Django`. M8 now recovers those
+explicit boundaries and renders separate compact paragraphs with bold category
+labels and comma-separated values, following the supplied Word reference.
+Custom labels are accepted at the start of a skill entry or line. Unlabelled
+skill lists keep their existing template styling; no role-based categorization,
+skill invention or deduplication occurs.
+
+Shared presentation partials cover all 50 built-in templates. M7's draft preview
+uses matching normalization with shared test fixtures; editable Word uses a bold
+label run per paragraph. Saved previews and exact-layout Word still share the
+PDF pages. The M10 string-array contract and saved CV JSON remain unchanged.
+Large groups can continue across pages without clipping. The editor explains
+how to enter categories. Preview source hashes track the helper; all 50 gallery
+thumbnail files remained byte-identical after regeneration.
+
+The supplied CV 28 PDF and a read-only render of its saved record both have two
+pages. Temporary regenerated review files stayed outside the repository; the
+saved CV and supplied PDF/DOCX files were not modified. Implementation and input
+examples are documented in [CV_TEMPLATE_SYSTEM.md](CV_TEMPLATE_SYSTEM.md#explicit-skill-categories).
+
+Verification passed: full Django regression ran 496 tests (16 optional browser
+tests skipped); eight focused grouping tests also passed, including the added
+large-group pagination case. All eight Node test files and three opt-in Chromium
+preview/download journeys passed. Coverage checks separate bold rows across all
+50 templates, literal text escaping, retained values, editable Word runs and
+byte-identical saved-preview/exact Word page images. System and whitespace checks
+passed. Tests used isolated records; no live AI request was made.
+
+## 2026-10-20 follow-up: Gemini whole-CV tailoring against a job description
+
+The dashboard whole-CV flow now asks for both the target role and JD. Missing
+inputs have specific inline errors and receive focus after controls are enabled.
+Single-part rewrites retain optional job context. Existing role-only/JD-only API
+callers remain compatible.
+
+The existing single Gemini call now requests a job-priority evidence review
+before proposing wording changes. Its input identifies every editable section,
+factual source paths, per-entry evidence boundaries and preserved numerical and
+responsibility constraints. The JD is primary, and a saved CV's old target role
+cannot override the requested review target. Instructions prioritize relevant
+confirmed work across the summary, experience, projects and achievements, rather
+than only substitute synonyms. Facts in skills, education and certifications
+inform the review without being rewritten.
+
+The optional public `job_alignment` response field shows up to six verbatim JD
+requirements, supporting CV excerpts and supported/partial/missing status. Source
+paths exclude contacts and target-role metadata. Returned requirements and quotes
+are checked against the submitted JD and exact CV source paths, including when a
+review is cached. Fabricated excerpts, missing references, malformed shapes,
+duplicates and blank evidence are rejected. These provenance checks are not a
+semantic proof of qualification; users see the cited text and partial matches are
+explicitly labelled related evidence.
+
+The review remains a proposal. Only selected wording is saved through M2 with the
+expected version; gaps, job context and the assessment are never inserted as CV
+facts. Updated inputs invalidate prior reviews, and the v6 cache separates old
+tailoring results. M5/M10 contracts are unchanged. See
+[CV_TAILORING_REVIEW.md](CV_TAILORING_REVIEW.md#job-description-and-whole-cv-review).
+
+Verification passed: 507 full-suite Django tests (16 optional tests skipped),
+21 focused job-alignment/writing tests, all eight Node test files and five opt-in
+Chromium journeys. The new SDK-shaped JD/evidence journey was rerun after the
+final styling adjustment and passed. Coverage includes multi-section proposals,
+JD-specific cache separation, malformed/fabricated evidence rejection, current
+input validation/focus, desktop/mobile layout, partial/advice-only reviews, retry
+and selected versioned saves. System and whitespace checks passed. Gemini network
+responses were mocked; live model wording quality and availability were not tested.
+
+## 2026-10-20 follow-up: immediate 503 from whole-CV generation
+
+A live check confirmed the configured Gemini key/model accepted a minimal request.
+The new nested full-review schema, using fictional CV data, reproduced upstream
+`400 INVALID_ARGUMENT`. The app had hidden this under a generic 503 outage message.
+String-bound removal alone still failed; removing nested string/array bounds from
+the wire schema succeeded. Whole-CV generation now uses the existing schema
+compatibility helper in compact mode, preserving required structure, enum paths
+and property restrictions while moving bounds into descriptive generation guidance.
+All original local size, item-count, evidence, fact and approval checks remain.
+
+Provider failures now carry safe allowlisted reasons. Existing status/error-code
+contracts remain, with optional reason metadata and fixed UI messages distinguishing
+configuration, credentials, permission, quota, unavailable model, invalid request,
+timeout and connection errors. Logs omit exception text and record only fixed codes
+and a validated upstream status number. One request still makes one provider call;
+retry remains explicit and retains the job context.
+
+The corrected live whole-CV request returned three job requirements and passed
+local validation, without persisting anything. Synthetic content was used for all
+live checks; no real CV or contact details were sent, and credentials/model settings
+were not changed. Details and provider documentation are linked in
+[CV_TAILORING_REVIEW.md](CV_TAILORING_REVIEW.md#gemini-schema-rejection-and-provider-diagnostics).
+
+## 2026-10-20 follow-up: source mismatch in optional job-fit notes
+
+The exact supplied Full Stack AI Developer JD reproduced the error with fictional
+CV data. One requirement in Gemini's `job_alignment` was paraphrased; its evidence
+quotes matched. This optional-note failure had invalidated the whole wording review.
+
+Generation now supplies numbered literal JD excerpts and asks Gemini to select
+requirement IDs and factual source paths. The server resolves them into the
+existing public requirement/evidence fields. Unknown references never become
+claims. Unverified optional notes are omitted with a fixed server-owned notice,
+while independently verified CV wording remains reviewable. Cached notes are
+revalidated and the v7 cache separates old review behavior. Original-text mismatch,
+unsupported wording, metric/responsibility and concurrent-version checks remain
+strict. Only approved wording changes are persisted through M2; job context,
+notices and unconfirmed qualifications are never inserted into the CV.
+
+The corrected live request using that JD returned six verified job notes without
+an error. No real CV content was sent or saved. The reported JD is retained as a
+nonpersonal regression fixture; details are in
+[CV_TAILORING_REVIEW.md](CV_TAILORING_REVIEW.md#paraphrased-job-notes-must-not-block-valid-wording).
+
+Combined verification for the provider/schema and job-note fixes passed: full
+Django regression ran 520 tests (16 optional tests skipped), 44 focused
+alignment/grounding/writing tests passed, all eight Node test files passed, and
+three explicit Chromium journeys passed for requirement references, the reported
+paraphrased-note failure and quota retry. The earlier provider-focused regression
+also passed 43 tests. System and whitespace checks passed. Live tests used only
+fictional CVs; browser tests used isolated records and mocked SDK responses.
+
+## 2026-10-20 follow-up: successful review with omitted notes
+
+The reported `200` indicates a completed review; the warning concerned optional
+job-fit notes. Their validation is now independent per requirement rather than
+discarding the whole section. The UI receives up to six distinct verified notes,
+with at most three distinct checked citations each. Invalid items are excluded
+without losing valid siblings or approved wording. Strict source, factual and
+approval checks remain unchanged, and fresh/cache validation uses the same policy.
+Safe logs report retained/rejected counts and fixed error categories. The v8
+cache separates earlier whole-section omission behavior. A live synthetic check
+of the supplied JD also returned six valid notes; no real CV was read or changed.
+
+Verification passed: 103 targeted tailoring, grounding, writing and provider
+regressions, all eight Node test files and two Chromium review/save journeys.
+System and whitespace checks passed. Browser tests used isolated synthetic data
+and mocked Gemini responses.

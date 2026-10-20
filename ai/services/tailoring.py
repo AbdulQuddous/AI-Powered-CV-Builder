@@ -14,7 +14,12 @@ from jsonschema import Draft202012Validator
 from ai.exceptions import AIStructuredOutputError, InvalidAIInputError
 from ai.llm.factory import get_llm_provider
 from ai.prompts.cv_tasks import JOB_FOCUS_RULES
+from ai.schemas.contracts import gemini_compatible_schema
 from ai.services.cache import cached_ai_result
+from ai.services.job_alignment import (
+    ALIGNMENT_WARNING, alignment_schema, evidence_sources, job_requirements,
+    reference_alignment_schema, resolve_alignment, select_verified_notes,
+)
 from cvs.services import check_version, owned
 
 
@@ -51,6 +56,31 @@ professional summary. Never copy a CV paragraph into it. Every proposed CV rewri
 in "changes", with its exact path and original. When no useful factual rewrite is possible,
 return an empty changes array and advice only; never invent experience to fit the job.
 """ + JOB_FOCUS_RULES
+
+SYSTEM += """
+WHOLE-CV JOB DESCRIPTION REVIEW:
+- The requested target_role is the review destination. A different role in cv.meta
+  describes the saved CV; do not let it override the requested role or job_description.
+- When job_description is present, use its actual responsibilities and requirements
+  as the primary focus. First produce job_alignment: select up to six important
+  requirement_id values from job_requirements and evidence_paths from evidence_sources.
+  The server supplies their exact text; do not paraphrase or recopy it. Use partial for
+  related experience that does not establish the full requirement, and missing with
+  empty evidence for a genuine gap. Skills alone do not establish hands-on work.
+- Then review EVERY section in review_sections against these priorities. Rebuild a
+  generic summary around the strongest supported matches; bring relevant contributions
+  forward within existing bullets and project descriptions, preserving their facts.
+  Every change reason should explain its connection to a specific job requirement,
+  or a concrete clarity improvement. Do more than substitute professional synonyms.
+- Keep all metrics and responsibility constraints. Missing job requirements belong
+  only in suggestions: ask for a specific confirmed example, never insert them.
+- Skills, education and certifications inform the review but their factual fields
+  stay unchanged. Recommend prioritization or missing details as advice.
+- Make useful edits wherever supported across the CV; do not stop at the summary
+  or return advice instead of available wording improvements. Do not force edits to
+  already effective text, and do not force an unrelated career history to fit the JD.
+- Job alignment is a concise evidence review, not a score or proof of qualification.
+"""
 
 CONTACT = re.compile(
     r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|https?://\S+|www\.\S+|"
@@ -198,8 +228,8 @@ def source_context(document, personal):
     return clean(context)
 
 
-def response_schema(fields):
-    return {
+def response_schema(fields, *, alignment_paths=(), include_alignment=False, requirements=None):
+    schema = {
         "type": "object", "additionalProperties": False,
         "required": ["summary", "changes", "suggestions"],
         "properties": {
@@ -220,6 +250,11 @@ def response_schema(fields):
             }},
         },
     }
+    if include_alignment:
+        schema['required'] = ['job_alignment', *schema['required']]
+        alignment = reference_alignment_schema(requirements, alignment_paths) if requirements else alignment_schema(alignment_paths)
+        schema['properties'] = {'job_alignment': alignment, **schema['properties']}
+    return schema
 
 
 def canonical_term(token):
@@ -354,12 +389,15 @@ def wording_rejection(original, rewritten, evidence, personal=(), *, allow_exist
     return None
 
 
-def validate_response(result, fields, context, personal, *, trusted_warnings=False):
+def validate_response(result, fields, context, personal, *, trusted_warnings=False, job_description=''):
     result = deepcopy(result)
+    alignment_warning = result.pop('job_alignment_warning', None) if trusted_warnings and isinstance(result, dict) else None
+    has_alignment = isinstance(result, dict) and 'job_alignment' in result
+    alignment = result.pop('job_alignment', None) if isinstance(result, dict) else None
     warning = result.pop("warnings", None) if trusted_warnings and isinstance(result, dict) else None
     allowed_warnings = {PARTIAL_REVIEW_WARNING} | {
         rejection_warning(path, reason) for path in fields for reason in REJECTION_REASONS}
-    if (warning is not None and (not isinstance(warning, list) or not warning
+    if alignment_warning not in (None, ALIGNMENT_WARNING) or (warning is not None and (not isinstance(warning, list) or not warning
             or len(warning) > 31 or warning[0] != PARTIAL_REVIEW_WARNING
             or any(not isinstance(item, str) or item not in allowed_warnings for item in warning))) or not Draft202012Validator(response_schema(fields)).is_valid(result):
         log_validation_failure("schema_invalid")
@@ -404,6 +442,17 @@ def validate_response(result, fields, context, personal, *, trusted_warnings=Fal
     elif ' '.join(result['summary'].split()) == ' '.join(fields.get('/summary', '').split()):
         count = len(accepted)
         result['summary'] = f'{count} wording {"change is" if count == 1 else "changes are"} available to review.'
+    if has_alignment:
+        verified, errors = select_verified_notes(alignment, job_description, evidence_sources(context))
+        if verified:
+            result['job_alignment'] = verified
+        if errors:
+            # Counts/codes only: never log a job requirement or candidate text.
+            logger.warning('M6 job-fit notes filtered. valid_count=%s invalid_count=%s schema_invalid=%s source_mismatch=%s',
+                           len(verified), sum(errors.values()), errors['schema_invalid'], errors['source_mismatch'])
+            alignment_warning = ALIGNMENT_WARNING
+    if alignment_warning:
+        result['job_alignment_warning'] = alignment_warning
     return result
 
 
@@ -423,14 +472,25 @@ def tailor_cv(*, user, cv_id, expected_version, target_role="", job_description=
     if not fields:
         raise InvalidAIInputError("Add a summary, work highlight, project description or achievement before improving this CV.")
     context = source_context(cv.data, personal)
+    sources = evidence_sources(context)
+    requirements = job_requirements(redact(job_description, personal))
     payload = {
         "cv_id": cv.pk, "version": cv.version, "cv": context,
         "editable_fields": fields, "target_role": redact(target_role, personal),
         "job_description": redact(job_description, personal),
+        "evidence_sources": sources,
+        "job_requirements": requirements,
+        "review_sections": {section: [path for path in fields if path.split('/')[1] == section]
+                            for section in ('summary', 'experience', 'projects', 'achievements')
+                            if any(path.split('/')[1] == section for path in fields)},
         "field_constraints": {path: {
             'numbers_to_preserve': NUMBERS.findall(text),
             'responsibilities_to_preserve': [match[0] for pattern, _ in PRESERVED_RESPONSIBILITIES
                                             for match in re.finditer(pattern, text, re.I)],
+            'allowed_evidence_paths': [source for source in sources if (
+                path == '/summary' or source == path or
+                (path.split('/')[1] in ('experience', 'projects')
+                 and source.startswith('/' + '/'.join(path.strip('/').split('/')[:2]) + '/')))],
         } for path, text in fields.items()},
     }
     if len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > 100000:
@@ -438,17 +498,21 @@ def tailor_cv(*, user, cv_id, expected_version, target_role="", job_description=
 
     def generate():
         provider = llm or get_llm_provider()
+        schema = response_schema(fields, alignment_paths=sources, include_alignment=bool(job_description), requirements=requirements)
         result = provider.generate_structured(
             system_prompt=SYSTEM,
             user_prompt=json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-            schema=response_schema(fields), max_output_tokens=12000,
+            schema=gemini_compatible_schema(schema, compact=True), max_output_tokens=12000,
         )
-        return validate_response(result, fields, context, personal)
+        if isinstance(result, dict) and 'job_alignment' in result:
+            result = deepcopy(result)
+            result['job_alignment'] = resolve_alignment(result['job_alignment'], requirements, sources)
+        return validate_response(result, fields, context, personal, job_description=payload['job_description'])
 
     result, cached = cached_ai_result(
-        user_id=user.pk, operation="saved_cv_tailoring_v5", payload=payload, generate=generate,
+        user_id=user.pk, operation="saved_cv_tailoring_v8", payload=payload, generate=generate,
     )
-    result = validate_response(result, fields, context, personal, trusted_warnings=True)
+    result = validate_response(result, fields, context, personal, trusted_warnings=True, job_description=payload['job_description'])
     # A concurrent editor save during generation makes the proposals stale too.
     check_version(owned(user=user, cv_id=cv_id), expected_version)
     return {"cv_id": cv.pk, "version": cv.version, **deepcopy(result), "cached": cached}
