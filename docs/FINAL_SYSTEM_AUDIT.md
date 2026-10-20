@@ -662,3 +662,27 @@ approval. Automated verification did not call a live AI provider.
 Final verification: 450 Django tests passed with seven optional browser tests
 skipped in the default run; the six review/browser journeys passed separately.
 All eight Node test files passed. Development CV records were unchanged.
+
+## 2026-10-20 follow-up: admin and frontend routes
+
+The reported `/admin/` 404 was caused by absent admin app and URL registration.
+Admin, messages middleware and Django's admin route are now enabled. The three
+built-in admin migrations were applied locally. Admin is accessed directly at
+`/admin/`, without a frontend navigation link; `/` redirects to the dashboard. Administration uses email-based
+staff login and normal session/CSRF/model permission checks. Custom user forms
+preserve password hashing; JWT API authentication remains separate.
+
+The endpoint inventory found that the improve client and template detail API
+had no direct frontend invocation. The selected-text review now offers
+Polish wording through the existing improve endpoint, retaining comparison,
+explicit versioned approval, request deduplication and correct-operation retry.
+Gallery preview refreshes template details and handles unavailable designs.
+See [ENDPOINT_FRONTEND_AUDIT.md](ENDPOINT_FRONTEND_AUDIT.md) for the full route
+and frontend connection map, setup and verification commands.
+
+Five Chromium journeys passed against an isolated database, covering desktop
+and mobile gallery flows, private previews, creation, refreshed metadata,
+unavailable designs and admin email login/navigation. All eight Node test files
+passed, including the polish action and retry tests. No live AI call was made.
+The full Django regression run passed: 461 tests, with seven optional browser
+tests skipped. System checks and the migration consistency check passed.

@@ -5,6 +5,9 @@ PDF/DOCX import, local Qwen conversation, optional Gemini final review/intellige
 and the dashboard/chat frontend. Python 3.12 is used by the current environment.
 Open `/dashboard/` after starting Django. The current verification results and
 deployment limitations are in [the final system audit](docs/FINAL_SYSTEM_AUDIT.md).
+Open `/admin/` directly for administration; staff sign in with their email and
+password. Run `python manage.py createsuperuser` if an administrator is needed.
+See the [route and frontend inventory](docs/ENDPOINT_FRONTEND_AUDIT.md).
 Current chatbot behavior, local Ollama settings, test evidence and a manual guide are in
 [the chatbot implementation report](docs/CHATBOT_IMPLEMENTATION_REPORT.md).
 

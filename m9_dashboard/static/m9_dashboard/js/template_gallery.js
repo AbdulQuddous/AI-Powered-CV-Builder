@@ -99,11 +99,18 @@
     const generation = ++state.previewGeneration;
     $('previewTitle').textContent = template.name; $('previewCategory').textContent = template.category_label;
     $('previewStatus').textContent = personal() ? 'Loading your private CV preview…' : 'Loading fictional sample…';
+    $('previewUse').disabled = true;
     $('templateFrame').removeAttribute('srcdoc');
     if (!$('templatePreview').open) $('templatePreview').showModal();
     try {
+      const detail = await request(`/api/templates/${encodeURIComponent(template.id)}/`, {signal: previewController.signal});
+      const current = await detail.json();
+      if (generation !== state.previewGeneration || !$('templatePreview').open) return;
+      state.selected = current;
+      $('previewUse').disabled = false;
+      $('previewTitle').textContent = current.name; $('previewCategory').textContent = current.category_label;
       const suffix = personal() ? '?cv_id=' + encodeURIComponent(personal()) : '';
-      const response = await request(template.preview_html_url + suffix, {signal: previewController.signal}, Boolean(personal()));
+      const response = await request(current.preview_html_url + suffix, {signal: previewController.signal}, Boolean(personal()));
       const html = await response.text();
       if (generation !== state.previewGeneration || !$('templatePreview').open) return;
       $('templateFrame').srcdoc = html;

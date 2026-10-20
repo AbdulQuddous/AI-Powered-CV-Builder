@@ -168,6 +168,45 @@ test('discard never writes; apply updates only selected field and invalidates re
     const patch=h.calls.find(x=>x.method==='PATCH');assert.equal(patch.body.expected_version,1);
 });
 
+test('polish wording calls improve and saves only the explicitly approved field',async()=>{
+    const h=harness();await h.open(12);await h.click('aiModePart');
+    const original=clone(h.saved.get(12).data);
+    h.get('aiJob').value='Develop and test Django APIs.';
+    await h.click('aiImprove');
+    const call=h.calls.find(x=>x.url==='/api/ai/improve/');
+    assert.equal(call.body.text,original.summary);
+    assert.equal(call.body.section,'summary');
+    assert.equal(call.body.job_description,'Develop and test Django APIs.');
+    assert.equal(h.calls.filter(x=>x.url==='/api/ai/rewrite/').length,0);
+    assert.equal(h.saved.get(12).version,1);
+    await h.click('aiApply');
+    assert.deepEqual(h.saved.get(12).data,{...original,summary:'Developed Django APIs.'});
+    assert.equal(h.saved.get(12).version,2);
+});
+
+test('polish retry retains the improve operation and disables duplicate actions',async()=>{
+    let attempts=0,finish;
+    const h=harness({fetch:url=>{
+        if(url!=='/api/ai/improve/')return null;
+        attempts++;
+        return attempts===1?{ok:false,status:503,json:async()=>({error:{message:'Please retry.'}})}
+            :new Promise(resolve=>{finish=resolve;});
+    }});
+    await h.open(12);await h.click('aiModePart');await h.click('aiImprove');
+    assert.equal(h.get('aiRetry').classList.contains('hidden'),false);
+    const retry=h.click('aiRetry');
+    while(!finish)await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(h.get('aiImprove').disabled,true);
+    assert.equal(h.get('aiRewrite').disabled,true);
+    await h.click('aiImprove');
+    assert.equal(attempts,2);
+    finish({ok:true,status:200,json:async()=>({data:{rewritten:'Developed Django APIs.',changes:[]}})});
+    await retry;
+    assert.equal(h.get('aiImprove').disabled,false);
+    assert.equal(h.calls.filter(x=>x.url==='/api/ai/rewrite/').length,0);
+    assert.equal(h.saved.get(12).version,1);
+});
+
 test('version conflicts reload instead of overwriting another edit',async()=>{
     const h=harness();await h.open(12);await h.click('aiModePart');await h.click('aiRewrite');
     h.saved.get(12).version=2;h.saved.get(12).data.personal.location='Islamabad';

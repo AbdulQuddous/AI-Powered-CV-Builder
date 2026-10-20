@@ -105,3 +105,37 @@ class GalleryBrowserTests(StaticLiveServerTestCase):
         self.assertEqual(session.conversation_state['career_level'], 'experienced')
         self.assertNotIn('create=', b.js('return location.search'))
         self.assertEqual(CV.objects.count(), 0)
+
+    def test_preview_refreshes_template_details_and_handles_unavailable_designs(self):
+        from templates_app.models import CVTemplate
+        b = self.browser; b.get(self.live_server_url + '/templates/')
+        b.wait('document.querySelectorAll(".template-card").length === 12')
+        CVTemplate.objects.filter(pk='modern_horizon').update(name='Updated Horizon')
+        b.click('[data-template-id="modern_horizon"] .thumbnail-button')
+        b.wait('document.querySelector("#previewTitle").textContent === "Updated Horizon"')
+        b.wait('document.querySelector("#templateFrame").contentDocument?.body?.textContent.includes("Alex Morgan")')
+        self.assertFalse(b.js('return document.querySelector("#previewUse").disabled'))
+        b.click('#closePreview')
+        CVTemplate.objects.filter(pk='modern_horizon').update(is_available=False)
+        b.click('[data-template-id="modern_horizon"] .thumbnail-button')
+        b.wait('document.querySelector("#previewStatus").textContent.includes("unavailable")')
+        self.assertTrue(b.js('return document.querySelector("#previewUse").disabled'))
+        self.assertIsNone(b.js('return document.querySelector("#templateFrame").getAttribute("srcdoc")'))
+
+    def test_direct_admin_email_login_and_return_to_workspace(self):
+        password = 'Browser-admin-Strong-736!'
+        get_user_model().objects.create_superuser('browser-admin@example.com', password)
+        b = self.browser; b.get(self.live_server_url + '/')
+        b.wait('location.pathname === "/dashboard/"')
+        self.assertEqual(b.js('return document.querySelectorAll(`.workspace-nav a[href="/admin/"]`).length'), 0)
+        b.get(self.live_server_url + '/admin/')
+        b.wait('location.pathname === "/admin/login/"')
+        b.value('#id_username', 'browser-admin@example.com')
+        b.value('#id_password', password)
+        b.click('input[type="submit"]')
+        b.wait('location.pathname === "/admin/"')
+        b.click('a[href="/admin/accounts/user/"]')
+        b.wait('document.querySelector("#result_list") !== null')
+        self.assertIn('browser-admin@example.com', b.js('return document.body.textContent'))
+        b.click('#user-tools a[href="/dashboard/"]')
+        b.wait('location.pathname === "/dashboard/"')

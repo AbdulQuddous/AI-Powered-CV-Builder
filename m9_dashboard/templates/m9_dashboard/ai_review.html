@@ -49,7 +49,10 @@
             <p id="aiFieldHelp" class="ai-muted ai-field-help">Choose saved text below. To add or change factual details, use the CV editor.</p>
             <label for="aiSource" class="form-label">Your current text</label>
             <textarea id="aiSource" class="form-input" rows="4" readonly></textarea>
-            <div class="ai-actions"><button id="aiRewrite" type="button" class="primary-button">Suggest a rewrite</button></div>
+            <div class="ai-actions">
+                <button id="aiRewrite" type="button" class="primary-button">Suggest a rewrite</button>
+                <button id="aiImprove" type="button" class="secondary-button">Polish wording</button>
+            </div>
         </section>
 
         <p id="aiStatus" class="ai-status" role="status" aria-live="polite">Select a saved CV to begin.</p>

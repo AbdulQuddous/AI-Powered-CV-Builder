@@ -40,13 +40,14 @@
         busy = value;
         if (message) status(message);
         $('aiModal').setAttribute('aria-busy', String(value));
-        for (const id of ['aiValidate','aiOptimize','aiTailor','aiRewrite','aiDiscard','aiReload','aiField','aiRole','aiJob','aiPDF','aiModeWhole','aiModePart','aiPolishPart']) {
+        for (const id of ['aiValidate','aiOptimize','aiTailor','aiRewrite','aiImprove','aiDiscard','aiReload','aiField','aiRole','aiJob','aiPDF','aiModeWhole','aiModePart','aiPolishPart']) {
             $(id).disabled = value || !selected;
         }
         $('aiRetry').disabled = value;
         $('aiApply').disabled = value || !approved().length;
         $('aiDiscard').disabled = value || !active();
         $('aiRewrite').disabled = value || !selected || !fields.length;
+        $('aiImprove').disabled = $('aiRewrite').disabled;
         const count = approved().length;
         const hasChanges = mode === 'part' ? Boolean(pending) : Boolean(tailored?.changes.length);
         $('aiApply').classList.toggle('hidden', !hasChanges);
@@ -256,8 +257,8 @@
             $('aiComparison').scrollIntoView?.({behavior: 'smooth', block: 'nearest'});
         }, tailor);
     }
-    function write() {
-        return operation('Rewriting your selected text…', async run => {
+    function write(action = 'rewrite') {
+        return operation(action === 'improve' ? 'Polishing your selected text…' : 'Rewriting your selected text…', async run => {
             const requested = fields[Number($('aiField').value)];
             if (!requested) throw invalid('Choose some saved CV text first.');
             const path = requested.path.slice();
@@ -269,14 +270,14 @@
             if (!original.trim() || original.length > 5000) throw invalid('Choose text with between 1 and 5,000 characters.');
             pending = null;
             renderProposal();
-            const result = await api.ai.rewrite(original, requested.section, role(), job());
+            const result = await api.ai[action](original, requested.section, role(), job());
             if (run !== generation) return;
             if (typeof result.rewritten !== 'string' || !result.rewritten.trim() || result.rewritten.length > 5000) throw badResponse();
             pending = {...result, original, path, cvId: selected.id, version: selected.version, document: copy(selected.data)};
             renderProposal();
             status('Compare the wording below. Save it if you like it, or discard it.');
             $('aiComparison').scrollIntoView?.({behavior: 'smooth', block: 'nearest'});
-        }, write);
+        }, () => write(action));
     }
     function apply() {
         return operation('Saving your approved changes…', async run => {
@@ -373,7 +374,8 @@
         $('aiPolishPart').addEventListener('click', () => switchMode('part', true));
         $('aiValidate').addEventListener('click', health);
         $('aiOptimize').addEventListener('click', analyze);
-        $('aiRewrite').addEventListener('click', write);
+        $('aiRewrite').addEventListener('click', () => write());
+        $('aiImprove').addEventListener('click', () => write('improve'));
         $('aiApply').addEventListener('click', apply);
         $('aiDiscard').addEventListener('click', discard);
         $('aiPDF').addEventListener('click', downloadPDF);
