@@ -1008,3 +1008,23 @@ the reported transcript, typed entities in both chat modes, random labels in
 structured/model outputs, real exam codes, unusual employer names, separate job
 follow-ups and certificate punctuation/metadata. Providers were mocked; tests used
 synthetic owned CVs and asserted that saved content/version stayed unchanged.
+
+### Follow-up: skip-command typos at required personal fields
+
+Letters-and-spaces name validation could accept `skip ot` as a name. A bounded
+whole-message command check now recognizes one typing error in `skip it` while
+requiring one of its two words to remain exact. `skip ot`, `ski[ it` and `skpi it`
+therefore follow the existing skip policy: full name/email remain required with a
+clear explanation, while optional fields can be skipped. These replies do not
+call Qwen or become CV facts. The same handling covers optional date/proficiency
+follow-ups.
+
+A second check rejects skip-like names in extracted proposals unless the user
+explicitly supplied a name or name correction. Single-word names are not fuzzy
+matched; examples such as `Skip Smith`, `Ski Patel`, Unicode names and explicitly
+stated `My full name is Skip` remain usable. Existing saved CVs and M5/M10 contracts
+are unchanged.
+
+Verification for skip handling passed: 684 Django tests (16 optional checks
+skipped), including nine new command/name regressions. Provider calls were mocked
+or blocked, and system/whitespace checks passed.

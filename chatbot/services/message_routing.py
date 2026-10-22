@@ -5,7 +5,7 @@ from copy import deepcopy
 
 from chatbot.services.conversation_router import empty_ai_response, try_local_extraction
 from chatbot.services.field_validation import extract_skills
-from chatbot.services.local_extractor import is_exact_skip_command, is_finish_command
+from chatbot.services.local_extractor import is_skip_command, is_finish_command
 from chatbot.services.question_engine import question, recommendations
 from chatbot.services.content_handling import is_direct_abuse, is_conversational_question, is_self_harm_concern
 from chatbot.services.section_answers import (labelled_summary, parse_languages, proficiency_unspecified,
@@ -188,7 +188,7 @@ def route_message(state, text, step):
         return control('clarification', notice='That looks like a conversational message, so I have not added it. ' + exit_hint)
     if state.get('date_confirmation_pending'):
         pending = state['date_confirmation_pending']
-        if lower in ('omit', 'omit this date', 'omit date', 'skip', 'skip this date', 'leave it blank', 'leave this date blank'):
+        if is_skip_command(text) or lower in ('omit', 'omit this date', 'omit date', 'skip this date', 'leave it blank', 'leave this date blank'):
             return control('omit_source_date')
         parsed = parse_education(text, pending['field']) if section in ('education', 'experience') else None
         values = {key: parsed[key] for key in ('start_date', 'end_date') if parsed and key in parsed}
@@ -243,19 +243,22 @@ def route_message(state, text, step):
             response['_control'] = {'intent': 'answer', 'unspecified_proficiency': True}
         return response
     if proficiency_unspecified(text) or (state.get('language_proficiency_pending') and (
-            keep_languages_unchanged(text) or is_exact_skip_command(text) or ABSENCE.fullmatch(text))):
+            keep_languages_unchanged(text) or is_skip_command(text) or ABSENCE.fullmatch(text))):
         return control('answer', unspecified_proficiency=True)
     if section == 'languages' and keep_languages_unchanged(text):
         return control('clarification', notice='Please name the languages to include, or skip this section.')
     if state.get('experience_absence_pending') and lower in ('yes', 'confirm', 'yes no experience', 'i confirm', 'no experience'):
         return control('skip', skip_fields=['experience'], confirmed_absence=True)
-    if is_exact_skip_command(text) or ABSENCE.fullmatch(text):
+    if is_skip_command(text) or ABSENCE.fullmatch(text):
         if section == 'education' and field in ('grade', 'start_date'):
             return control('skip_field', section=section, field=field)
         if section == 'personal' and field in OPTIONAL:
             return control('skip', skip_fields=[field])
         if section in ('education', 'experience', 'projects', 'certifications', 'achievements', 'languages', 'summary'):
             return control('skip', skip_fields=[section])
+        if section == 'personal' and field in ('full_name', 'email'):
+            label = 'full name' if field == 'full_name' else 'email address'
+            return control('clarification', notice=f'Your {label} is required for this CV and cannot be skipped.')
         return control('clarification', notice='This field is needed to guide the interview. Please provide it.')
     # A selected subset changes presentation only; retain all source entries.
     choice = re.fullmatch(r'(?:select|display|use) (?:experiences? )?([\d, and]+)', lower)
@@ -585,6 +588,17 @@ def apply_control(state, response):
     return state, notice
 
 
+def _skill_retry_message(state):
+    from chatbot.services.career_guidance import candidate_skills
+    examples = ' or '.join(candidate_skills(state)[:2])
+    example = f', such as {examples}' if examples else ''
+    exit_hint = (' You can also say "cancel" or choose another section.'
+                 if state.get('mode') == 'edit_existing' else '')
+    return ("I couldn't recognize a clear CV skill in that reply. "
+            "I'm here to help you describe your real abilities. "
+            f'Which skill would you like to include{example}?' + exit_hint)
+
+
 def present_response(response, state, errors=None, notice=''):
     from chatbot.services.question_engine import next_step
     step = next_step(state)
@@ -601,7 +615,8 @@ def present_response(response, state, errors=None, notice=''):
                      if state.get('mode') == 'edit_existing' else
                      'Please answer the CV question, or choose another CV section.')
         response.update(intent='irrelevant', next_action='ask_question',
-                        assistant_message=boundary + 'That message was not added to your CV. ' + question(state) + ' ' + exit_hint)
+                        assistant_message=(boundary + _skill_retry_message(state) if step['section'] == 'skills' else
+                                           boundary + 'That message was not added to your CV. ' + question(state) + ' ' + exit_hint))
     elif action == 'cv_question':
         response.update(intent='give_suggestion', next_action='ask_question', assistant_message=(
             'Projects can demonstrate practical skills even without formal employment. Certifications and grades are optional; include only confirmed, relevant facts. '
@@ -631,7 +646,13 @@ def present_response(response, state, errors=None, notice=''):
         detail = ' '.join(errors) if errors else notice or 'Please clarify the details you would like to include.'
         exit_hint = (' You can also say "cancel" or choose another section.'
                      if state.get('mode') == 'edit_existing' else '')
-        response.update(intent='clarify_information', next_action='ask_question', assistant_message=detail + ' ' + question(state) + exit_hint)
+        control_data = response.get('_control') or {}
+        unclear_skill = (step['section'] == 'skills' and not any(response.get('cv_updates', {}).values())
+                         and (control_data.get('requires_clarification') or control_data.get('evidence_warning')
+                              or (action == 'clarification' and not notice)))
+        response.update(intent='clarify_information', next_action='ask_question',
+                        assistant_message=(_skill_retry_message(state) if unclear_skill else
+                                           detail + ' ' + question(state) + exit_hint))
     elif action == 'finish' and step['section'] == 'review':
         response.update(intent='complete', next_action='complete', assistant_message='Your draft is ready. Review the collected details, optionally request an external Gemini review, then save when you approve.')
     else:

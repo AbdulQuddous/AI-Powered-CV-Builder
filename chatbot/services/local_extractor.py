@@ -126,6 +126,33 @@ def is_exact_skip_command(text):
     return normalized in EXACT_SKIP_COMMANDS
 
 
+def _one_typing_error(value, expected):
+    if abs(len(value) - len(expected)) > 1:
+        return False
+    if len(value) == len(expected):
+        different = [i for i, (left, right) in enumerate(zip(value, expected)) if left != right]
+        return (len(different) <= 1 or (len(different) == 2 and different[1] == different[0] + 1
+                and value[different[0]] == expected[different[1]]
+                and value[different[1]] == expected[different[0]]))
+    longer, shorter = (value, expected) if len(value) > len(expected) else (expected, value)
+    return any(longer[:i] + longer[i + 1:] == shorter for i in range(len(longer)))
+
+
+def is_skip_command(text):
+    """Recognize a complete skip command, including one typo in 'skip it'.
+
+    One word must remain exact. Never fuzzy-match single-word names, longer
+    sentences, profile URLs, or phrases such as 'Skip Smith'.
+    """
+    normalized = normalize_text(text).rstrip('.!?')
+    if normalized in EXACT_SKIP_COMMANDS:
+        return True
+    words = normalized.split()
+    return len(words) == 2 and (
+        (words[0] == 'skip' and _one_typing_error(words[1], 'it'))
+        or (words[1] == 'it' and _one_typing_error(words[0], 'skip')))
+
+
 # ============================================================
 # Profile links & skipped fields
 # ============================================================

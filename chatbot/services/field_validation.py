@@ -165,6 +165,18 @@ def validate_value(field, value):
     return value
 
 
+def _explicit_name(message, value):
+    prefix = r'(?:(?:my (?:full )?name is|i am called)|(?:change|update|edit) my (?:full )?name to)\s+'
+    if re.match(r'^' + prefix + re.escape(value) + r'(?=$|[.,;]|\s+and\s+)', message.strip(), re.I):
+        return True
+    if looks_structured(message):
+        document = parse_structured(message)
+        if isinstance(document, dict):
+            personal = document.get('personal', document)
+            return isinstance(personal, dict) and personal.get('full_name') == value
+    return False
+
+
 def validated_updates(response, state, *, user_message=''):
     """Keep valid sibling fields; reject unknown keys, invalid dates and contacts.
 
@@ -214,6 +226,10 @@ def validated_updates(response, state, *, user_message=''):
                     try:
                         if field not in allowed:
                             raise ValidationError('The extracted field is unsupported. Please clarify it.')
+                        if section == 'personal' and field == 'full_name' and isinstance(raw, str):
+                            from chatbot.services.local_extractor import is_skip_command
+                            if is_skip_command(raw) and not _explicit_name(user_message, raw.strip()):
+                                raise ValidationError('That looks like a skip request. Your full name is required; please enter your name.')
                         from chatbot.services.entity_validation import entity_problem
                         problem = entity_problem(section, field, raw, user_message)
                         if problem:
