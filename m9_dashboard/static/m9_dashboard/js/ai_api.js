@@ -2,6 +2,9 @@
 (function (global) {
     'use strict';
     function create(fetchApi) {
+        function selectedContext(context) {
+            return context ? {cv_id: context.cv_id, expected_version: context.expected_version, field_path: context.field_path} : {};
+        }
         async function post(operation, payload) {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), 60000);
@@ -21,8 +24,8 @@
             optimize: (cv, role, job = '') => post('optimize', {cv, target_role: role, job_description: job, use_ai: true}),
             suggestions: (cv, role, job = '') => post('suggestions', {cv, target_role: role, job_description: job, use_ai: true}),
             tailor: (cvId, version, role, job = '') => post('tailor', {cv_id: cvId, expected_version: version, target_role: role, job_description: job}),
-            rewrite: (text, section, role, job = '') => post('rewrite', {text, section, target_role: role, job_description: job}),
-            improve: (text, section, role, job = '') => post('improve', {text, section, target_role: role, job_description: job}),
+            rewrite: (text, section, role, job = '', context) => post('rewrite', {text, section, target_role: role, job_description: job, ...selectedContext(context)}),
+            improve: (text, section, role, job = '', context) => post('improve', {text, section, target_role: role, job_description: job, ...selectedContext(context)}),
             extract: raw_text => post('extract', {raw_text})
         };
     }

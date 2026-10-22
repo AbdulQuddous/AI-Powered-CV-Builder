@@ -84,6 +84,16 @@ class WritingSerializer(serializers.Serializer):
         max_length=10000,
     )
 
+    cv_id = serializers.IntegerField(required=False, min_value=1)
+    expected_version = serializers.IntegerField(required=False, min_value=1)
+    field_path = serializers.CharField(required=False, max_length=255)
+
+    def validate(self, attrs):
+        context = ('cv_id', 'expected_version', 'field_path')
+        if any(key in attrs for key in context) and not all(key in attrs for key in context):
+            raise serializers.ValidationError('Saved CV rewrites need the CV, version and selected field together.')
+        return attrs
+
 
 class CVTailoringSerializer(serializers.Serializer):
     cv_id = serializers.IntegerField(min_value=1)

@@ -68,6 +68,16 @@ function harness(overrides={}) {
 const text=node=>node.textContent+' '+(node.value || '')+' '+node.children.map(text).join(' ');
 const find=(node,id)=>node.id===id?node:node.children.map(child=>find(child,id)).find(Boolean);
 
+test('rewrite and improve preserve standalone payloads and forward only optional saved-field context',async()=>{
+    for(const action of ['rewrite','improve']) {
+        const h=harness();
+        await vm.runInContext(`window.M6Api.create(apiFetch).${action}('Saved wording', 'summary', 'AI Developer', 'Build Django applications.')`,h.c);
+        assert.deepEqual(h.calls[0].body,{text:'Saved wording',section:'summary',target_role:'AI Developer',job_description:'Build Django applications.'});
+        await vm.runInContext(`window.M6Api.create(apiFetch).${action}('Saved wording', 'summary', 'AI Developer', 'Build Django applications.', {cv_id:12,expected_version:4,field_path:'/summary',cv:{personal:{email:'private@example.test'}}})`,h.c);
+        assert.deepEqual(h.calls[1].body,{text:'Saved wording',section:'summary',target_role:'AI Developer',job_description:'Build Django applications.',cv_id:12,expected_version:4,field_path:'/summary'});
+    }
+});
+
 test('an unreadable AI response offers retry without reporting a connection failure',async()=>{
     const h=harness({fetch:url=>url==='/api/ai/tailor/'
         ? {ok:true,status:200,json:async()=>{throw new SyntaxError('Unexpected provider response');}}
@@ -180,6 +190,11 @@ test('polish wording calls improve and saves only the explicitly approved field'
     assert.equal(call.body.text,original.summary);
     assert.equal(call.body.section,'summary');
     assert.equal(call.body.job_description,'Develop and test Django APIs.');
+    assert.equal(call.body.cv_id,12);
+    assert.equal(call.body.expected_version,1);
+    assert.equal(call.body.field_path,'/summary');
+    assert.match(h.get('aiReviewContext').textContent,/Review focus: Backend Developer.*Job description included/);
+    assert.match(h.get('aiFieldHelp').textContent,/throughout your saved CV/);
     assert.equal(h.calls.filter(x=>x.url==='/api/ai/rewrite/').length,0);
     assert.equal(h.saved.get(12).version,1);
     await h.click('aiApply');
@@ -441,11 +456,70 @@ test('selected-text rewrite uses the same job description and changes just that 
     await h.click('aiModePart');h.get('aiJob').value='Maintain Django REST APIs.';h.change('aiJob');
     h.get('aiField').value='1';h.get('aiField').listeners.change();await h.click('aiRewrite');
     const call=h.calls.find(x=>x.url==='/api/ai/rewrite/');
-    assert.deepEqual(call.body,{text:original.projects[0].description,section:'projects',target_role:'Backend Developer',job_description:'Maintain Django REST APIs.'});
+    assert.deepEqual(call.body,{text:original.projects[0].description,section:'projects',target_role:'Backend Developer',job_description:'Maintain Django REST APIs.',cv_id:12,expected_version:1,field_path:'/projects/0/description'});
+    assert.match(h.get('aiReviewContext').textContent,/Review focus: Backend Developer.*Job description included/);
+    assert.match(h.get('aiFieldHelp').textContent,/selected entry/);
     assert.equal(h.get('aiSingleComparison').classList.contains('hidden'),false);
     assert.equal(h.get('aiWholeComparison').classList.contains('hidden'),true);
     await h.click('aiApply');const expected=clone(original);expected.projects[0].description='Developed Django APIs.';
     assert.deepEqual(h.saved.get(12).data,expected);
+});
+
+test('a selected work bullet sends its saved entry location without including unrelated CV data',async()=>{
+    const h=harness();
+    h.saved.get(12).version=4;
+    h.saved.get(12).data.experience=[{company:'Example Systems',job_title:'Developer',highlights:['Built Django endpoints.']}];
+    await h.open(12);await h.click('aiModePart');
+    const option=h.get('aiField').options.find(item=>item.text==='Example Systems — bullet 1');
+    assert.ok(option);h.get('aiField').value=option.value;h.get('aiField').listeners.change();
+    h.get('aiRole').value='Full Stack AI Developer';h.change('aiRole');
+    h.get('aiJob').value='Build reliable Django APIs and AI features.';h.change('aiJob');
+    await h.click('aiRewrite');
+    assert.deepEqual(h.calls.find(item=>item.url==='/api/ai/rewrite/').body,{
+        text:'Built Django endpoints.',section:'experience',target_role:'Full Stack AI Developer',
+        job_description:'Build reliable Django APIs and AI features.',cv_id:12,expected_version:4,field_path:'/experience/0/highlights/0'});
+    assert.match(h.get('aiFieldHelp').textContent,/selected entry/);
+    assert.match(h.get('aiReviewContext').textContent,/Full Stack AI Developer.*Saved CV target: Backend Developer/);
+    assert.equal(h.calls.filter(item=>item.method==='PATCH').length,0);
+});
+
+test('changing target role or JD invalidates both part and whole-CV proposals before saving',async()=>{
+    for(const input of ['aiRole','aiJob']) {
+        const h=harness();await h.open(12);await h.click('aiTailor');
+        await h.click('aiModePart');await h.click('aiRewrite');
+        h.get(input).value='Changed job requirements';h.change(input);
+        assert.equal(h.get('aiComparison').classList.contains('hidden'),true);
+        assert.equal(h.get('aiReviewContext').classList.contains('hidden'),true);
+        assert.equal(h.get('aiApply').disabled,true);
+        await h.click('aiApply');await h.click('aiModeWhole');
+        assert.equal(h.get('aiComparison').classList.contains('hidden'),true);
+        await h.click('aiApply');
+        assert.equal(h.calls.filter(item=>item.method==='PATCH').length,0);
+        assert.equal(h.saved.get(12).version,1);
+    }
+});
+
+test('a part response for a different original cannot become an approved change',async()=>{
+    const h=harness({fetch:url=>url==='/api/ai/rewrite/'?{ok:true,status:200,json:async()=>({data:{
+        original:'Another field or previous version.',rewritten:'Developed Django APIs.',changes:[]}})}:null});
+    await h.open(12);await h.click('aiModePart');await h.click('aiRewrite');
+    assert.equal(h.get('aiComparison').classList.contains('hidden'),true);
+    assert.equal(h.get('aiApply').disabled,true);
+    assert.equal(h.get('aiError').classList.contains('hidden'),false);
+    await h.click('aiApply');assert.equal(h.calls.filter(item=>item.method==='PATCH').length,0);
+});
+
+test('a part response cannot be offered for job details that changed while it was in flight',async()=>{
+    let finish;
+    const h=harness({fetch:url=>url==='/api/ai/rewrite/'?new Promise(resolve=>{finish=resolve;}):null});
+    await h.open(12);await h.click('aiModePart');const request=h.click('aiRewrite');
+    while(!finish)await new Promise(resolve=>setImmediate(resolve));
+    h.get('aiJob').value='A different job description.';
+    finish({ok:true,status:200,json:async()=>({data:{original:sample().data.summary,rewritten:'Developed Django APIs.',changes:[]}})});
+    await request;
+    assert.equal(h.get('aiComparison').classList.contains('hidden'),true);
+    assert.equal(h.get('aiApply').disabled,true);
+    await h.click('aiApply');assert.equal(h.calls.filter(item=>item.method==='PATCH').length,0);
 });
 
 test('changing the target clears a whole-CV proposal before approval',async()=>{

@@ -73,7 +73,7 @@ responsibility is retained and the original also supports maintenance.
 These are conservative lexical checks, not a semantic proof of every sentence.
 Users still compare each proposal with its original before approving it.
 
-The owner/model/payload-scoped cache uses operation `saved_cv_tailoring_v8`, so
+The owner/model/payload-scoped cache uses operation `saved_cv_tailoring_v9`, so
 older reviews are not reused under the new validation policy. Cached results
 are validated again and concurrent CV version changes invalidate proposals.
 
@@ -92,15 +92,60 @@ whole-CV changes, instead of checking only newly introduced digits. A rewrite
 cannot upgrade “comfortable” or “familiar” into “proficient” / “skilled” without
 a corresponding source claim. Checks also cover deployment, training, production
 and MLOps claims. Stated years, quantities and responsibility checks remain in
-place. The selected-text endpoint uses only its supplied text as evidence; a
-whole-CV summary can also draw on the saved CV's confirmed content.
+place. Legacy selected-text requests use only their supplied text as evidence.
+Saved-field requests have the same evidence boundaries as whole-CV review:
+summaries can use the CV's confirmed content; work/project wording uses its own
+entry and achievements use only the selected text.
 
-Single-text cache operations `cv_rewrite_v2` and `cv_improve_v2` avoid older-policy
+Single-text cache operations `cv_rewrite_v3` and `cv_improve_v3` avoid older-policy
 results. Cached single-text output is revalidated; invalid newly generated
 rewrites are not cached. Each action still makes at most one provider invocation.
 Existing API request fields, explicit approval and M2 versioned saves are unchanged.
 These checks do not measure semantic writing quality or guarantee that every
 provider response will be a better paragraph; users still compare the wording.
+
+### Shared JD priorities and saved-field context
+
+Both modes include a shared, section-specific editing brief. It links literal JD
+requirement IDs to relevant source paths and asks for a contribution, method and
+confirmed outcome, rather than synonym substitutions. Token overlap is only a
+relevance hint; it never supplies a qualification, semantic match score or new
+candidate fact. The requested JD takes precedence over generic role assumptions.
+Relevant contribution paths and additional saved evidence are supplied separately
+from skill/title matches, so a generic summary can become more specific without
+inventing a qualification. Whole-CV output asks for wording changes before advice
+and job-fit notes; the public response fields stay the same.
+
+The dashboard supplies optional `cv_id`, `expected_version` and `field_path` to
+`/api/ai/rewrite/` and `/api/ai/improve/`. These three fields must arrive together.
+The server checks ownership, version, section/path and the saved original before
+generation, and checks version again before returning even a cached proposal.
+Whitespace-only input differences are tolerated; the response returns the exact
+saved original so comparison and approval stay tied to the saved field. Legacy
+text-only callers retain their existing contracts and selected-text boundary.
+
+Only redacted evidence within that scope goes to Gemini. Contacts and metadata
+are excluded from single-part evidence; ISO completion dates remain factual dates.
+Summary synthesis and same-entry strengthening can now include an explicit saved
+tool, duty or metric where the evidence supports it. All original numbers, units
+and bounds must remain; new numbers must exist in the permitted evidence. This
+does not allow a fact from another project or employer to move into an entry.
+Date/label/skill fields cannot supply new numerical or responsibility claims.
+Common quantity units are retained: a pull-request count cannot become an API
+count. Additional leadership, deployment, training, maintenance and architecture
+claims are checked against candidate prose and its associated named tools within
+clauses. Work led by a manager cannot establish candidate leadership; a listed
+Kubernetes skill cannot turn a Docker deployment into Kubernetes experience.
+Original proficiency and intern/student identity remain protected even when other
+CV entries use stronger titles. Standard DRF, NLP, LLM, OOP and DSA expansions
+are recognized; JD-only RAG, vector-search, training and deployment claims remain
+unsupported. Checks remain lexical and cannot prove every factual relationship.
+
+Both comparisons show the requested focus. Changing the JD or role invalidates
+pending proposals, and late responses cannot replace a newer review. Suggestions
+still require approval and use the existing versioned M2 save. There is one
+provider invocation per generated proposal; no automatic retries or extra model
+stages were introduced. M5/M10 schemas and routes are unchanged.
 
 ## Job description and whole-CV review
 
@@ -110,7 +155,8 @@ Missing inputs receive a specific message and focus returns to the missing field
 Selected-text rewriting retains optional job context. The API continues to accept
 role-only or JD-only requests for compatibility with existing callers.
 
-One Gemini request now asks for a structured job-priority review before rewriting.
+One Gemini request supplies shared job priorities and asks for actual wording
+changes before supporting job-fit notes.
 The JD is the primary focus; a different role in the saved CV must not override it.
 The prompt includes all populated editable sections, factual evidence paths and
 per-field evidence boundaries. Work/project wording uses its own entry's facts;
@@ -246,6 +292,14 @@ that a new review is needed. Switching windows rapidly makes no extra reads.
 - `tests/test_job_focused_writing.py`: the supplied AI Engineer JD and summary,
   a grounded reordering, rejection of the reported proficiency inflation,
   shared prompt policy, cached-output validation and API source preservation.
+- `tests/test_tailoring_focus.py`: different JD priorities, contribution hints,
+  bounded paths, role-only behavior and no automatic qualification claims.
+- `tests/test_saved_part_tailoring.py`: optional saved-CV context, ownership,
+  versions, exact originals, privacy, scoped evidence, cache isolation, legacy
+  compatibility and explicit approval.
+- `tests/test_jd_evidence_scope.py`, `tests/test_jd_context_regressions.py` and
+  `tests/test_tailoring_claim_association.py`: genuine saved synthesis, dates,
+  units, aliases, career identity and prevention of unrelated claim combinations.
 - `tests/test_cv_tailoring.py`, `tests/test_m9_ai.py`: API authorization,
   owner-scoped caching, stale versions, prompt context and approval persistence.
 - `tests/m6_dashboard.test.cjs`: omission presentation, focus throttling,

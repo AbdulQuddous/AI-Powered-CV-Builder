@@ -17,6 +17,12 @@
     const active = () => mode === 'whole' ? tailored : pending;
     const approved = () => mode === 'whole' ? (tailored?.changes || []).filter(change => change.accepted) : pending ? [pending] : [];
     const key = () => JSON.stringify([selected.id, selected.version, selected.data, role(), job()]);
+    function reviewContext(source) {
+        const reviewRole = role() || (job() ? 'Pasted job description' : 'Wording review');
+        const sourceRole = source.data.meta?.target_role || '';
+        return `Review focus: ${reviewRole}${job() && role() ? ' · Job description included' : ''}` +
+            (sourceRole && sourceRole.toLowerCase() !== reviewRole.toLowerCase() ? ` · Saved CV target: ${sourceRole}` : '');
+    }
     function proposalStatus() {
         if (mode === 'part') return pending ? 'Your rewrite is ready to review.' : 'Your saved CV is up to date.';
         if (!tailored) return 'Your saved CV is up to date.';
@@ -67,7 +73,7 @@
         $('aiReviewIntro').textContent = adviceOnly ? 'For a focused wording review, choose Polish one part.' : 'Check the wording and facts. Only the changes you approve will be saved.';
         $('aiPolishPart').classList.toggle('hidden', !adviceOnly);
         $('aiDiscard').textContent = adviceOnly ? 'Close review' : 'Discard suggestions';
-        const context = mode === 'whole' && tailored ? tailored.reviewContext : '';
+        const context = proposal?.reviewContext || '';
         $('aiReviewContext').textContent = context || '';
         $('aiReviewContext').classList.toggle('hidden', !context);
         $('aiReviewCache').classList.toggle('hidden', !(mode === 'whole' && tailored?.cached));
@@ -91,7 +97,7 @@
         $('aiPartMode').classList.toggle('hidden', whole);
         $('aiJobHelp').textContent = whole
             ? 'Enter your target role and paste the job description. Gemini will tailor the wording to this job using your existing CV.'
-            : 'A target role or job description is optional. Add one to guide the rewrite.';
+            : 'Add your target role and job description to tailor this part with Gemini. Leave them blank for a general wording review.';
         for (const id of ['aiRole', 'aiJob']) $(id).setAttribute('aria-required', String(whole));
         $('aiRoleRequirement').textContent = whole ? '(required)' : '(optional)';
         $('aiJobRequirement').textContent = whole ? '(required)' : '(optional)';
@@ -107,7 +113,15 @@
         pending = null;
         const field = fields[Number($('aiField').value)];
         $('aiSource').value = field && selected ? at(selected.data, field.path) : '';
+        describeField(field);
         renderProposal();
+    }
+    function describeField(field) {
+        $('aiFieldHelp').textContent = field?.section === 'summary'
+            ? 'Gemini can draw on facts throughout your saved CV to focus your summary on this job. Review every suggested claim before saving.'
+            : ['experience', 'projects'].includes(field?.section)
+                ? 'Gemini uses facts from this selected entry to focus the wording on this job. Other jobs and projects cannot supply new claims for it.'
+                : 'Gemini preserves the facts in the selected text. To add or correct factual details, use the CV editor.';
     }
     function populateFields() {
         fields = [];
@@ -129,6 +143,7 @@
         if (!fields.length) $('aiField').add(new Option('Add a summary, work bullet or project description in the editor first.', ''));
         const first = fields[0];
         $('aiSource').value = first ? at(selected.data, first.path) : '';
+        describeField(first);
     }
     function adopt(cv) {
         if (!cv?.data || !Number.isSafeInteger(cv.id) || !Number.isInteger(cv.version)) throw badResponse();
@@ -274,11 +289,7 @@
                 seen.add(change.path);
                 return {...change, label: field.label, path: field.path.slice(), accepted: true};
             });
-            const reviewRole = role() || 'Pasted job description';
-            const sourceRole = source.data.meta?.target_role || '';
-            const reviewContext = `Review focus: ${reviewRole}${job() && role() ? ' · Job description included' : ''}` +
-                (sourceRole && sourceRole.toLowerCase() !== reviewRole.toLowerCase() ? ` · Saved CV target: ${sourceRole}` : '');
-            tailored = {...result, changes, reviewContext, cvId: source.id, version: source.version, document: source.data};
+            tailored = {...result, changes, reviewContext: reviewContext(source), cvId: source.id, version: source.version, document: source.data};
             renderProposal();
             status(proposalStatus());
             $('aiComparison').scrollIntoView?.({behavior: 'smooth', block: 'nearest'});
@@ -297,10 +308,13 @@
             if (!original.trim() || original.length > 5000) throw invalid('Choose text with between 1 and 5,000 characters.');
             pending = null;
             renderProposal();
-            const result = await api.ai[action](original, requested.section, role(), job());
-            if (run !== generation) return;
-            if (typeof result.rewritten !== 'string' || !result.rewritten.trim() || result.rewritten.length > 5000) throw badResponse();
-            pending = {...result, original, path, cvId: selected.id, version: selected.version, document: copy(selected.data)};
+            const source = copy(selected), signature = key();
+            const context = {cv_id: source.id, expected_version: source.version, field_path: requested.pointer};
+            const focus = reviewContext(source);
+            const result = await api.ai[action](original, requested.section, role(), job(), context);
+            if (run !== generation || signature !== key()) return;
+            if ((result.original !== undefined && result.original !== original) || typeof result.rewritten !== 'string' || !result.rewritten.trim() || result.rewritten.length > 5000) throw badResponse();
+            pending = {...result, original, path, reviewContext: focus, cvId: source.id, version: source.version, document: source.data};
             renderProposal();
             status('Compare the wording below. Save it if you like it, or discard it.');
             $('aiComparison').scrollIntoView?.({behavior: 'smooth', block: 'nearest'});

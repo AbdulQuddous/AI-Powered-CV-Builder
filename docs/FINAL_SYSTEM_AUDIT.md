@@ -907,3 +907,37 @@ Verification passed: 103 targeted tailoring, grounding, writing and provider
 regressions, all eight Node test files and two Chromium review/save journeys.
 System and whitespace checks passed. Browser tests used isolated synthetic data
 and mocked Gemini responses.
+
+## 2026-10-21 follow-up: shared JD tailoring for one part and whole CV
+
+Both modes use a shared section-specific brief with literal JD references,
+relevant contribution paths and permitted saved evidence. Whole-CV generation
+requests actual replacement wording before editorial feedback and job-fit notes.
+Single-part requests optionally bind to an owned CV/version/field; summaries
+can synthesize saved CV facts, while employment/projects stay within their entry
+and achievements retain selected-text scope. Existing text-only callers and
+M5/M10 contracts remain compatible. Every save still requires explicit approval
+through the versioned M2 update; role/JD edits invalidate pending proposals.
+
+New grounding coverage protects quantity units, dates, original career identity
+and proficiency, candidate responsibility and action/tool associations. A listed
+skill cannot authorize deployment of that tool, a manager-led team cannot become
+candidate leadership, and an education year or review count cannot become an
+application/API count. Valid explicit same-entry facts remain available for
+synthesis. These are bounded lexical checks rather than semantic proof.
+
+Live Gemini checks used fictional CVs with no development database reads/writes.
+Single-part AI/backend reviews returned different emphasis. A rough CV reviewed
+for an AI application JD returned summary and project proposals that passed local
+validation; polished examples also returned valid advice-only reviews. An earlier
+call timed out and another attempted unsupported LLM wording, which validation
+rejected. These smoke checks do not guarantee future model availability or quality.
+Further implementation details are in
+[CV_TAILORING_REVIEW.md](CV_TAILORING_REVIEW.md#shared-jd-priorities-and-saved-field-context).
+
+Final verification passed: full Django regression ran 578 tests (16 optional
+tests skipped), all eight Node suites passed, and three isolated Chromium
+journeys passed for JD rewriting, whole-CV evidence review and approved saving.
+System and whitespace checks passed. Browser providers were mocked; live smoke
+results above used fictional data. The final regression includes the discovered
+multiline numeric-unit issue and its whitespace-normalization fix.

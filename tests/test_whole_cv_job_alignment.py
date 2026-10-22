@@ -207,7 +207,7 @@ class WholeCVJobAlignmentTests(APITestCase):
         self.assertNotIn('/projects/0/description', constraints['allowed_evidence_paths'])
         self.assertIn('job_alignment', request['schema']['required'])
         self.assertNotIn('maxItems', request['schema']['properties']['job_alignment'])
-        self.assertEqual(list(request['schema']['properties'])[0], 'job_alignment')
+        self.assertEqual(list(request['schema']['properties'])[0], 'changes')
         self.assertIn('primary focus', SYSTEM)
         self.cv.refresh_from_db()
         self.assertEqual(self.cv.data, self.data)
