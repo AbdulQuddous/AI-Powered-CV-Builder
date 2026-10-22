@@ -280,6 +280,11 @@ class IntelligentConversationTests(APITestCase):
         self.assertIn('certifications', session.conversation_state['skipped_sections'])
         self.focus(session, 'certifications', 'certifications')
         self.send(session, ', '.join(f'Certificate {n}' for n in range(10)))
+        self.assertNotIn('certifications', session.conversation_state['collected_data'])
+        self.send(session, 'yes, add it')
+        self.assertNotIn('certifications', session.conversation_state['collected_data'])
+        self.send(session, json.dumps({'certifications': [
+            {'name': f'Certificate {n}', 'issuer': 'Example Training'} for n in range(10)]}))
         self.assertEqual(len(session.conversation_state['collected_data']['certifications']), 10)
         self.assertTrue(any('3–5' in text for text in session.conversation_state['recommendations']))
 

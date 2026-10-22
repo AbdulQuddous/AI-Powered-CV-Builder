@@ -137,6 +137,15 @@ def process_user_message(
     session.conversation_state = state
     required_step = get_required_conversation_step(state)
     ai_response = route_message(state, user_message, required_step)
+    context_before_switch = None
+    if ai_response is not None and state.get('mode') == 'edit_existing':
+        switch = (ai_response.get('_control') or {}).pop('_edit_switch', None)
+        if switch is not None:
+            from chatbot.services.edit_controls import prepare_edit_context
+            context_before_switch = state
+            state = prepare_edit_context(state, switch)
+            session.conversation_state = state
+            required_step = get_required_conversation_step(state)
     if ai_response is None:
         ai_response = QwenClient().generate(build_qwen_messages(session, user_message))
         from chatbot.services.extraction_guard import guard_extraction
@@ -155,7 +164,7 @@ def process_user_message(
     if blocked:
         ai_response['cv_updates'] = empty_updates()
         ai_response['state_updates'] = {}
-    ai_response, errors, statuses = validated_updates(ai_response, state)
+    ai_response, errors, statuses = validated_updates(ai_response, state, user_message=user_message)
     uncertain = (ai_response.get('_control') or {}).get('uncertain_fields') or []
     for path in uncertain:
         statuses[path] = 'needs_clarification'
@@ -163,6 +172,11 @@ def process_user_message(
         errors.append('Please clarify ' + (', '.join(uncertain) if uncertain else 'the details you would like to include') + '. I have kept the confirmed information.')
     if (ai_response.get('_control') or {}).get('evidence_warning'):
         errors.append(ai_response['_control']['evidence_warning'])
+    from chatbot.services.optional_answers import review_optional_entries
+    ai_response, provisional = review_optional_entries(ai_response, user_message, state)
+    for path in provisional:
+        statuses[path] = 'needs_clarification'
+    action = (ai_response.get('_control') or {}).get('intent')
     if action == 'go_back':
         previous = state.get('undo_state')
         new_state = deepcopy(previous) if previous else deepcopy(state)
@@ -249,7 +263,7 @@ def process_user_message(
                 if value == 'student':
                     new_state['question_profile'] = 'student'
         if not blocked and action not in ('finish', 'show_progress'):
-            undo = deepcopy(state)
+            undo = deepcopy(context_before_switch if context_before_switch is not None else state)
             undo.pop('undo_state', None)
             undo.pop('message_receipts', None)
             new_state['undo_state'] = undo

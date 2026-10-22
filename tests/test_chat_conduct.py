@@ -12,7 +12,7 @@ from chatbot.services.message_routing import classify
 from chatbot.services.state_manager import get_required_conversation_step, CV_SECTIONS
 from tests.test_m8 import SAMPLE_CV
 
-PHRASES = ['o shutup', 'what a fuck', 'are you idiot']
+PHRASES = ['o shutup', 'what a fuck', 'are you idiot', 'are you a fool']
 
 
 class ConductClassificationTests(SimpleTestCase):
@@ -123,7 +123,7 @@ class ConductConversationTests(APITestCase):
         self.qwen.side_effect = None
         self.qwen.return_value = {'assistant_message': '', 'intent': 'collect_information', 'section': 'experience',
             'state_updates': {}, 'cv_updates': {}, 'next_action': 'ask_question'}
-        for message in ['are you even listening', 'you are a fool', 'your questions are confusing']:
+        for message in ['are you even listening', 'you missed my point', 'your questions are confusing']:
             self.send(session, message)
         self.assertEqual(session.conversation_state['collected_data']['experience'], [])
         self.assertEqual(get_required_conversation_step(session.conversation_state)['field'], 'company')

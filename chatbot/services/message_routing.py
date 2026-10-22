@@ -43,6 +43,55 @@ def response_update(section, field, value):
     return response
 
 
+def _edit_target(response, state, section, field=None, index=None):
+    """Private marker emitted only by these exact local correction commands."""
+    if state.get('mode') == 'edit_existing':
+        response.setdefault('_control', {})['_edit_switch'] = {
+            'section': section, **({'field': field} if field else {}),
+            **({'index': index} if index is not None else {}),
+        }
+    return response
+
+
+def _explicit_correction(state, text):
+    correction = re.fullmatch(r'(?:change|update|edit) my (full name|name|email|phone|location|linkedin|github|portfolio|summary)(?: to (.+))?', text, re.I)
+    if correction:
+        label, value = correction.groups()
+        section = 'summary' if label.lower() == 'summary' else 'personal'
+        field = 'summary' if section == 'summary' else PERSONAL[label.lower()]
+        response = response_update(section, field, value) if value else control('focus', focus={'section': section, 'field': field})
+        return _edit_target(response, state, section, field)
+    correction = re.fullmatch(r'(?:change|update|edit) my (university|institution|degree|project description|job title)(?: to (.+))?', text, re.I)
+    if correction and state.get('mode') == 'edit_existing':
+        label, value = correction.groups()
+        section, field = {'university': ('education', 'institution'),
+            'institution': ('education', 'institution'), 'degree': ('education', 'degree'),
+            'project description': ('projects', 'description'), 'job title': ('experience', 'role')}[label.lower()]
+        entries = (state.get('existing_cv') or {}).get(section) or []
+        if len(entries) == 1:
+            if value:
+                response = response_update(section, field, value)
+                response['_control'] = {'intent': 'entry_patch', 'section': section, 'index': 0}
+            else:
+                response = control('focus', focus={'section': section, 'field': field, 'index': 0})
+            return _edit_target(response, state, section, field, 0)
+        if len(entries) > 1:
+            return _edit_target(control('select_entry', section=section, field=field), state, section)
+        return _edit_target(control('clarification', notice='There is no saved entry in this section yet. You can add a new entry.'), state, None)
+    command = re.fullmatch(r'(add|remove) (.+?) (?:to|from) (?:my )?skills', text, re.I)
+    if command:
+        operation, values = command.groups()
+        skills = extract_skills(values)
+        if not skills and operation.lower() == 'remove':
+            skills = [skill for skill in guidance_data(state).get('skills') or []
+                      if skill.casefold() == values.strip().casefold()]
+        if skills:
+            if operation.lower() == 'remove':
+                return _edit_target(control('remove_skills', skills=skills), state, None)
+            return _edit_target(response_update('skills', 'skills', skills), state, 'skills', 'skills')
+    return None
+
+
 def classify(text):
     if is_self_harm_concern(text):
         return 'support_needed'
@@ -69,6 +118,8 @@ def route_message(state, text, step):
                      'i am safe', "i'm safe", 'no i am safe', 'no'):
             return control('resume_cv')
         return control('support_needed')
+    if state.get('mode') == 'edit_existing' and lower in ('cancel', 'cancel this', 'cancel this step', 'cancel edit', 'stop adding', 'never mind', 'nevermind'):
+        return control('cancel_edit')
     topic = guidance_request(text)
     if topic:
         return control('career_guidance', topic=topic)
@@ -83,7 +134,7 @@ def route_message(state, text, step):
         if selected:
             response = response_update('target', 'career_level', PROFILES[selected][1])
             response['_control'] = {'intent': 'answer', 'question_profile': selected}
-            return response
+            return _edit_target(response, state, 'target')
         return control('clarification', notice='Choose Student, Fresher, Junior, Mid-Level, Senior, Executive or other.')
     if section == 'personal' and field in ('linkedin', 'github', 'portfolio'):
         link = re.fullmatch(r'\[[^\]]*\]\((https?://\S+)\)', text, re.I)
@@ -94,10 +145,8 @@ def route_message(state, text, step):
     request = section_request(text)
     if request:
         target, operation = request
-        from chatbot.services.existing_cv_conversation import FIELDS, REQUESTS, try_edit_local
+        from chatbot.services.existing_cv_conversation import FIELDS
         if state.get('mode') == 'edit_existing':
-            if lower in REQUESTS:
-                return try_edit_local(state, text)
             return control('edit_focus', section=target, operation=operation)
         if target in FIELDS and operation == 'add':
             return control('collection_focus', section=target)
@@ -112,6 +161,31 @@ def route_message(state, text, step):
         return control('show_progress')
     if lower in ('go back', 'back', 'undo', 'undo last change'):
         return control('go_back')
+    if state.get('mode') == 'edit_existing':
+        correction = _explicit_correction(state, text)
+        if correction is not None:
+            return correction
+    confirmation = state.get('optional_entry_confirmation')
+    if confirmation:
+        if lower in ('yes', 'yes add it', 'yes, add it', 'add it', 'confirm', 'confirmed'):
+            if confirmation['section'] == 'certifications':
+                return control('clarification', notice='Please provide the full certification title and issuer if available; confirmation alone does not establish a certification.')
+            response = empty_ai_response(); response['section'] = confirmation['section']
+            response['cv_updates'][confirmation['section']] = deepcopy(confirmation['entries'])
+            response['_control'] = {'intent': 'confirm_optional'}
+            return response
+        if lower in ('no', 'no thanks', 'cancel', 'cancel this', 'cancel this step', 'never mind', 'nevermind'):
+            return control('cancel_edit' if state.get('mode') == 'edit_existing' else 'dismiss_optional')
+        if is_finish_command(text) or lower in ('finish', 'done', 'save', 'nothing else'):
+            return control('clarification', notice='Confirm the optional entry or say "cancel" before finishing; I have not added it.')
+    if state.get('mode') == 'edit_existing' and not confirmation and (
+            is_finish_command(text) or lower in ('nothing else', 'done', 'save', 'no more changes')):
+        response = control('finish'); response['next_action'] = 'complete'
+        return response
+    from chatbot.services.optional_answers import optional_chatter
+    if section in ('languages', 'certifications', 'skills') and optional_chatter(text):
+        exit_hint = 'Provide the requested CV detail, switch sections, or say "cancel".' if state.get('mode') == 'edit_existing' else 'Provide the requested CV detail or choose another CV section.'
+        return control('clarification', notice='That looks like a conversational message, so I have not added it. ' + exit_hint)
     if state.get('date_confirmation_pending'):
         pending = state['date_confirmation_pending']
         if lower in ('omit', 'omit this date', 'omit date', 'skip', 'skip this date', 'leave it blank', 'leave this date blank'):
@@ -193,45 +267,11 @@ def route_message(state, text, step):
         return control('select_entries', section=section, indexes=[int(n) - 1 for n in re.findall(r'\d+', choice[2])])
     if re.match(r'^(?:select|display|use) (?:projects?|certifications?)\b', lower):
         return control('clarification', notice='Please list the original entry numbers, for example: select projects 1, 2.')
-    correction = re.fullmatch(r'(?:change|update|edit) my (full name|name|email|phone|location|linkedin|github|portfolio|summary)(?: to (.+))?', text, re.I)
-    if correction:
-        label, value = correction.groups()
-        target_section = 'summary' if label.lower() == 'summary' else 'personal'
-        target_field = 'summary' if target_section == 'summary' else PERSONAL[label.lower()]
-        if value:
-            return response_update(target_section, target_field, value)
-        return control('focus', focus={'section': target_section, 'field': target_field})
-    entry_correction = re.fullmatch(r'(?:change|update|edit) my (university|institution|degree|project description|job title)(?: to (.+))?', text, re.I)
-    if entry_correction and state.get('mode') == 'edit_existing':
-        label, value = entry_correction.groups()
-        target_section, target_field = {'university': ('education', 'institution'),
-            'institution': ('education', 'institution'), 'degree': ('education', 'degree'),
-            'project description': ('projects', 'description'), 'job title': ('experience', 'role')}[label.lower()]
-        entries = (state.get('existing_cv') or {}).get(target_section) or []
-        if len(entries) == 1:
-            if value:
-                response = response_update(target_section, target_field, value)
-                response['_control'] = {'intent': 'entry_patch', 'section': target_section, 'index': 0}
-                return response
-            return control('focus', focus={'section': target_section, 'field': target_field, 'index': 0})
-        if len(entries) > 1:
-            return control('select_entry', section=target_section, field=target_field)
-        return control('clarification', notice='There is no saved entry in this section yet. You can add a new entry.')
-    skill_command = re.fullmatch(r'(add|remove) (.+?) (?:to|from) (?:my )?skills', text, re.I)
-    if skill_command:
-        operation, values = skill_command.groups()
-        skills = extract_skills(values)
-        if not skills and operation.lower() == 'remove':
-            # A literal, already-confirmed skill needs no vocabulary guess or
-            # model call, even when it is uncommon or from another discipline.
-            skills = [skill for skill in guidance_data(state).get('skills') or []
-                      if skill.casefold() == values.strip().casefold()]
-        if skills:
-            if operation.lower() == 'remove':
-                return control('remove_skills', skills=skills)
-            return response_update('skills', 'skills', skills)
+    correction = _explicit_correction(state, text)
+    if correction is not None:
+        return correction
     # Explicit new-entry requests reuse the existing targeted editing workflow.
-    from chatbot.services.existing_cv_conversation import REQUESTS, try_edit_local
+    from chatbot.services.existing_cv_conversation import REQUESTS
     request = REQUESTS.get(lower)
     if state.get('mode') != 'edit_existing' and request:
         if request[0] in ('projects', 'experience', 'education'):
@@ -240,7 +280,7 @@ def route_message(state, text, step):
     if state.get('mode') == 'edit_existing':
         request = REQUESTS.get(lower)
         if request:
-            return try_edit_local(state, text)
+            return control('edit_focus', section=request[0], operation=request[1])
         new_request = re.fullmatch(r'(?:i want to )?(?:add|edit|update)(?: my| a new| a| another)? (languages?|skills?|certifications?|education|experience|projects?|summary)', lower)
         if new_request:
             noun = new_request[1]
@@ -292,11 +332,19 @@ def route_message(state, text, step):
             response['cv_updates'][section] = [certificate]
             return response
     if section == 'experience' and field in ('company', 'role'):
+        labelled = re.fullmatch(r'(?:(?:my|the)\s+)?(company(?:\s+name)?|employer|job title|role)\s*(?::|=|\bis\b)\s*(.+)', text, re.I)
+        if labelled:
+            target = 'company' if labelled[1].casefold().startswith(('company', 'employer')) else 'role'
+            return response_update(section, target, labelled[2].strip())
         employer = parse_employer(text)
         if employer:
             response = empty_ai_response(); response['section'] = section
             response['cv_updates'][section] = [employer]
             return response
+        from chatbot.services.entity_validation import entity_problem
+        problem = entity_problem(section, field, text, text)
+        if problem:
+            return control('clarification', notice=problem)
     if section == 'projects' and field in ('name', 'description') and is_profile_paragraph(text):
         response = response_update('summary', 'summary', text)
         response['_control'] = {'intent': 'answer', 'notice': 'I kept that profile paragraph as your professional summary. Please provide the project details separately.'}
@@ -367,6 +415,14 @@ def route_message(state, text, step):
     if section == 'target' and field == 'target_role' and not re.search(r'\b(?:developer|engineer|designer|manager|analyst|teacher|nurse|accountant|specialist|consultant|director|officer|writer|student|architect|sales|marketing)\b', text, re.I):
         return None
     if not complex_text and len(text) < 256 and field not in ('edit_request', 'changes', 'select_entry', 'review'):
+        if section == 'experience' and field == 'company':
+            from chatbot.services.entity_validation import clear_employer_label
+            if not clear_employer_label(text):
+                return None
+        if section == 'experience' and field in ('role', 'job_title'):
+            from chatbot.services.entity_validation import clear_job_title
+            if not clear_job_title(text):
+                return None
         if section in ('personal', 'target', 'education', 'experience', 'projects'):
             return response_update(section, field, text)
     if section == 'summary' and field == 'summary' and '?' not in text:
@@ -423,6 +479,7 @@ def apply_control(state, response):
     elif intent == 'resume_cv':
         state.pop('support_check_pending', None)
     if intent == 'focus':
+        state.pop('optional_entry_confirmation', None)
         state['pending_field'] = action['focus']
         if action.get('clear_selection'):
             state.pop('pending_selection', None)
@@ -442,9 +499,20 @@ def apply_control(state, response):
             state['edit_focus'] = None
             notice = 'The proposed change is collected. Review it before saving.'
     elif intent == 'edit_focus':
+        from chatbot.services.edit_controls import clear_prompts
+        clear_prompts(state)
         state.update(edit_focus=action['section'], edit_operation=action['operation'],
                      edit_explicit_add=action['operation'] == 'add', edit_draft=[])
+    elif intent == 'cancel_edit':
+        from chatbot.services.edit_controls import cancel_edit
+        cancel_edit(state)
+        notice = 'Canceled this step. Previously collected changes are still pending and have not been saved.'
+    elif intent == 'optional_confirmation':
+        state['optional_entry_confirmation'] = {'section': action['section'], 'entries': deepcopy(action['entries'])}
+    elif intent in ('confirm_optional', 'dismiss_optional'):
+        state.pop('optional_entry_confirmation', None)
     elif intent == 'collection_focus':
+        state.pop('optional_entry_confirmation', None)
         state['pending_entry'] = {'section': action['section'], 'draft': {}}
         state.pop('pending_selection', None)
     elif intent == 'collection_patch':
@@ -481,6 +549,8 @@ def apply_control(state, response):
         notice = 'Proposed removal: ' + ', '.join(action['skills']) + '. Review before saving.'
     elif intent == 'skip':
         for target in action.get('skip_fields', []):
+            if state.get('optional_entry_confirmation', {}).get('section') == target:
+                state.pop('optional_entry_confirmation', None)
             if target in OPTIONAL:
                 state['personal_fields'][target] = 'skipped'
             elif target in ('education', 'experience', 'projects', 'certifications', 'achievements', 'languages', 'summary'):
@@ -501,6 +571,17 @@ def apply_control(state, response):
                     state['edit_focus'] = None
         if state.get('pending_field', {}).get('field') in action.get('skip_fields', []):
             state.pop('pending_field', None)
+    optional = state.get('optional_entry_confirmation')
+    if optional and intent != 'optional_confirmation' and (response.get('cv_updates') or {}).get(optional['section']):
+        state.pop('optional_entry_confirmation', None)
+    if intent == 'finish' and state.get('mode') == 'edit_existing':
+        if state.get('edit_focus') in (None, 'skills', 'certifications', 'languages', 'achievements', 'summary', 'personal', 'target'):
+            # Finish can leave an optional prompt without inventing an answer.
+            from chatbot.services.edit_controls import cancel_edit
+            cancel_edit(state)
+        else:
+            state.pop('language_proficiency_pending', None)
+            state.pop('pending_selection', None)
     return state, notice
 
 
@@ -516,8 +597,11 @@ def present_response(response, state, errors=None, notice=''):
             'We can pause the CV. When you are safe and ready, you can say "resume CV".'))
     elif action in ('off_topic', 'inappropriate') or response.get('intent') == 'irrelevant':
         boundary = "Let's keep this professional. " if action == 'inappropriate' else ''
+        exit_hint = ('You can answer, switch to another section, or say "cancel" to leave this step.'
+                     if state.get('mode') == 'edit_existing' else
+                     'Please answer the CV question, or choose another CV section.')
         response.update(intent='irrelevant', next_action='ask_question',
-                        assistant_message=boundary + "I'm here to help with your CV. Let's continue. " + question(state))
+                        assistant_message=boundary + 'That message was not added to your CV. ' + question(state) + ' ' + exit_hint)
     elif action == 'cv_question':
         response.update(intent='give_suggestion', next_action='ask_question', assistant_message=(
             'Projects can demonstrate practical skills even without formal employment. Certifications and grades are optional; include only confirmed, relevant facts. '
@@ -530,19 +614,31 @@ def present_response(response, state, errors=None, notice=''):
                   if action == 'guidance_choice' else 'Your confirmed information is kept. ')
         response.update(intent='give_suggestion', next_action='ask_question', assistant_message=detail + question(state))
     elif action == 'show_progress':
+        if state.get('mode') == 'edit_existing':
+            from chatbot.services.progress_review import progress_message
+            response.update(intent='give_suggestion', next_action='review',
+                            assistant_message=progress_message(state) + '\n\n' + question(state))
+            response.pop('_control', None)
+            return response
         info = state.get('collected_data') or state.get('edit_updates') or {}
         response.update(intent='give_suggestion', next_action='review', assistant_message=(
             'Collected information: ' + json.dumps(info, ensure_ascii=False)[:7000] + '\n' + '\n'.join(recommendations(state)) + '\n' + question(state)))
+    elif state.get('optional_entry_confirmation'):
+        from chatbot.services.optional_answers import confirmation_question
+        response.update(intent='clarify_information', next_action='ask_question',
+                        assistant_message=confirmation_question(state['optional_entry_confirmation']))
     elif errors or action == 'clarification':
         detail = ' '.join(errors) if errors else notice or 'Please clarify the details you would like to include.'
-        response.update(intent='clarify_information', next_action='ask_question', assistant_message=detail + ' ' + question(state))
+        exit_hint = (' You can also say "cancel" or choose another section.'
+                     if state.get('mode') == 'edit_existing' else '')
+        response.update(intent='clarify_information', next_action='ask_question', assistant_message=detail + ' ' + question(state) + exit_hint)
     elif action == 'finish' and step['section'] == 'review':
         response.update(intent='complete', next_action='complete', assistant_message='Your draft is ready. Review the collected details, optionally request an external Gemini review, then save when you approve.')
     else:
         response['next_action'] = 'review' if step['section'] == 'review' else 'ask_question'
         response['intent'] = 'update_cv' if any(value for value in response.get('cv_updates', {}).values()) else 'collect_information'
         response['assistant_message'] = (notice + ' ' if notice else '') + question(state)
-        advice = automatic_guidance(state, response)
+        advice = automatic_guidance(state, response) if state.get('mode') != 'edit_existing' or action == 'edit_focus' else ''
         if advice:
             response['assistant_message'] += '\n\n' + advice
     response.pop('_control', None)

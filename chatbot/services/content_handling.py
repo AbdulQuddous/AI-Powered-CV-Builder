@@ -4,7 +4,7 @@ from copy import deepcopy
 
 # Match conversational forms, not occurrences of a word inside a CV description.
 _PREFIX = r'(?:(?:o|oh|hey|please|just|well|ok|okay)\b[\s,!:.?\-]+){0,3}'
-_INSULT = r'(?:idiot|stupid|useless|dumb|moron|dumbass|asshole|bastard)\b'
+_INSULT = r'(?:idiot|fool|stupid|useless|dumb|moron|dumbass|asshole|bastard)\b'
 _FILLER = r'(?:(?:a|an|so|really|just|such|fucking)\s+){0,3}'
 _DIRECT = re.compile(r'^' + _PREFIX + r'(?:'
     r'shut[\s\-]*up\b|'

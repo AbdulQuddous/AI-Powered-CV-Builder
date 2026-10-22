@@ -182,6 +182,8 @@ class EducationAnswerTests(APITestCase):
                 session = create_chat_session(user=self.user, cv_id=cv.id)
                 self.send(session, 'i want to add another certificate')
                 result = self.send(session, 'Google Ai prompting Essential')
+                self.assertFalse(session.conversation_state['edit_updates'].get('certifications'))
+                result = self.send(session, 'Certification: Google Ai prompting Essential')
                 self.assertIn('finish', result['assistant_message'].lower())
                 self.assertEqual(self.send(session, ending)['next_action'], 'complete')
                 cv.refresh_from_db(); self.assertEqual(cv.version, 1)

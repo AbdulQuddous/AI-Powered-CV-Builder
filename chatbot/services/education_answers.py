@@ -194,9 +194,22 @@ def parse_education(text, field=None):
 
 
 def parse_certificate(text):
-    match = re.fullmatch(r'(?P<name>.+?)\s*[,;]?\s+(?:issue(?:d)?(?:\s+date)?|date)\s*[:=]?\s*(?P<date>' + DATE + r')[.!]?', text.strip(), re.I)
+    labelled = re.fullmatch(r'(?:certification|certificate)(?:\s+(?:title|name))?\s*(?::|=|\bis\b)\s*(.+)', text.strip(), re.I)
+    body = labelled[1] if labelled else text.strip()
+    details = {}
+    match = re.fullmatch(r'(?P<name>.+?)\s*[,;]?\s+(?:issue(?:d)?(?:\s+date)?|date)\s*[:=]?\s*(?P<date>' + DATE + r')[.!]?', body, re.I)
     if match:
-        return {'name': match['name'].strip(' ,;'), 'date': normalise_date(match['date'])}
+        body = match['name'].strip(' ,;')
+        details['date'] = normalise_date(match['date'])
+    issuer = re.fullmatch(r'(.+?)\s*(?:[;|—–]|\s+-)\s*issuer\s*[:=]\s*(.+)', body, re.I)
+    if not issuer and labelled:
+        issuer = re.fullmatch(r'(.+?)\s+[—–]\s+(.+)', body)
+    if not issuer:
+        issuer = re.fullmatch(r'(.+?)\s+(?:issued by|issuer\s*[:=])\s*(.+)', body, re.I)
+    if issuer:
+        return {'name': issuer[1].strip(), 'issuer': issuer[2].strip(), **details}
+    if labelled or details:
+        return {'name': body.strip(), **details}
     return None
 
 

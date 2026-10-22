@@ -11,6 +11,9 @@ def profile(state):
 
 
 def next_step(state):
+    if state.get('optional_entry_confirmation'):
+        section = state['optional_entry_confirmation']['section']
+        return {'section': section, 'field': section}
     if state.get('pending_selection'):
         return {'section': state['pending_selection']['section'], 'field': 'select_entry'}
     if state.get('date_confirmation_pending'):
@@ -60,6 +63,9 @@ def question(state):
     from chatbot.services.response_normalizer import QUESTION_MAP
     step = next_step(state)
     section, field = step['section'], step['field']
+    if state.get('optional_entry_confirmation'):
+        from chatbot.services.optional_answers import confirmation_question
+        return confirmation_question(state['optional_entry_confirmation'])
     if section == 'target' and field == 'career_level':
         return 'What is your career level: Student, Fresher, Junior, Mid-Level, Senior or Executive? You may also choose other.'
     if state.get('date_confirmation_pending'):

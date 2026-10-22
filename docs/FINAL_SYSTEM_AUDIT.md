@@ -941,3 +941,70 @@ journeys passed for JD rewriting, whole-CV evidence review and approved saving.
 System and whitespace checks passed. Browser providers were mocked; live smoke
 results above used fictional data. The final regression includes the discovered
 multiline numeric-unit issue and its whitespace-normalization fix.
+
+## 2026-10-22 follow-up: scoped existing-CV conversation
+
+The reported transcript exposed two separate problems: prior date, selection or
+proficiency prompts could survive a section change, and saved language identities
+could be copied into an unrelated model reply. Explicit section changes and local
+corrections now reset the old editing context before collecting the new answer.
+Optional language/certification identities require current-message evidence or an
+explicitly selected correction target; an unrelated travel statement cannot copy
+English/Urdu from the saved CV or start a proficiency question.
+
+Unclear optional names remain provisional until the user confirms, supplies a
+clearer title, cancels or switches sections. Recognized subject titles, credential
+codes and explicit issuer/date/link details stay usable; unfamiliar languages are
+confirmable and international orthography is preserved. This establishes naming
+intent rather than verifying credentials. Mixed clear/provisional answers retain
+the clear entries and keep the remaining question in the correct section.
+
+`cancel` exits the active editing step while retaining earlier collected proposals.
+`finish` clears obsolete auxiliary prompts without bypassing the required fields
+of a new project, job or degree. Progress reviews show readable unsaved proposals,
+requested removals, unfinished entries and items awaiting confirmation separately.
+General career advice is available on request; automatic advice appears when the
+user explicitly enters a section rather than after every accepted edit.
+
+M5/M10 response and document contracts are unchanged. The existing versioned M2
+approval flow still owns saving; these fixes do not alter saved CV content or
+perform a database migration.
+
+Verification passed: 654 Django tests ran successfully (16 optional browser/live
+checks skipped), all eight Node test files passed, and system/whitespace checks
+passed. The 76 new regressions cover scoped corrections, optional confirmation,
+saved-fact grounding and readable pending reviews. Providers were mocked and all
+records were synthetic; no live Qwen request or saved user CV was changed.
+
+### Follow-up: wrong entity types and vague credential confirmations
+
+The next transcript exposed remaining blind scalar parsing for employers and a
+confirmation path that could turn an unclear label into a credential. Entity
+checks now run before storing local, structured or Qwen-extracted proposals.
+Obvious random labels such as `ter45fase4` are rejected even when accompanied by
+issuer/date fields. A rejected certification identity cannot leave orphan issuer
+or date updates. An unclear credential needs an actual title and issuer if
+available, rather than an unqualified `yes`; skills and provider names alone also
+need a specific credential title. Exam codes and unfamiliar genuine titles remain
+usable without imposing a credential catalogue.
+
+The bounded abuse recognizer includes direct `fool` utterances while retaining
+quoted workplace content. Experience command typos are recognized locally.
+`lamb cooking` stays at the employer question; company/title fields do not accept
+clear skill, activity, language, date or contact values. Name-shaped employers and
+common role titles remain local, while ambiguous prose uses Qwen with explicit
+entity instructions. `Company: NAME` disambiguates an unusual business name.
+Confirmed past work is allowed regardless of the target role, including culinary
+work. A related partial-entry merge fix keeps separately supplied employer, role
+and responsibilities in the same active new job without joining conflicting jobs.
+
+These checks assess input type and plausibility, not real-world existence,
+employment history or credential ownership. M5/M10 contracts, saved CVs and M2
+approval/versioning remain unchanged.
+
+Verification passed: 675 Django tests (16 optional checks skipped), all eight
+Node test files, and system/whitespace checks. The 21 additional regressions cover
+the reported transcript, typed entities in both chat modes, random labels in
+structured/model outputs, real exam codes, unusual employer names, separate job
+follow-ups and certificate punctuation/metadata. Providers were mocked; tests used
+synthetic owned CVs and asserted that saved content/version stayed unchanged.

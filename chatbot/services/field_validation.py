@@ -165,7 +165,7 @@ def validate_value(field, value):
     return value
 
 
-def validated_updates(response, state):
+def validated_updates(response, state, *, user_message=''):
     """Keep valid sibling fields; reject unknown keys, invalid dates and contacts.
 
     This also runs after local extraction, so provider output never bypasses rules.
@@ -214,6 +214,10 @@ def validated_updates(response, state):
                     try:
                         if field not in allowed:
                             raise ValidationError('The extracted field is unsupported. Please clarify it.')
+                        from chatbot.services.entity_validation import entity_problem
+                        problem = entity_problem(section, field, raw, user_message)
+                        if problem:
+                            raise ValidationError(problem)
                         if field == 'is_current':
                             if type(raw) is not bool:
                                 raise ValidationError('Please confirm whether this is current.')
@@ -257,6 +261,10 @@ def validated_updates(response, state):
                     clean.pop('end_date', None)
                     statuses[f'{section}.{index}.end_date'] = 'invalid'
                     errors.append('A current job cannot also have an ending date. Please confirm whether you still work there or provide its ending date.')
+                if section in ('certifications', 'languages') and item.get('name') and not clean.get('name'):
+                    for field in clean:
+                        statuses[f'{section}.{index}.{field}'] = 'needs_clarification'
+                    clean = {}
                 if clean:
                     clean_entries.append(clean)
             response['cv_updates'][section] = (clean_entries[0] if clean_entries else None) if section == 'personal' else (clean_entries or None)

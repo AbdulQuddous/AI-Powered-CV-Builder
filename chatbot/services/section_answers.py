@@ -94,11 +94,12 @@ def section_request(text):
     match = re.fullmatch(
         r'(?:(?:i (?:want|wan|would like) to|can i|could i|please)\s+)?'
         r'(?P<verb>add|edit|update)(?:\s+(?:my|a new|a|an|another|new))?\s+'
-        r'(?P<noun>certificates?|certifications?|cetificates?|languages?|skills?|education|degrees?|experience|jobs?|projects?|summary|achievements?)'
+        r'(?P<noun>certificates?|certifications?|cetificates?|languages?|skills?|education|degrees?|experience|xperience|experiance|experince|jobs?|projects?|summary|achievements?)'
         r'(?:\s+to (?:my |the )?(?:cv|resume))?[.!?]?', text.strip(), re.I)
     if not match:
         return None
     noun = match['noun'].casefold()
+    noun = {'xperience': 'experience', 'experiance': 'experience', 'experince': 'experience'}.get(noun, noun)
     section = next((target for stem, target in (
         ('cert', 'certifications'), ('cetif', 'certifications'), ('language', 'languages'),
         ('skill', 'skills'), ('degree', 'education'), ('job', 'experience'),

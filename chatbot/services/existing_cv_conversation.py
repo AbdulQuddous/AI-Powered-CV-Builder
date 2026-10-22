@@ -140,7 +140,12 @@ def merge_drafts(entries, incoming, section):
                            for key in keys if item.get(key) and old.get(key))]
         if not matches and len(entries) == 1:
             old = entries[0]
-            if not any(item.get(key) for key in keys) or not any(old.get(key) for key in keys):
+            conflict = any(item.get(key) and old.get(key)
+                           and str(item[key]).casefold() != str(old[key]).casefold() for key in keys)
+            completes_partial = (any(not present(old.get(key)) for key in FIELDS[section])
+                                 and any(present(item.get(key)) and not present(old.get(key)) for key in FIELDS[section]))
+            if (not any(item.get(key) for key in keys) or not any(old.get(key) for key in keys)
+                    or (not conflict and completes_partial)):
                 matches = [0]
         if len(matches) == 1:
             entries[matches[0]].update(item)
