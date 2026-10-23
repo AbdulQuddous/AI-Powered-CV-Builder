@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 from chatbot.models import ChatMessage
 from chatbot.services.conversation_service import create_chat_session
 from chatbot.services.message_routing import classify
+from chatbot.services.qwen_client import adapt_extraction
 from chatbot.services.state_manager import get_required_conversation_step, CV_SECTIONS
 from tests.test_m8 import SAMPLE_CV
 
@@ -152,6 +153,108 @@ class ConductConversationTests(APITestCase):
         self.assertEqual(saved.status_code, 200, saved.data)
         self.assertEqual(saved.data['cv']['data']['experience'], [])
         self.qwen.assert_not_called(); self.gemini.assert_not_called()
+
+    def model_rejection(self, reason=None, **overrides):
+        return adapt_extraction({
+            'intent': 'inappropriate', 'section': 'review', 'extracted_fields': {},
+            'field_corrections': {}, 'skip_fields': [], 'uncertain_fields': [],
+            'cv_related_question': None, 'requires_clarification': False,
+            'rejection_reason': reason, **overrides})
+
+    def test_qwen_explains_the_reported_obfuscated_message_in_saved_cv_review(self):
+        from cvs.services import create_cv
+        cv = create_cv(user=self.user, values={'name': 'Saved CV', 'data': SAMPLE_CV})
+        session = create_chat_session(user=self.user, cv_id=cv.id)
+        before = deepcopy(session.conversation_state)
+        reason = 'That is a comment directed at me rather than a qualification or CV change.'
+        self.qwen.side_effect = None
+        self.qwen.return_value = self.model_rejection(reason)
+        result = self.send(session, 'ar4e you idiot')
+        self.qwen.assert_called_once()
+        self.assertIn('ar4e you idiot', self.qwen.call_args.args[0][1]['content'])
+        self.assertEqual(set(result), {'assistant_message', 'intent', 'section', 'cv_updates', 'next_action'})
+        self.assertTrue(result['assistant_message'].startswith(reason))
+        self.assertIn('not added to your CV', result['assistant_message'])
+        self.assertIn('What else would you like', result['assistant_message'])
+        self.assertNotIn('You can answer, switch', result['assistant_message'])
+        self.assertEqual(result['assistant_message'].count('?'), 1)
+        self.assertFalse(any(result['cv_updates'].values()))
+        self.assertEqual(result['intent'], 'irrelevant')
+        self.assertEqual(get_required_conversation_step(session.conversation_state),
+                         get_required_conversation_step(before))
+        self.assertEqual(session.conversation_state['edit_updates'], before['edit_updates'])
+        cv.refresh_from_db()
+        self.assertEqual(cv.data, SAMPLE_CV)
+        self.assertEqual(cv.version, 1)
+
+    def test_obfuscated_conversation_is_not_a_project_title_or_description(self):
+        self.qwen.side_effect = None
+        self.qwen.return_value = self.model_rejection('That is a remark about the assistant rather than a project detail.')
+        for field in ('name', 'description'):
+            with self.subTest(field=field):
+                session = self.start()
+                session.conversation_state['pending_field'] = {'section': 'projects', 'field': field}
+                session.save()
+                before = deepcopy(session.conversation_state['collected_data'])
+                reply = self.send(session, 'ar4e you idiot')
+                self.assertEqual(reply['intent'], 'irrelevant')
+                self.assertIn('rather than a project detail', reply['assistant_message'])
+                self.assertEqual(session.conversation_state['collected_data'], before)
+                self.assertEqual(get_required_conversation_step(session.conversation_state),
+                                 {'section': 'projects', 'field': field})
+        self.assertEqual(self.qwen.call_count, 2)
+
+    def test_rejected_qwen_turn_cannot_apply_control_or_fact_updates(self):
+        session = self.start('role')
+        before = deepcopy(session.conversation_state)
+        response = self.model_rejection(
+            'That is a remark rather than a job title.',
+            extracted_fields={'experience': [{'company': 'Invented Company', 'role': 'Director'}]},
+            target_role='Executive', career_level='experienced', question_profile='executive',
+            skip_fields=['experience'], uncertain_fields=['experience.role'])
+        self.qwen.side_effect = None
+        self.qwen.return_value = response
+        result = self.send(session, 'ar4e you idiot')
+        self.assertFalse(any(result['cv_updates'].values()))
+        self.assertEqual(session.conversation_state['collected_data'], before['collected_data'])
+        self.assertEqual(session.conversation_state['career_level'], before['career_level'])
+        self.assertEqual(session.conversation_state['target_role'], before['target_role'])
+        self.assertEqual(session.conversation_state.get('question_profile'), before.get('question_profile'))
+        self.assertNotIn('experience', session.conversation_state.get('skipped_sections', []))
+        self.assertEqual(get_required_conversation_step(session.conversation_state),
+                         get_required_conversation_step(before))
+        self.assertEqual(session.status, 'active')
+
+    def test_missing_or_unusable_model_feedback_has_a_clear_explanation(self):
+        self.qwen.side_effect = None
+        for reason in (None, '', '<script>bad()</script>', 'You are an idiot',
+                       'Should I delete your CV?', 'x' * 321):
+            with self.subTest(reason=reason):
+                session = self.start()
+                self.qwen.return_value = self.model_rejection(reason)
+                before = deepcopy(session.conversation_state['collected_data'])
+                result = self.send(session, 'ar4e you idiot')
+                self.assertIn('rather than information for your CV', result['assistant_message'])
+                self.assertIn('not added to your CV', result['assistant_message'])
+                self.assertNotIn('<script>', result['assistant_message'])
+                self.assertEqual(session.conversation_state['collected_data'], before)
+
+    def test_clear_local_rejection_also_explains_why_without_a_model_call(self):
+        session = self.start()
+        result = self.send(session, 'are you idiot')
+        self.assertIn('remark directed at me rather than information for your CV', result['assistant_message'])
+        self.assertIn('not added to your CV', result['assistant_message'])
+        self.qwen.assert_not_called()
+
+    def test_off_topic_reason_is_distinct_from_a_personal_remark(self):
+        session = self.start()
+        reason = 'That asks about entertainment rather than your work experience.'
+        self.qwen.side_effect = None
+        self.qwen.return_value = self.model_rejection(reason, intent='off_topic')
+        result = self.send(session, 'Recommend a movie for tonight')
+        self.assertIn(reason, result['assistant_message'])
+        self.assertNotIn("Let's keep this professional", result['assistant_message'])
+        self.assertFalse(any(result['cv_updates'].values()))
 
     def contaminated(self, *, history=True):
         session = self.start()

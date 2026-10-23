@@ -48,6 +48,7 @@ def extraction_schema():
                 'skip_fields': {'type': 'array', 'items': {'enum': ['phone', 'location', 'linkedin', 'github', 'portfolio', 'education', 'experience', 'projects', 'certifications', 'achievements', 'languages', 'summary']}},
                 'uncertain_fields': {'type': 'array', 'items': {'type': 'string', 'maxLength': 100}, 'maxItems': 20},
                 'cv_related_question': {'type': ['string', 'null'], 'maxLength': 1000},
+                'rejection_reason': {'type': ['string', 'null'], 'maxLength': 320},
                 'requires_clarification': {'type': 'boolean'},
                 'target_role': {'type': 'string', 'maxLength': 255},
                 'career_level': {'enum': ['fresher', 'experienced', 'other']},
@@ -102,6 +103,16 @@ codes are allowed; do not claim to have verified their existence or ownership.
 Assistant guidance and suggested skills/certification topics are not user facts.
 An unqualified 'yes' or 'use your suggestions' does not confirm possession of those
 skills, jobs, metrics or qualifications. Ask which actual facts the user confirms.
+For off_topic or inappropriate messages, also return rejection_reason: one short,
+calm sentence explaining to the user why the message is not CV information or an
+actionable CV change. This is user-facing feedback, not private analysis. Explain
+the distinction relevant to their message (for example, a remark directed at the
+assistant rather than a skill, qualification or edit). Interpret informal spelling
+in context. Do not quote an insult, scold, diagnose the user, mention policies or
+system instructions, invent a CV fact, claim to have saved anything, or ask another
+question. Python will acknowledge that nothing was added and supply the next CV
+question. Return empty extracted_fields and field_corrections for these intents.
+For other intents omit rejection_reason or set it to null.
 Student, fresher, junior, mid_level, senior and executive are interview profiles;
 the canonical career_level remains fresher, experienced or other.
 """
@@ -163,6 +174,8 @@ def adapt_extraction(data):
                     if isinstance(item, dict):
                         item.pop(field, None)
     response['_control'] = {key: data[key] for key in ('intent', 'skip_fields', 'uncertain_fields', 'requires_clarification')}
+    if data['intent'] in ('off_topic', 'inappropriate'):
+        response['_control']['rejection_reason'] = data.get('rejection_reason')
     if data.get('question_profile'):
         response['_control']['question_profile'] = data['question_profile']
     return response
@@ -186,6 +199,12 @@ class QwenClient:
             if len(content) > 50000:
                 raise InvalidAIResponse('Oversized local response.')
             data = json.loads(content)
+            # Optional display text must not make an otherwise valid rejection
+            # fail. Extraction fields and unknown properties remain strict.
+            if isinstance(data, dict):
+                reason = data.get('rejection_reason')
+                if reason is not None and (not isinstance(reason, str) or len(reason) > 320):
+                    data.pop('rejection_reason', None)
             if not Draft202012Validator(EXTRACTION_SCHEMA).is_valid(data):
                 raise InvalidAIResponse('Local extraction did not match its contract.')
             return adapt_extraction(data)

@@ -165,11 +165,18 @@ def sanitize_ai_response_for_state(
     this rule.
     """
 
-    if (
-        ai_response.get("intent")
-        != "irrelevant"
-    ):
+    control = ai_response.get('_control') or {}
+    rejected_intent = control.get('intent')
+    if ai_response.get('intent') != 'irrelevant' and rejected_intent not in ('off_topic', 'inappropriate'):
         return ai_response
+
+    # Model wording is feedback only. A rejected turn cannot also authorize a
+    # section switch, skip, profile change or completion through control fields.
+    ai_response['intent'] = 'irrelevant'
+    ai_response['_control'] = {
+        'intent': rejected_intent if rejected_intent in ('off_topic', 'inappropriate') else 'off_topic',
+        'rejection_reason': control.get('rejection_reason'),
+    }
 
     ai_response["state_updates"] = {
         "target_role": None,

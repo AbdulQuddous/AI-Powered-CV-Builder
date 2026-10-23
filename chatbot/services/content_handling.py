@@ -24,6 +24,15 @@ def is_direct_abuse(text):
 
 def is_conversational_question(text):
     """Questions and messages addressing the assistant need interpretation."""
+    if re.match(r'^(?:recommend|suggest)(?:\s+(?:me|us))?\s+(?:a|an|some|the)\b', text, re.I):
+        return True
+    words = text.split(maxsplit=1)
+    if len(words) == 2:
+        # Classification only: ignore inserted digits in an auxiliary verb such
+        # as "ar4e you". Preserve the original message and every CV field value.
+        auxiliary = re.sub(r'\d', '', words[0]).casefold()
+        if auxiliary in ('are', 'r', 'do', 'did', 'can', 'could', 'will', 'would'):
+            text = auxiliary + ' ' + words[1]
     return bool(re.match(r'^(?:(?:what|who|why|how|when|where|you|your|u)\b|'
                          r'(?:are|r|do|did|can|could|will|would)\s+(?:you|u)\b)', text, re.I))
 

@@ -131,6 +131,26 @@ class QwenContractTests(SimpleTestCase):
         with patch('chatbot.services.qwen_client.httpx.Client', return_value=context), self.assertRaises(InvalidAIResponse):
             QwenClient().generate([])
 
+    def test_rejection_reason_is_optional_display_metadata(self):
+        reason = 'That is a remark directed at me rather than information about your qualifications.'
+        context, _ = self.provider(internal(intent='inappropriate', section='review', rejection_reason=reason))
+        with patch('chatbot.services.qwen_client.httpx.Client', return_value=context):
+            result = QwenClient().generate([])
+        self.assertEqual(result['_control']['rejection_reason'], reason)
+        self.assertEqual(result['intent'], 'irrelevant')
+        self.assertFalse(any(result['cv_updates'].values()))
+        self.assertNotIn('rejection_reason', result['cv_updates'])
+        answer = adapt_extraction(internal(rejection_reason=reason))
+        self.assertNotIn('rejection_reason', answer['_control'])
+
+    def test_bad_optional_rejection_text_keeps_valid_classification(self):
+        for reason in (['not text'], 'x' * 321):
+            context, _ = self.provider(internal(intent='off_topic', rejection_reason=reason))
+            with self.subTest(reason=reason), patch('chatbot.services.qwen_client.httpx.Client', return_value=context):
+                result = QwenClient().generate([])
+                self.assertEqual(result['intent'], 'irrelevant')
+                self.assertIsNone(result['_control']['rejection_reason'])
+
     def test_unknown_fields_and_enum_rejected(self):
         for data in [internal(user_id=4), internal(intent='run_shell'), internal(extracted_fields={'personal': {'cv_id': 8}})]:
             context, _ = self.provider(data)

@@ -1102,3 +1102,34 @@ The interview regression saves a synthetic CV through the API and checks the
 institution, role, seven retained skills, both projects and explicit tool names.
 Providers were mocked or blocked; no live user CV was modified. Whitespace checks
 also passed.
+
+### Follow-up: explaining why a conversational message was not added
+
+Qwen's internal extraction schema now accepts an optional, bounded
+`rejection_reason` for `off_topic` and `inappropriate` messages. The prompt asks
+for one calm user-facing sentence about why the message is not CV information or
+an actionable edit. It does not request private reasoning or another question.
+The backend displays that sentence, acknowledges that nothing was added and
+supplies the current question once. Existing-CV review avoids the redundant
+`You can answer, switch...` footer. Missing or unusable model wording receives a
+clear local explanation; recognized local rejections do not need a new model call.
+
+Rejected-turn controls are restricted to classification and display feedback.
+Model-supplied fields, profile changes, skips and completion cannot change the CV
+or advance the interview. Feedback remains outside M10 and the public M5 response
+keeps its existing fields. Invalid optional feedback does not invalidate otherwise
+valid extraction; unknown properties and extracted CV facts remain strict.
+
+Conversational auxiliary verbs with inserted digits, such as `ar4e you`, are
+recognized for routing only. They reach Qwen before project title/description
+parsing, while the original user message and CV values are preserved. Clear
+recommendation requests such as `Recommend a movie...` also require interpretation
+rather than becoming an employer name. Workplace quotes and ordinary criticism
+retain their existing treatment.
+
+Verification passed: 715 Django tests (16 optional checks skipped), including
+eight new feedback/control regressions. Tests check the exact obfuscated message,
+model-provided explanations, local fallbacks, unchanged pending questions and
+saved CVs, malformed optional feedback and rejected profile/fact updates. Qwen
+responses were mocked; its configured local endpoint was not reachable from this
+environment for a live check. Whitespace checks also passed.

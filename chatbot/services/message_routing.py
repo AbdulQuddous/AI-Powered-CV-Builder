@@ -357,6 +357,8 @@ def route_message(state, text, step):
         problem = entity_problem(section, field, text, text)
         if problem:
             return control('clarification', notice=problem)
+    if is_conversational_question(text):
+        return None
     if section == 'projects' and field in ('name', 'description') and is_profile_paragraph(text):
         response = response_update('summary', 'summary', text)
         response['_control'] = {'intent': 'answer', 'notice': 'I kept that profile paragraph as your professional summary. Please provide the project details separately.'}
@@ -379,8 +381,6 @@ def route_message(state, text, step):
             r'\s+((?:19|20)\d{2}(?:-\d{2})?)[.!]?', text, re.I)
         if graduation:
             return response_update(section, field, graduation[1])
-    if is_conversational_question(text):
-        return None
     if section == 'experience' and field == 'responsibilities' and '?' not in text and re.match(
             r'^(?:i\s+(?:build|develop|design|maintain|built|developed|designed|maintained)|'
             r'building|developing|designing|maintaining|built|developed|designed|maintained)\b', text, re.I):
@@ -611,6 +611,20 @@ def _skill_retry_message(state):
             f'Which skill would you like to include{example}?' + exit_hint)
 
 
+def _rejection_reason(response):
+    """Accept brief display-only Qwen feedback, with a clear local fallback."""
+    action = response.get('_control') or {}
+    value = action.get('rejection_reason')
+    if isinstance(value, str):
+        reason = ' '.join(value.split())
+        if (0 < len(reason) <= 320 and not re.search(r'[<>{}?]|https?://|www\.', reason, re.I)
+                and not is_direct_abuse(reason)):
+            return reason.rstrip('.!') + '.'
+    if action.get('intent') == 'inappropriate':
+        return "Let's keep this professional. That sounds like a remark directed at me rather than information for your CV."
+    return "That message doesn't describe CV information or a change I can apply."
+
+
 def present_response(response, state, errors=None, notice=''):
     from chatbot.services.question_engine import next_step
     step = next_step(state)
@@ -622,13 +636,12 @@ def present_response(response, state, errors=None, notice=''):
             "If so, contact local emergency services now and reach out to someone you trust who can stay with you. "
             'We can pause the CV. When you are safe and ready, you can say "resume CV".'))
     elif action in ('off_topic', 'inappropriate') or response.get('intent') == 'irrelevant':
-        boundary = "Let's keep this professional. " if action == 'inappropriate' else ''
-        exit_hint = ('You can answer, switch to another section, or say "cancel" to leave this step.'
-                     if state.get('mode') == 'edit_existing' else
-                     'Please answer the CV question, or choose another CV section.')
+        detail = _rejection_reason(response) + ' That message was not added to your CV. '
+        followup = (_skill_retry_message(state) if step['section'] == 'skills' else question(state))
+        exit_hint = (' You can switch sections or say "cancel".'
+                     if state.get('mode') == 'edit_existing' and step['section'] not in ('review', 'skills') else '')
         response.update(intent='irrelevant', next_action='ask_question',
-                        assistant_message=(boundary + _skill_retry_message(state) if step['section'] == 'skills' else
-                                           boundary + 'That message was not added to your CV. ' + question(state) + ' ' + exit_hint))
+                        assistant_message=detail + followup + exit_hint)
     elif action == 'cv_question':
         response.update(intent='give_suggestion', next_action='ask_question', assistant_message=(
             'Projects can demonstrate practical skills even without formal employment. Certifications and grades are optional; include only confirmed, relevant facts. '
