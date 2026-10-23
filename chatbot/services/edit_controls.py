@@ -4,7 +4,7 @@ from copy import deepcopy
 TRANSIENT = ('pending_field', 'pending_selection', 'pending_entry',
              'date_confirmation_pending', 'language_proficiency_pending',
              'optional_entry_confirmation', 'guidance_choice_pending',
-             'experience_absence_pending')
+             'experience_absence_pending', 'section_followup')
 
 
 def clear_prompts(state):

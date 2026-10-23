@@ -88,7 +88,8 @@ class OptionalSectionConversationTests(APITestCase):
         self.assertEqual(self.send(session, COMBINED)['section'], 'review')
         self.assertEqual(session.conversation_state['collected_data']['summary'], SUMMARY)
         self.assertEqual(self.send(session, 'i wan to add certificate')['section'], 'certifications')
-        self.assertEqual(self.send(session, 'Python Certificate')['section'], 'review')
+        self.assertEqual(self.send(session, 'Python Certificate')['section'], 'certifications')
+        self.assertEqual(self.send(session, 'continue')['section'], 'review')
         self.assertEqual(self.send(session, 'fnish')['next_action'], 'complete')
         saved = self.client.post('/api/cvs/from-chat/', {'session_id': str(session.id)}, format='json')
         self.assertEqual(saved.status_code, 200, saved.data)
@@ -184,7 +185,8 @@ class OptionalSectionConversationTests(APITestCase):
         self.assertEqual(len(session.conversation_state['undo_state']['collected_data']['languages']), 3)
         self.assertEqual(self.client.post(f'/api/chat/sessions/{session.id}/reopen/').status_code, 200)
         self.send(session, 'i want to add certificate')
-        self.assertEqual(self.send(session, 'Python Certificate')['section'], 'review')
+        self.assertEqual(self.send(session, 'Python Certificate')['section'], 'certifications')
+        self.assertEqual(self.send(session, 'continue')['section'], 'review')
         self.assertEqual(self.send(session, 'finish')['next_action'], 'complete')
 
     def test_repair_requires_history_and_ownership_and_leaves_saved_sessions_unchanged(self):

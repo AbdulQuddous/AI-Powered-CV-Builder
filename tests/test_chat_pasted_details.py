@@ -133,7 +133,8 @@ class PastedDetailsJourneyTests(APITestCase):
     def test_grouped_skills_do_not_repeat_advice_during_every_education_answer(self):
         session = self.start(section='skills', field='skills')
         result = self.send(session, json.dumps(GROUPS)[1:-1])
-        self.assertIn('skills list', result['assistant_message'])
+        self.assertIn('strongest 8–15', result['assistant_message'])
+        self.send(session, 'continue')
         self.send(session, 'Bachelor of Science in Cognitive Science')
         result = self.send(session, 'University of California, Berkeley')
         self.assertNotIn('skills list', result['assistant_message'])
@@ -161,7 +162,7 @@ class PastedDetailsJourneyTests(APITestCase):
         self.assertEqual(bad['intent'], 'clarify_information')
         self.assertEqual(next_step(session.conversation_state), {'section': 'experience', 'field': 'company'})
         for text in ['Example Design Studio', 'Senior UI/UX Designer', 'Designed accessible dashboards',
-                     json.dumps(GROUPS)[1:-1], EDUCATION]:
+                     json.dumps(GROUPS)[1:-1], 'continue', EDUCATION]:
             result = self.send(session, text)
         self.assertEqual(result['section'], 'projects')
         self.assertNotIn('skills list', result['assistant_message'])

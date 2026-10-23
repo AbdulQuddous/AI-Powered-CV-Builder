@@ -1028,3 +1028,77 @@ are unchanged.
 Verification for skip handling passed: 684 Django tests (16 optional checks
 skipped), including nine new command/name regressions. Provider calls were mocked
 or blocked, and system/whitespace checks passed.
+
+### Follow-up: optional section counts and literal answer cleanup
+
+The initial interview now acknowledges the actual number of skills, complete
+projects and certifications before moving on. Short lists offer `add more` or
+`continue`: 8–15 relevant skills, 2–3 projects for students/freshers (3–5 for later
+career levels), and 3–5 certifications only if already held. Long lists offer
+prioritization advice while retaining every entry. Each short/long suggestion is
+offered once per section and career level; choosing to add just one more does not
+start a minimum-count loop. Existing-CV editing keeps its explicit add/review flow.
+
+`yes` opens collection of the user's own details rather than adding suggested
+facts. `continue`, `no` or `skip` dismiss the advice without skipping the collected
+section. Users can finish with fewer entries, switch sections or correct contacts.
+Only complete projects count toward these suggestions; unfinished projects still
+collect their missing fields through the existing workflow.
+
+Education parsing recognizes the full `excpected to end in 2027` clause, keeping
+it out of the institution name while preserving the supplied institution wording.
+Year-only dates still require the existing explicit month confirmation or omission
+before saving. Certificate titles and issuers retain the user's wording through
+validation and saving. The certificate-specific spelling dictionary and its
+normalization module have been removed; there is no course/provider allowlist.
+
+Known skills receive consistent casing. Fully recognized space-separated stacks
+such as `Django Restapi React Ai NLP` become separate technology items, including
+when received as a single provider list item. Unrecognized compound names remain
+intact. M5/M10 contracts, provider selection and the explicit M2 save/approval
+boundary are unchanged; there are no migrations or saved-user-record repairs.
+
+The initial full regression run passed 697 Django tests (16 optional checks
+skipped). After removing the spelling dictionary, 142 focused interview tests
+passed, including the 13 count/cleanup regressions. The tests cover
+optional continuation, adding without overwriting entries, prioritization without
+deletions, section/contact changes during advice, literal cleanup and explicit
+M10 draft/save output. Providers were mocked or blocked; whitespace checks passed.
+
+### Follow-up: inline additions and field boundaries in the Quddous interview
+
+The next interview exposed overly strict count-choice routing. A direct skills
+list now answers the optional follow-up without requiring a separate `add more`
+command. An explicit `Add more TITLE` project request starts that project's
+description step, retaining the earlier project. Explicit certificate details can
+also answer the count prompt. Suggested counts remain optional, and ambiguous
+replies still require clarification rather than becoming CV facts.
+
+The graduation parser consumes the whole `i am graduated in YYYY-MM` clause and
+the sentence boundary, so `university of Mianwali. i am` cannot be saved as the
+institution. Internship/employer parsing extracts the stated title from
+`I completed an internship as a TITLE at COMPANY` (including the bounded
+`intership` typo), rather than treating the whole sentence as a job title. A plain
+`yes` to the experience question asks for the employer and role without invoking
+Qwen or proposing a company.
+
+Explicit technology-list introductions such as `Use following technologies` are
+removed before splitting the list. Unfamiliar named tools remain valid without
+a catalogue or credential spelling map. Project descriptions retain capitalized
+tool names in explicit `using NAME` clauses with a clear clause boundary, so
+`using Librosa,` does not silently omit Librosa. Ordinary phrases such as `using
+browser recordings` and `using New York data` are not promoted to technologies.
+
+Web fundamentals HTML, CSS and JavaScript are treated as supporting skills for
+web/backend roles, including the Django/AI integration target in this interview.
+An unchanged relevance warning is shown once across the count prompt and later
+skills updates. Skills are never removed automatically; unrelated-domain advice
+remains advisory. The M5 envelope, M10 document and explicit approval/save flow
+remain unchanged.
+
+Verification passed: 707 Django tests (16 optional checks skipped), including
+10 additional regressions for this transcript and generic name/list boundaries.
+The interview regression saves a synthetic CV through the API and checks the
+institution, role, seven retained skills, both projects and explicit tool names.
+Providers were mocked or blocked; no live user CV was modified. Whitespace checks
+also passed.

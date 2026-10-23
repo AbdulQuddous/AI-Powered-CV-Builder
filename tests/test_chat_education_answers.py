@@ -193,6 +193,7 @@ class EducationAnswerTests(APITestCase):
         session.conversation_state['pending_field'] = {'section': 'skills', 'field': 'skills'}; session.save()
         self.send(session, 'I like to highlight React, Next, Node, Javascript, HTML, CSS')
         self.assertEqual(session.conversation_state['collected_data']['skills'], ['React', 'Next.js', 'Node.js', 'JavaScript', 'HTML', 'CSS'])
+        self.send(session, 'continue')
         session.conversation_state['pending_field'] = {'section': 'languages', 'field': 'languages'}; session.save()
         self.send(session, 'English urdu saraiki hindku')
         self.assertEqual([entry['name'] for entry in session.conversation_state['collected_data']['languages']], ['English', 'Urdu', 'Saraiki', 'Hindku'])

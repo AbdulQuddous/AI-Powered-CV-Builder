@@ -159,7 +159,7 @@ class CurrentEducationJourneyTests(APITestCase):
 
     def test_expected_graduation_survives_draft_and_explicit_save(self):
         session = self.start(); self.send(session, DEGREE + ', expected graduation 2028-06')
-        for message in ['Python, Django', *['skip'] * 6, 'finish']:
+        for message in ['Python, Django', 'continue', *['skip'] * 6, 'finish']:
             result = self.send(session, message)
         self.assertEqual(result['intent'], 'complete')
         draft = self.client.get(f'/api/chat/sessions/{session.pk}/draft/')

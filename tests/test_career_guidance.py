@@ -206,9 +206,12 @@ class CareerGuidanceConversationTests(APITestCase):
         session.conversation_state['completed_sections'] = ['personal']
         session.save()
         reply = self.send(session, ', '.join('Skill ' + str(i) for i in range(20)))
-        self.assertIn('large skills list', reply['assistant_message'])
+        self.assertIn('20 skills', reply['assistant_message'])
+        self.assertIn('strongest 8–15', reply['assistant_message'])
+        self.send(session, 'continue')
         reply = self.send(session, 'BS')
         self.assertNotIn('large skills list', reply['assistant_message'])
+        self.assertNotIn('20 skills', reply['assistant_message'])
         self.assertNotIn('Highlight relevant academic projects', reply['assistant_message'])
 
     def test_normal_interview_surfaces_skill_candidates_and_fresher_project_guidance(self):
@@ -222,6 +225,8 @@ class CareerGuidanceConversationTests(APITestCase):
         self.assertIn('PostgreSQL', reply['assistant_message'])
         self.assertNotIn('skills', session.conversation_state['collected_data'])
         reply = self.send(session, 'Python, Django')
+        self.assertEqual(reply['section'], 'skills'); self.assertIn('2 skills', reply['assistant_message'])
+        reply = self.send(session, 'continue')
         self.assertEqual(reply['section'], 'projects'); self.assertIn('2–3', reply['assistant_message'])
         self.assertEqual(session.conversation_state['collected_data']['skills'], ['Python', 'Django'])
 

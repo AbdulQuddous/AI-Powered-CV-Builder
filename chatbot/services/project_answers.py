@@ -15,7 +15,7 @@ def project_title(text):
     text = text.strip().rstrip('.!')
     if is_profile_paragraph(text):
         return None
-    text = re.sub(r"^(?:(?:i\s+(?:want|would like)\s+to\s+)?add\s+(?:(?:a|an|another|a new)\s+)?|"
+    text = re.sub(r"^(?:(?:i\s+(?:want|would like)\s+to\s+)?add\s+(?:(?:a|an|another|a new|more)\s+)?|"
                   r"(?:(?:my|the)\s+)?project\s+(?:(?:name|title)\s+is\s+|is\s+(?:called|named)\s+)|"
                   r"(?:it\s+is|it's)\s+(?:called|named)\s+)", '', text, flags=re.I).strip()
     if (not text or len(text) > 160 or len(text.split()) > 20 or re.search(r'[?;•\n]|\b(?:using|uses|builds|built|developed|worked|graduated|have|makes|manages)\b', text, re.I)):

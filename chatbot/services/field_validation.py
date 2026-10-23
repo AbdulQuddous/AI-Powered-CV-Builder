@@ -22,7 +22,7 @@ ALIASES = {'drf': 'Django REST Framework', 'js': 'JavaScript', 'javascript': 'Ja
 KNOWN_SKILLS = ['Django REST Framework', 'REST APIs', 'Python', 'Django', 'PostgreSQL',
                 'JavaScript', 'TypeScript', 'HTML', 'CSS', 'React', 'MySQL', 'Git',
                 'C++', 'C#', 'Node.js', '.NET', 'DRF', 'JS', 'Bootstrap', 'Docker',
-                'Next.js', 'NextJS', 'Flask', 'JWT', 'Whisper', 'MediaPipe', 'Sentence Transformers',
+                'Next.js', 'NextJS', 'Flask', 'JWT', 'Whisper', 'MediaPipe', 'Sentence Transformers', 'GitHub', 'AI', 'NLP',
                 'Postman', 'Java', 'SQL', 'AWS', 'Linux', 'Excel', 'Communication']
 
 
@@ -37,13 +37,25 @@ def find_technologies(text):
             if any(match.start() < end and match.end() > start for start, end in spans):
                 continue
             spans.append(match.span()); matches.append((match.start(), terms[term]))
+    # A clearly named tool at the end of an explicit "using NAME" clause can be
+    # retained even outside the vocabulary. Require a capitalized name and a
+    # clause boundary; ordinary prose such as "using browser recordings" or
+    # "using New York data" must not become technology labels.
+    named_tool = (r'\b(?i:using)\s+(?P<tool>[A-Z][\w+#/-]*(?:\.[\w+#/-]+)*'
+                  r'(?:\s+[A-Z][\w+#/-]*(?:\.[\w+#/-]+)*)*)(?=\s*(?:[,;.!?)]|$))')
+    for match in re.finditer(named_tool, text):
+        start, end = match.span('tool')
+        if not any(start < known_end and end > known_start for known_start, known_end in spans):
+            spans.append((start, end)); matches.append((start, match['tool']))
     return unique_skills([value for _, value in sorted(matches)])
 
 
 def unique_skills(values):
     result, seen = [], set()
+    canonical = {name.casefold(): name for name in KNOWN_SKILLS}
     for raw in values:
-        value = ALIASES.get(raw.strip().casefold(), raw.strip())
+        key = raw.strip().casefold()
+        value = ALIASES.get(key, canonical.get(key, raw.strip()))
         if value and value.casefold() not in seen:
             result.append(value)
             seen.add(value.casefold())
@@ -68,6 +80,10 @@ def extract_skills(text):
     text = re.sub(r'^(?:i\s+(?:would\s+)?like\s+to\s+(?:highlight|include|add)|'
                   r'(?:my\s+)?(?:technical\s+)?skills\s+(?:are|include)|'
                   r'i\s+want\s+to\s+highlight)\s*:?\s*', '', text, flags=re.I)
+    # An explicit list introduction is grammar, not the first technology. Unknown
+    # tools in a comma-separated list still retain their user-supplied names.
+    text = re.sub(r'^(?:(?:i\s+)?(?:use|used|using)\s+)?(?:the\s+)?following\s+'
+                  r'(?:technologies|tools|skills|tech stack)\s*:?\s*', '', text, flags=re.I)
     if text.casefold() in ('next', 'node'):
         return [{'next': 'Next.js', 'node': 'Node.js'}[text.casefold()]]
     if ',' in text and not re.search(r'\b(?:I|my|worked|know|using)\b', text, re.I):
@@ -90,6 +106,14 @@ def extract_skills(text):
         # Preserve the user's order instead of the vocabulary order.
         return unique_skills([value for _, value in sorted(found)])
     return None
+
+
+def normalise_skill_list(values):
+    """Split packed known lists while retaining unknown compound technology names."""
+    result = []
+    for value in values:
+        result.extend(extract_skills(value) or [value])
+    return unique_skills(result)
 
 
 def validate_value(field, value):
@@ -242,6 +266,10 @@ def validated_updates(response, state, *, user_message=''):
                             if field not in ('responsibilities', 'highlights', 'technologies', 'features'):
                                 raise ValidationError('Please provide a single text value for this field.')
                             clean[field] = [validate_value(field, entry) for entry in raw]
+                            if field == 'technologies':
+                                clean[field] = normalise_skill_list(clean[field])
+                        elif field == 'technologies' and isinstance(raw, str):
+                            clean[field] = normalise_skill_list([validate_value(field, raw)])
                         else:
                             clean[field] = validate_value(field, raw)
                         if field == 'proficiency' and clean[field] not in ('basic', 'conversational', 'professional', 'fluent', 'native'):
@@ -290,7 +318,7 @@ def validated_updates(response, state, *, user_message=''):
                     raise ValidationError('Please provide a list.')
                 response['cv_updates'][section] = [validate_value(section, item) for item in value]
                 if section == 'skills':
-                    response['cv_updates'][section] = unique_skills(response['cv_updates'][section])
+                    response['cv_updates'][section] = normalise_skill_list(response['cv_updates'][section])
                     if len(response['cv_updates'][section]) > 100:
                         raise ValidationError('M10 supports 100 skills. Please choose which skills to display; your source message is retained.')
             except ValidationError as exc:

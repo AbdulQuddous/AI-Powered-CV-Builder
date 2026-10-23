@@ -13,7 +13,7 @@ DATE = rf'(?:(?:19|20)\d{{2}}(?:-\d{{2}})?|{_MONTH}\s*(?:19|20)\d{{2}}|present|o
 _START = rf'\b(?:start(?:ing)?(?:\s+(?:date|year))?|started(?:\s+in)?|from|since)\s*[:=]?\s*(?P<date>{DATE})(?!\w)'
 _COMPLETED = r'(?:completed|sompleted)'
 _EXPECT = r'(?:expect|excpect)(?:ed|ing)?'
-_GRADUATION = rf'(?:(?:i\s+)?(?:{_EXPECT}(?:\s+to)?|will)\s+(?:graduate|finish|complete)|(?:expected\s+)?(?:graduation(?:\s+(?:date|year))?|graduated|graduate|graduted|{_COMPLETED}))'
+_GRADUATION = rf'(?:(?:i\s+(?:am\s+|have\s+)?)?(?:(?:{_EXPECT}(?:\s+to)?|will)\s+(?:graduate|finish|complete|end)|(?:expected\s+)?(?:graduation(?:\s+(?:date|year))?|graduated|graduate|graduted|{_COMPLETED})))'
 _END = rf'\b(?:end(?:ing)?(?:\s+(?:date|year))?|{_GRADUATION}|to|until)(?:\s+(?:in|on|is|will\s+be))?\s*[:=]?\s*(?P<date>{DATE})(?!\w)'
 _RANGE = rf'(?P<start>{DATE})\s*(?:–|—|-|to|until)\s*(?P<end>{DATE})(?!\w)'
 _QUALIFICATION = (
@@ -149,7 +149,7 @@ def parse_education(text, field=None):
         return {'end_date': normalise_date(labelled_date[1])}
     dates, spans = education_dates(text, field)
     # Remove recognized date clauses before finding the degree/university boundary.
-    head = text[:min(start for start, _ in spans)].rstrip(' ,;:-') if spans else text
+    head = text[:min(start for start, _ in spans)].rstrip(' ,;:.!-') if spans else text
     head = re.sub(r'\b(?:from|in)\s*$', '', head, flags=re.I).rstrip(' ,;')
     degree_text = _PREFIX.sub('', head)
     # Informal answers such as "i bs software engineering from ..." still state a
@@ -214,8 +214,11 @@ def parse_certificate(text):
 
 
 def parse_employer(text):
-    match = re.fullmatch(r"(?:(?:i\s+(?:am|was|work|worked)(?:\s+as)?|i'm)\s+(?:a\s+)?)?(.+?)\s+at\s+(.+?)[.!]?", text, re.I)
+    prefix = (r"(?:(?:i\s+(?:am|was|work|worked)(?:\s+as)?|i'm)\s+(?:(?:a|an)\s+)?|"
+              r"i\s+(?:have\s+)?(?:completed|finished|did)\s+(?:(?:a|an|my)\s+)?"
+              r"(?:internship|intership)\s+as\s+(?:(?:a|an)\s+)?)?")
+    match = re.fullmatch(prefix + r'(.+?)\s+at\s+(.+?)[.!]?', text, re.I)
     if match and re.search(r'\b(?:developer|engineer|intern|designer|manager|analyst|teacher|accountant|consultant|officer)\b', match[1], re.I):
-        if not re.search(r'[;?]|\band\b', text, re.I):
+        if not re.search(r'[;?]|\band\b', text, re.I) and not re.match(r'^(?:i|my)\b', match[1], re.I):
             return {'role': match[1], 'company': match[2]}
     return None

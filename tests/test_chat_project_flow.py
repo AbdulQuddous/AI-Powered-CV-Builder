@@ -110,6 +110,8 @@ class ProjectFlowTests(APITestCase):
         self.assertEqual(session.conversation_state['collected_data']['summary'], SUMMARY)
         self.assertEqual(session.conversation_state['collected_data']['projects'], [{'name': 'Ai base interview plateform'}])
         result = self.send(session, DESCRIPTION)
+        self.assertIn('1 project', result['assistant_message'])
+        result = self.send(session, 'continue')
         self.assertEqual(result['section'], 'certifications')
         projects = session.conversation_state['collected_data']['projects']
         self.assertEqual(len(projects), 1); self.assertEqual(projects[0]['description'], DESCRIPTION)
@@ -129,6 +131,7 @@ class ProjectFlowTests(APITestCase):
         self.assertFalse(session.conversation_state['collected_data'].get('projects'))
         self.send(session, TITLE)
         self.assertEqual(session.conversation_state['collected_data']['projects'][0]['description'], DESCRIPTION)
+        self.send(session, 'continue')
         self.assertEqual(next_step(session.conversation_state)['section'], 'certifications')
 
     def test_each_description_variant_fills_the_current_project_without_an_identity_loop(self):

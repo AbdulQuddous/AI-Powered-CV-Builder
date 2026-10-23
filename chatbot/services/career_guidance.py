@@ -107,7 +107,7 @@ def candidate_skills(state):
     return unique_skills(candidates)[:15]
 
 
-def skill_advice(state, data):
+def skill_advice(state, data, *, include_count=True):
     skills = data.get('skills') or []
     families = role_families(state.get('target_role') or '')
     candidates = candidate_skills(state)
@@ -129,6 +129,10 @@ def skill_advice(state, data):
     if families:
         expected = {comparable(skill) for key in families for skill in ROLES[key]['skills']}
         expected.update(comparable(skill) for skill in (*GENERAL_SKILLS, *SENIOR_SKILLS, *EXECUTIVE_SKILLS))
+        if set(families) & {'backend', 'frontend', 'fullstack', 'java', 'node', 'dotnet'}:
+            # Web fundamentals can support backend work and integration with a
+            # frontend even when they are absent from the short candidate list.
+            expected.update(comparable(skill) for skill in ('HTML', 'CSS', 'JavaScript', 'HTTP', 'JSON'))
         known = {comparable(skill) for row in ROLES.values() for skill in row['skills']}
         for skill in skills:
             key = comparable(skill)
@@ -137,7 +141,7 @@ def skill_advice(state, data):
     if unrelated:
         messages.append('Check whether these skills support this target role: ' + ', '.join(unrelated[:10])
                         + '. Keep transferable skills where useful; nothing was removed. To remove a skill, say "remove NAME from my skills".')
-    if len(skills) > 15:
+    if include_count and len(skills) > 15:
         messages.append('You have a large skills list. Prioritize 8–15 strongest relevant skills for readability; all skills are retained until you choose.')
     return messages
 
@@ -288,10 +292,25 @@ def guidance_message(state, topic='all'):
     return '\n'.join(bounded)
 
 
+def fresh_skill_diagnostics(state):
+    diagnostics = skill_advice(state, guidance_data(state), include_count=False)[1:]
+    seen = state.setdefault('guidance_seen', {})
+    digest = sha256(json.dumps(diagnostics).encode()).hexdigest()
+    changed = seen.get('skill_diagnostics') != digest
+    seen['skill_diagnostics'] = digest
+    return diagnostics if changed else []
+
+
 def automatic_guidance(state, response):
     """Show advice once on section entry; repeat only changed overflow diagnostics."""
     from chatbot.services.question_engine import next_step
     step = next_step(state)
+    if state.get('section_followup'):
+        # The count question already contains the optional advice. Retain useful
+        # skill diagnostics, without asking the next section's question as well.
+        if (response.get('cv_updates') or {}).get('skills'):
+            return '\n'.join(fresh_skill_diagnostics(state))
+        return ''
     if state.get('pending_field') or state.get('date_confirmation_pending') or state.get('pending_selection'):
         return ''
     sections = guidance_sections(state)
@@ -308,16 +327,12 @@ def automatic_guidance(state, response):
                 messages.append('You can add another entry, ask for "CV suggestions", or finish when ready; no minimum number of entries is required.')
     data = guidance_data(state)
     if (response.get('cv_updates') or {}).get('skills'):
-        diagnostics = sections['skills'][1:]
-        digest = sha256(json.dumps(diagnostics).encode()).hexdigest()
-        if diagnostics and seen.get('skill_diagnostics') != digest:
-            seen['skill_diagnostics'] = digest
-            messages.extend(diagnostics)
+        messages.extend(fresh_skill_diagnostics(state))
     limits = {'skills': 15, 'experience': 5, 'projects': 3 if career_profile(state) in EARLY else 5, 'certifications': 5}
     for section, limit in limits.items():
         if (response.get('cv_updates') or {}).get(section) and len(data.get(section) or []) > limit:
             key = str(len(data[section]))
             if seen.get('overflow_' + section) != key:
                 seen['overflow_' + section] = key
-                messages.extend(sections[section][1:])
+                messages.extend(sections[section][-1:] if section == 'skills' else sections[section][1:])
     return '\n'.join(dict.fromkeys(messages))

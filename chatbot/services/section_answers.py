@@ -93,7 +93,7 @@ def section_request(text):
     """Match a request with no facts; never mistake certificate content for a command."""
     match = re.fullmatch(
         r'(?:(?:i (?:want|wan|would like) to|can i|could i|please)\s+)?'
-        r'(?P<verb>add|edit|update)(?:\s+(?:my|a new|a|an|another|new))?\s+'
+        r'(?P<verb>add|edit|update)(?:\s+(?:my|a new|a|an|another|new|more))?\s+'
         r'(?P<noun>certificates?|certifications?|cetificates?|languages?|skills?|education|degrees?|experience|xperience|experiance|experince|jobs?|projects?|summary|achievements?)'
         r'(?:\s+to (?:my |the )?(?:cv|resume))?[.!?]?', text.strip(), re.I)
     if not match:

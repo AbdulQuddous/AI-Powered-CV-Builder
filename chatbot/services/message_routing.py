@@ -124,7 +124,7 @@ def route_message(state, text, step):
     if topic:
         return control('career_guidance', topic=topic)
     if state.get('guidance_choice_pending'):
-        if lower in ('no', 'no thanks', 'keep all', 'continue without changes'):
+        if lower in ('no', 'no thanks', 'keep all', 'continue', 'next', 'continue without changes'):
             return control('dismiss_guidance')
         if lower in ('yes', 'yes please', 'all of them', 'use your suggestions', 'use suggestions', 'add them all', 'okay', 'ok', 'sure'):
             return control('guidance_choice')
@@ -165,6 +165,13 @@ def route_message(state, text, step):
         correction = _explicit_correction(state, text)
         if correction is not None:
             return correction
+    if state.get('section_followup'):
+        correction = _explicit_correction(state, text)
+        if correction is not None:
+            correction.setdefault('_control', {})['dismiss_followup'] = True
+            return correction
+        from chatbot.services.section_followups import route_followup
+        return route_followup(state, text)
     confirmation = state.get('optional_entry_confirmation')
     if confirmation:
         if lower in ('yes', 'yes add it', 'yes, add it', 'add it', 'confirm', 'confirmed'):
@@ -335,6 +342,8 @@ def route_message(state, text, step):
             response['cv_updates'][section] = [certificate]
             return response
     if section == 'experience' and field in ('company', 'role'):
+        if field == 'company' and lower in ('yes', 'yes i have', 'yes i did', 'i have', 'yes please'):
+            return control('focus', focus={'section': 'experience', 'field': 'company'})
         labelled = re.fullmatch(r'(?:(?:my|the)\s+)?(company(?:\s+name)?|employer|job title|role)\s*(?::|=|\bis\b)\s*(.+)', text, re.I)
         if labelled:
             target = 'company' if labelled[1].casefold().startswith(('company', 'employer')) else 'role'
@@ -439,6 +448,9 @@ def apply_control(state, response):
     action = response.get('_control') or {}
     intent = action.get('intent')
     notice = action.get('notice', '')
+    if action.get('dismiss_followup') or action.get('question_profile') or intent in (
+            'dismiss_followup', 'focus', 'collection_focus', 'edit_focus', 'career_guidance', 'finish'):
+        state.pop('section_followup', None)
     if intent == 'career_guidance':
         state['guidance_choice_pending'] = action.get('topic', 'all')
     elif intent != 'guidance_choice':

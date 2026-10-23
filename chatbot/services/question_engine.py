@@ -14,6 +14,8 @@ def next_step(state):
     if state.get('optional_entry_confirmation'):
         section = state['optional_entry_confirmation']['section']
         return {'section': section, 'field': section}
+    if state.get('section_followup'):
+        return {'section': state['section_followup']['section'], 'field': 'more_entries'}
     if state.get('pending_selection'):
         return {'section': state['pending_selection']['section'], 'field': 'select_entry'}
     if state.get('date_confirmation_pending'):
@@ -66,6 +68,9 @@ def question(state):
     if state.get('optional_entry_confirmation'):
         from chatbot.services.optional_answers import confirmation_question
         return confirmation_question(state['optional_entry_confirmation'])
+    if state.get('section_followup'):
+        from chatbot.services.section_followups import followup_question
+        return followup_question(state)
     if section == 'target' and field == 'career_level':
         return 'What is your career level: Student, Fresher, Junior, Mid-Level, Senior or Executive? You may also choose other.'
     if state.get('date_confirmation_pending'):
@@ -95,6 +100,8 @@ def question(state):
                 place = f' from {entry["institution"]}' if entry.get('institution') else ''
                 return f'When do you expect to graduate{place}? You can say June 2028 or 2028-06, or just the year if the month is unknown.'
     if section == 'experience' and field == 'company':
+        if state.get('pending_field') or state.get('pending_entry'):
+            return 'Which company did you work or intern at? You can include your job title in the same reply, or skip if you have no experience.'
         if profile(state) in ('student', 'fresher', 'junior'):
             return 'Have you completed any internships, freelance work or professional experience? You can skip this if you have none.'
         return 'What relevant professional experience would you like to include? Share the company and job title; one employer is enough.'

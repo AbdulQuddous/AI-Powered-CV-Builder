@@ -292,6 +292,8 @@ def process_user_message(
             or isinstance(value, list) and any(isinstance(item, dict) and item.get(field) for item in value))
         if answered:
             new_state.pop('pending_field', None)
+    from chatbot.services.section_followups import offer_followup
+    offer_followup(state, new_state, ai_response, errors)
     new_state['recommendations'] = recommendations(new_state)
     if action == 'finish' and get_required_conversation_step(new_state)['section'] == 'review':
         from chatbot.services.date_confirmation import next_unconfirmed_date
