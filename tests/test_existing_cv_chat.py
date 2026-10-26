@@ -236,7 +236,7 @@ class ExistingCVChatTests(APITestCase):
     def test_separate_add_requests_keep_projects_separate_even_with_same_name(self, gemini):
         session, _ = self.start()
         gemini.side_effect = [self.extracted('projects',[{'name':'Saved Project','description':description,'technologies':['Django'],'url':None}]) for description in ('First new project.','Second new project.')]
-        for text in ('First new project uses Django','Second new project uses Django'):
+        for text in ('Saved Project: First new project uses Django', 'Saved Project: Second new project uses Django'):
             self.send(session, 'add another project')
             self.send(session, text)
         self.send(session, 'finish')

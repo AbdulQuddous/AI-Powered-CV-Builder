@@ -1163,3 +1163,35 @@ invalid answers, unchanged pending role/employer, rejection of incorrect model
 proposals, legitimate investigative work, unfamiliar valid titles and local
 completion on `nothing`. Providers were mocked or blocked, saved synthetic CVs
 were unchanged, and whitespace checks passed.
+
+### Follow-up: company-only answers during add-experience
+
+The request `i want to add experiece` missed the local command parser, and a
+lowercase employer ending in `limited` missed the employer-name fast path. A
+model-proposed role could then produce an internal field-path warning; a partial
+identity matching a saved employer could also switch an inferred addition into
+editing before a job title had been supplied.
+
+Fact-free section commands now reuse bounded one-typing-error matching for known
+section nouns. Factual messages and names are not fuzzy-corrected. Generic legal
+company suffixes include `limited`, without an employer-name catalogue. Switching
+an inferred addition to an existing-entry correction requires the complete entry
+identity; explicit additions remain additions at an already-used employer.
+
+For new jobs, degrees and projects, contextual identities are limited to the
+active draft. Saved entries and earlier proposals cannot supply an unmentioned
+role, institution or title. Confirmed draft identities still accompany follow-up
+details, and deliberate existing-entry corrections retain their context. Dropped
+unsupported work facts get plain-language feedback and the actual next question.
+
+Regression coverage includes the exact typo/lowercase-employer transcript,
+unknown employers routed through mocked Qwen, unsupported or copied roles,
+partial employer/education matches, and saving a distinct job at the same employer
+without changing the saved job. The same-name project test now explicitly supplies
+the project title in each user message rather than relying on a copied saved name.
+The external M5/M10 contracts and explicit-save requirement are unchanged.
+
+Verification passed: 180 focused Django tests and the full 732-test suite
+(16 optional checks skipped). Providers were mocked or blocked. Synthetic saved
+documents stayed unchanged until explicit save; the same-employer addition was
+also verified through the save API. Whitespace checks passed.

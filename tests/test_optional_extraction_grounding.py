@@ -5,6 +5,7 @@ from django.test import SimpleTestCase
 
 from chatbot.services.conversation_router import empty_ai_response
 from chatbot.services.extraction_guard import guard_extraction
+from chatbot.services.existing_cv_conversation import edit_step, update_edit_state
 from chatbot.services.field_validation import validated_updates
 
 
@@ -117,3 +118,61 @@ class OptionalExtractionGroundingTests(SimpleTestCase):
                 state.update(edit_focus=section, edit_operation='edit', current_section=section)
                 result = self.guard(message, state=state, **{section: [update]})
                 self.assertEqual(result['cv_updates'][section], [update])
+
+    def test_new_job_cannot_copy_saved_or_prior_proposed_role(self):
+        for source in ('existing_cv', 'edit_updates'):
+            with self.subTest(source=source):
+                state = deepcopy(self.state)
+                state.update(edit_focus='experience', edit_operation='add', current_section='experience')
+                state[source]['experience'] = [{'company': 'Another Employer', 'role': 'Developer',
+                                                 'job_title': 'Developer'}]
+                result = self.guard('cobalt orchard', state=state, experience=[{
+                    'company': 'cobalt orchard', 'role': 'Developer'}])
+                self.assertEqual(result['cv_updates']['experience'], [{'company': 'cobalt orchard'}])
+
+    def test_new_entry_identity_context_is_scoped_to_its_active_draft(self):
+        for section, draft, update, message in (
+            ('experience', {'company': 'New Employer', 'role': 'Developer'},
+             {'company': 'New Employer', 'role': 'Developer', 'responsibilities': ['Tested APIs.']}, 'Tested APIs.'),
+            ('projects', {'name': 'New Project'},
+             {'name': 'New Project', 'description': 'Tracks confirmed tasks.'}, 'Tracks confirmed tasks.'),
+            ('education', {'degree': 'BSc', 'institution': 'New University'},
+             {'degree': 'BSc', 'institution': 'New University', 'end_date': '2028-06'}, 'I expect to graduate in 2028-06'),
+        ):
+            with self.subTest(section=section):
+                state = deepcopy(self.state)
+                state.update(edit_focus=section, edit_operation='add', edit_draft=[draft])
+                result = self.guard(message, state=state, **{section: [update]})
+                self.assertEqual(result['cv_updates'][section], [update])
+
+    def test_new_project_and_degree_cannot_copy_saved_identities(self):
+        for section, message, update in (
+            ('projects', 'It tracks confirmed tasks.',
+             {'name': 'Saved Project', 'description': 'It tracks confirmed tasks.'}),
+            ('education', 'I expect to graduate in 2028-06.',
+             {'institution': 'Example University', 'degree': 'BS Computer Science', 'end_date': '2028-06'}),
+        ):
+            with self.subTest(section=section):
+                state = deepcopy(self.state)
+                state.update(edit_focus=section, edit_operation='add', edit_draft=[])
+                result = self.guard(message, state=state, **{section: [update]})
+                for identity in ('name', 'institution', 'degree'):
+                    self.assertNotIn(identity, result['cv_updates'][section][0])
+
+    def test_partial_saved_identity_does_not_switch_an_inferred_add_to_edit(self):
+        for section, saved, answer, missing in (
+            ('experience', {'company': 'Example Systems', 'job_title': 'Developer'},
+             {'company': 'Example Systems'}, 'role'),
+            ('education', {'institution': 'Example University', 'degree': 'BSc'},
+             {'institution': 'Example University'}, 'degree'),
+        ):
+            with self.subTest(section=section):
+                state = deepcopy(self.state)
+                state.update(edit_focus=section, edit_operation='add', edit_draft=[])
+                state['existing_cv'][section] = [saved]
+                response = empty_ai_response()
+                response['section'] = section
+                response['cv_updates'][section] = [answer]
+                updated = update_edit_state(state, response)
+                self.assertEqual(updated['edit_operation'], 'add')
+                self.assertEqual(edit_step(updated)['field'], missing)

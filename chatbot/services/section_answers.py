@@ -90,19 +90,32 @@ def structured_section_answer(text, section):
 
 
 def section_request(text):
-    """Match a request with no facts; never mistake certificate content for a command."""
+    """Match fact-free commands, allowing one typo in a known section noun."""
     match = re.fullmatch(
         r'(?:(?:(?:i )?(?:want|wan|would like) to|can i|could i|please)\s+)?'
         r'(?P<verb>add|edit|update)(?:\s+(?:my|a new|a|an|another|new|more))?\s+'
-        r'(?P<noun>certificates?|certifications?|cetificates?|languages?|skills?|education|degrees?|expe{1,2}rience|xperience|experiance|experince|jobs?|projects?|summary|achievements?)'
+        r'(?P<noun>[a-z]+)'
         r'(?:\s+to (?:my |the )?(?:cv|resume))?[.!?]?', text.strip(), re.I)
     if not match:
         return None
     noun = match['noun'].casefold()
-    noun = {'xperience': 'experience', 'expeerience': 'experience',
-            'experiance': 'experience', 'experince': 'experience'}.get(noun, noun)
-    section = next((target for stem, target in (
-        ('cert', 'certifications'), ('cetif', 'certifications'), ('language', 'languages'),
-        ('skill', 'skills'), ('degree', 'education'), ('job', 'experience'),
-        ('project', 'projects'), ('achievement', 'achievements')) if noun.startswith(stem)), noun)
+    nouns = {
+        'certificate': 'certifications', 'certificates': 'certifications',
+        'certification': 'certifications', 'certifications': 'certifications',
+        'language': 'languages', 'languages': 'languages', 'skill': 'skills', 'skills': 'skills',
+        'education': 'education', 'degree': 'education', 'degrees': 'education',
+        'experience': 'experience', 'job': 'experience', 'jobs': 'experience',
+        'project': 'projects', 'projects': 'projects', 'summary': 'summary',
+        'achievement': 'achievements', 'achievements': 'achievements',
+    }
+    section = nouns.get(noun)
+    if section is None and len(noun) >= 5:
+        from chatbot.services.local_extractor import _one_typing_error
+        # Only the command noun is compared; names and factual prose stay intact.
+        candidates = {target for known, target in nouns.items()
+                      if len(known) >= 5 and _one_typing_error(noun, known)}
+        if len(candidates) == 1:
+            section = candidates.pop()
+    if section is None:
+        return None
     return section, 'add' if match['verb'].casefold() == 'add' else 'edit'

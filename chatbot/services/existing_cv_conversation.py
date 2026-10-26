@@ -241,7 +241,11 @@ def update_edit_state(state, response, user_message=None):
         drafts = state.get('edit_draft') or []
         # A named correction to an existing entry needs only the changed fields,
         # whereas a new entry must collect its required facts.
-        if not request and drafts and not state.get('edit_explicit_add') and state.get('edit_operation') != 'edit' and all(matching_existing(state, focus, item) for item in drafts):
+        # An employer alone cannot distinguish another job at the same company.
+        if (not request and drafts and not state.get('edit_explicit_add')
+                and state.get('edit_operation') != 'edit'
+                and all(all(present(item.get(key)) for key in IDENTITIES[focus])
+                        and matching_existing(state, focus, item) for item in drafts)):
             state['edit_operation'] = 'edit'
         if state.get('edit_operation') == 'edit' and current:
             if any(any(key not in IDENTITIES[focus] and present(value) for key, value in item.items()) for item in current):

@@ -96,6 +96,13 @@ def guard_extraction(response, message, state):
                 return False
             targets = _selected_names(state, context, existing, section)
             return any(name and comparable(name) == comparable(value) for name in targets)
+        if state.get('mode') == 'edit_existing' and (
+                state.get('edit_operation') == 'add' or state.get('edit_explicit_add')):
+            # A new job/degree/project may reuse its own confirmed draft identity,
+            # never a role or name copied from another saved or proposed entry.
+            drafts = (state.get('edit_draft') or []) if state.get('edit_focus') == section else []
+            return any(isinstance(entry, dict) and comparable(entry.get(field, '')) == comparable(value)
+                       for entry in drafts)
         for entry in (context.get(section) or []) + (existing.get(section) or []):
             if isinstance(entry, dict) and comparable(entry.get(field, '')) == comparable(value):
                 return True
@@ -166,8 +173,12 @@ def guard_extraction(response, message, state):
                 # that later attaches to another language or advances the flow.
                 entry.clear()
     if unsupported:
-        warning = ('Let’s fill in only the education details you know.'
-                   if all(field.startswith('education.') for field in unsupported) else
-                   'Please confirm extracted details that were not explicit in your answer: ' + ', '.join(dict.fromkeys(unsupported)) + '.')
+        if all(field.startswith('education.') for field in unsupported):
+            warning = 'Let’s fill in only the education details you know.'
+        elif all(field.startswith('experience.') for field in unsupported):
+            warning = 'I’ve kept only the work details you provided. Let’s fill in the missing details.'
+        else:
+            warning = ('Please confirm extracted details that were not explicit in your answer: '
+                       + ', '.join(dict.fromkeys(unsupported)) + '.')
         result.setdefault('_control', {})['evidence_warning'] = warning
     return result

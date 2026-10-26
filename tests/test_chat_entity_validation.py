@@ -22,10 +22,20 @@ from tests.test_m8 import SAMPLE_CV
 class EntityValidationTests(SimpleTestCase):
     def test_experience_typos_are_commands_without_facts(self):
         for message in ['i want to add xperience', 'add experiance', 'please add experince',
-                        'want to add expeerience']:
+                        'want to add expeerience', 'i want to add experiece', 'add expreience']:
             with self.subTest(message=message):
                 self.assertEqual(section_request(message), ('experience', 'add'))
         self.assertIsNone(section_request('I worked at Xperience Systems'))
+
+    def test_section_command_typo_matching_is_bounded_to_commands(self):
+        for message, section, operation in [('add cetificate', 'certifications', 'add'),
+                                             ('edit educaton', 'education', 'edit'),
+                                             ('update projcet to my cv', 'projects', 'edit')]:
+            with self.subTest(message=message):
+                self.assertEqual(section_request(message), (section, operation))
+        for message in ['I worked at Experiece Systems', 'add experience at Example Systems',
+                        'add project called Scheduler', 'add unknown', 'add exxxrience', 'add ski']:
+            self.assertIsNone(section_request(message), message)
 
     def test_direct_fool_variants_are_abuse_but_workplace_quotes_remain_eligible(self):
         for text in ['are  you fool', 'are you a fool?', 'you are a fool', 'r u a fool']:
@@ -121,6 +131,58 @@ class ChatEntityValidationTests(APITestCase):
             'field_corrections': {}, 'skip_fields': [], 'uncertain_fields': uncertain_fields or [],
             'cv_related_question': None, 'requires_clarification': requires_clarification,
             'rejection_reason': reason})
+
+    def test_reported_typo_and_lowercase_employer_ask_for_role_without_qwen(self):
+        session = create_chat_session(user=self.user, cv_id=self.cv.pk)
+        self.send(session, 'i want to add experiece')
+        self.assertTrue(session.conversation_state['edit_explicit_add'])
+        reply = self.send(session, 'bitech pvt limited')
+        self.assertEqual(next_step(session.conversation_state)['field'], 'role')
+        self.assertEqual(self.collected(session)['experience'], [{'company': 'bitech pvt limited'}])
+        self.assertIn('role or job title', reply['assistant_message'])
+        self.assertNotIn('experience.role', reply['assistant_message'])
+        self.assertEqual(session.conversation_state['edit_operation'], 'add')
+        self.qwen.assert_not_called()
+        self.assert_saved_unchanged()
+
+    def test_new_job_at_saved_employer_keeps_separate_role_and_preserves_saved_job(self):
+        saved_job = {'company': 'bitech pvt limited', 'job_title': 'Python Intern',
+                     'highlights': ['Tested confirmed API behavior.'], 'start_date': '2025-01',
+                     'end_date': '', 'is_current': True, 'location': ''}
+        self.document['experience'] = [saved_job]
+        self.cv.data = deepcopy(self.document)
+        self.cv.save(update_fields=['data'])
+        session = create_chat_session(user=self.user, cv_id=self.cv.pk)
+        self.send(session, 'i want to add experiece')
+        self.send(session, 'bitech pvt limited')
+        self.assertEqual(next_step(session.conversation_state)['field'], 'role')
+        self.assertEqual(self.collected(session)['experience'], [{'company': 'bitech pvt limited'}])
+        self.send(session, 'Backend Developer')
+        self.send(session, 'Built and tested backend APIs.')
+        self.send(session, 'finish')
+        self.assert_saved_unchanged()
+        saved = self.client.post('/api/cvs/from-chat/', {
+            'session_id': str(session.pk), 'expected_version': 1}, format='json')
+        self.assertEqual(saved.status_code, 200, saved.data)
+        jobs = saved.data['cv']['data']['experience']
+        self.assertEqual(len(jobs), 2)
+        self.assertEqual(jobs[0], saved_job)
+        self.assertEqual(jobs[1]['job_title'], 'Backend Developer')
+        self.qwen.assert_not_called()
+
+    def test_company_only_model_answer_drops_guessed_role_and_asks_actual_role(self):
+        session = self.start()
+        self.qwen.side_effect = None
+        self.qwen.return_value = self.model_reply(entries=[{
+            'company': 'cobalt orchard', 'role': 'Backend Developer'}])
+        reply = self.send(session, 'cobalt orchard')
+        self.assertEqual(self.collected(session)['experience'], [{'company': 'cobalt orchard'}])
+        self.assertEqual(next_step(session.conversation_state)['field'], 'role')
+        self.assertIn('role or job title', reply['assistant_message'])
+        self.assertNotIn('experience.role', reply['assistant_message'])
+        self.assertNotIn('What would you like to change', reply['assistant_message'])
+        self.qwen.assert_called_once()
+        self.assert_saved_unchanged()
 
     def test_reported_invalid_role_and_followup_reach_qwen_without_advancing(self):
         session = self.start()

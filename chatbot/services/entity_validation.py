@@ -31,7 +31,7 @@ def credential_code(value):
 def clear_employer_label(value):
     """Recognize name-shaped short answers; delegate other prose to Qwen."""
     return bool(any(char.isupper() or (char.isalpha() and not char.isascii()) for char in value)
-                or re.search(r'\b(?:company|systems|technologies|solutions|university|college|hospital|restaurant|studio|agency|inc|ltd|llc)\.?$', value, re.I)
+                or re.search(r'\b(?:company|systems|technologies|solutions|university|college|hospital|restaurant|studio|agency|inc|ltd|limited|llc|plc|corp|corporation)\.?$', value, re.I)
                 or (len(value) <= 6 and any(char.isdigit() for char in value)))
 
 
