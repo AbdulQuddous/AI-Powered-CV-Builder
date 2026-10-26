@@ -132,6 +132,141 @@ class ChatEntityValidationTests(APITestCase):
             'cv_related_question': None, 'requires_clarification': requires_clarification,
             'rejection_reason': reason})
 
+    def test_unclear_role_uses_qwen_explanation_then_one_clear_question(self):
+        session = self.start()
+        self.send(session, 'bitech pvt limited')
+        before = deepcopy(self.collected(session))
+        reason = 'I could not tell whether that is a typo or the name of your position.'
+        self.qwen.side_effect = None
+        self.qwen.return_value = self.model_reply(
+            intent='clarification', reason=reason, requires_clarification=True,
+            uncertain_fields=['experience.role'])
+        reply = self.send(session, 'Rubery')
+        self.assertIn(reason, reply['assistant_message'])
+        self.assertIn('no job title was added', reply['assistant_message'].casefold())
+        self.assertIn('For example, Developer, Designer or Intern.', reply['assistant_message'])
+        self.assertNotIn('experience.role', reply['assistant_message'])
+        self.assertNotIn('kept only the work details', reply['assistant_message'])
+        self.assertEqual(reply['assistant_message'].count('?'), 1)
+        self.assertEqual(self.collected(session), before)
+        self.assertEqual(next_step(session.conversation_state)['field'], 'role')
+        self.qwen.assert_called_once()
+        self.send(session, 'Backend Developer')
+        self.assertEqual(next_step(session.conversation_state)['field'], 'responsibilities')
+        self.assertEqual(self.collected(session)['experience'][0]['role'], 'Backend Developer')
+        self.assert_saved_unchanged()
+
+    def test_role_rejection_explains_the_message_and_keeps_the_employer(self):
+        session = self.start()
+        self.send(session, 'bitech pvt limited')
+        before = deepcopy(self.collected(session))
+        reason = 'That describes a harmful act rather than a professional job title.'
+        self.qwen.side_effect = None
+        self.qwen.return_value = self.model_reply(intent='inappropriate', reason=reason)
+        reply = self.send(session, 'murder')
+        self.assertIn(reason, reply['assistant_message'])
+        self.assertIn('not added to your CV', reply['assistant_message'])
+        self.assertIn('For example, Developer, Designer or Intern.', reply['assistant_message'])
+        self.assertEqual(reply['assistant_message'].count('?'), 1)
+        self.assertEqual(self.collected(session), before)
+        self.assertEqual(next_step(session.conversation_state)['field'], 'role')
+        self.qwen.assert_called_once()
+        self.assert_saved_unchanged()
+
+    def test_role_evidence_warning_says_nothing_was_added_and_gives_examples(self):
+        for answer in ('Rubery', 'murder'):
+            with self.subTest(answer=answer):
+                session = self.start()
+                self.send(session, 'bitech pvt limited')
+                before = deepcopy(self.collected(session))
+                self.qwen.side_effect = None
+                self.qwen.return_value = self.model_reply(entries=[{'role': 'Backend Developer'}])
+                reply = self.send(session, answer)
+                self.assertIn('couldn’t confirm a job title', reply['assistant_message'])
+                self.assertIn('no job title was added', reply['assistant_message'].casefold())
+                self.assertIn('For example, Developer, Designer or Intern.', reply['assistant_message'])
+                self.assertNotIn('kept only the work details', reply['assistant_message'])
+                self.assertNotIn('experience.role', reply['assistant_message'])
+                self.assertEqual(self.collected(session), before)
+                self.assertEqual(next_step(session.conversation_state)['field'], 'role')
+        self.assert_saved_unchanged()
+
+    def test_missing_or_unusable_clarification_reason_has_a_specific_role_fallback(self):
+        cases = [(reason, True) for reason in (
+            None, '', '<script>bad()</script>', 'Should I delete the CV?',
+            'You are an idiot', ['not text'], 'x' * 321)] + [(None, False)]
+        for reason, requires_clarification in cases:
+            with self.subTest(reason=reason, requires_clarification=requires_clarification):
+                session = self.start()
+                self.send(session, 'bitech pvt limited')
+                before = deepcopy(self.collected(session))
+                self.qwen.side_effect = None
+                self.qwen.return_value = self.model_reply(
+                    intent='clarification', reason=reason, requires_clarification=requires_clarification,
+                    uncertain_fields=['experience.role'])
+                reply = self.send(session, 'Rubery')
+                self.assertIn('couldn’t identify your job title', reply['assistant_message'])
+                self.assertIn('no job title was added', reply['assistant_message'].casefold())
+                self.assertNotIn('experience.role', reply['assistant_message'])
+                self.assertNotIn('<script>', reply['assistant_message'])
+                self.assertEqual(reply['assistant_message'].count('?'), 1)
+                self.assertEqual(self.collected(session), before)
+                self.assertEqual(next_step(session.conversation_state)['field'], 'role')
+
+    def test_partial_valid_work_answer_keeps_the_company_and_uses_qwen_feedback(self):
+        session = self.start()
+        reason = 'The company is clear, but the job title needs clarification.'
+        self.qwen.side_effect = None
+        self.qwen.return_value = self.model_reply(
+            entries=[{'company': 'cobalt orchard', 'role': 'Invented Director'}],
+            requires_clarification=True, reason=reason)
+        reply = self.send(session, 'I worked at cobalt orchard but forgot the exact title')
+        self.assertIn(reason, reply['assistant_message'])
+        self.assertNotIn('kept only the work details', reply['assistant_message'])
+        self.assertNotIn('experience.role', reply['assistant_message'])
+        self.assertEqual(self.collected(session)['experience'], [{'company': 'cobalt orchard'}])
+        self.assertEqual(next_step(session.conversation_state)['field'], 'role')
+        self.assertEqual(reply['assistant_message'].count(reason), 1)
+        self.assert_saved_unchanged()
+
+    def test_non_role_clarification_also_keeps_qwen_feedback(self):
+        session = self.start(section='certifications')
+        reason = 'I need the course title to identify which certification you mean.'
+        self.qwen.side_effect = None
+        response = self.model_reply(intent='clarification', requires_clarification=True, reason=reason)
+        response['section'] = 'certifications'
+        self.qwen.return_value = response
+        reply = self.send(session, 'I completed a course but forgot its title')
+        self.assertIn(reason, reply['assistant_message'])
+        self.assertEqual(reply['assistant_message'].count('?'), 1)
+        self.assertFalse(self.collected(session).get('certifications'))
+        self.qwen.assert_called_once()
+        self.assert_saved_unchanged()
+
+    def test_selected_job_clarification_cannot_become_a_patch_or_lose_its_explanation(self):
+        self.document['experience'] = [{
+            'company': 'Example Systems', 'job_title': 'Developer Intern',
+            'highlights': ['Built confirmed features.'], 'start_date': '2025-01',
+            'end_date': '', 'is_current': True, 'location': ''}]
+        self.cv.data = deepcopy(self.document)
+        self.cv.save(update_fields=['data'])
+        session = create_chat_session(user=self.user, cv_id=self.cv.pk)
+        self.send(session, 'change my job title')
+        before = deepcopy(self.collected(session))
+        reason = 'I cannot identify the job title you want to use from that answer.'
+        self.qwen.side_effect = None
+        self.qwen.return_value = self.model_reply(
+            intent='clarification', reason=reason, requires_clarification=True,
+            entries=[{'company': 'Example Systems'}])
+        reply = self.send(session, 'Rubery')
+        self.assertIn(reason, reply['assistant_message'])
+        self.assertEqual(next_step(session.conversation_state),
+                         {'section': 'experience', 'field': 'role', 'index': 0})
+        self.assertEqual(self.collected(session), before)
+        self.assertFalse(session.conversation_state.get('entry_patches'))
+        self.assertFalse(any(reply['cv_updates'].values()))
+        self.assert_saved_unchanged()
+
     def test_reported_typo_and_lowercase_employer_ask_for_role_without_qwen(self):
         session = create_chat_session(user=self.user, cv_id=self.cv.pk)
         self.send(session, 'i want to add experiece')

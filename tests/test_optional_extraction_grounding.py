@@ -130,6 +130,17 @@ class OptionalExtractionGroundingTests(SimpleTestCase):
                     'company': 'cobalt orchard', 'role': 'Developer'}])
                 self.assertEqual(result['cv_updates']['experience'], [{'company': 'cobalt orchard'}])
 
+    def test_rejecting_one_role_does_not_claim_a_supported_sibling_was_not_added(self):
+        state = deepcopy(self.state)
+        state.update(edit_focus='experience', edit_operation='add', current_section='experience')
+        result = self.guard('Backend Developer at Example Systems; another job at Other Systems.',
+                            state=state, experience=[
+                                {'company': 'Example Systems', 'role': 'Backend Developer'},
+                                {'company': 'Other Systems', 'role': 'Invented Director'}])
+        self.assertEqual(result['cv_updates']['experience'], [
+            {'company': 'Example Systems', 'role': 'Backend Developer'}, {'company': 'Other Systems'}])
+        self.assertNotIn('no job title was added', result['_control']['evidence_warning'])
+
     def test_new_entry_identity_context_is_scoped_to_its_active_draft(self):
         for section, draft, update, message in (
             ('experience', {'company': 'New Employer', 'role': 'Developer'},

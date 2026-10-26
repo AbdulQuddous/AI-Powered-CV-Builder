@@ -8,7 +8,7 @@ from chatbot.models import (
 
 from chatbot.services.qwen_client import QwenClient, build_qwen_messages
 from chatbot.services.field_validation import validated_updates
-from chatbot.services.message_routing import route_message, apply_control, present_response
+from chatbot.services.message_routing import route_message, apply_control, present_response, model_feedback
 from chatbot.services.question_engine import question, recommendations
 from chatbot.services.collection_memory import merge_collection_entries, repair_split_education, repair_structured_education, repair_study_status, sync_project_progress, FIELD_STATES
 from chatbot.services.content_handling import repair_hostile_experience
@@ -154,13 +154,15 @@ def process_user_message(
             ai_response['_control']['intent'] = 'clarification'
     ai_response = sanitize_ai_response_for_state(ai_response)
     pending = state.get('pending_field') or {}
-    if (not state.get('date_confirmation_pending') and 'index' in pending
-            and (ai_response.get('cv_updates') or {}).get(pending['section'])):
-        ai_response['_control'] = {'intent': 'entry_patch', 'section': pending['section'], 'index': pending['index']}
     action = (ai_response.get('_control') or {}).get('intent')
     blocked = ai_response.get('intent') == 'irrelevant' or action in (
         'off_topic', 'inappropriate', 'support_needed', 'cv_question', 'show_progress', 'clarification',
         'career_guidance', 'guidance_choice', 'dismiss_guidance')
+    if (not blocked and not state.get('date_confirmation_pending') and 'index' in pending
+            and (ai_response.get('cv_updates') or {}).get(pending['section'])):
+        ai_response.setdefault('_control', {}).update(
+            intent='entry_patch', section=pending['section'], index=pending['index'])
+        action = 'entry_patch'
     if blocked:
         ai_response['cv_updates'] = empty_updates()
         ai_response['state_updates'] = {}
@@ -168,10 +170,21 @@ def process_user_message(
     uncertain = (ai_response.get('_control') or {}).get('uncertain_fields') or []
     for path in uncertain:
         statuses[path] = 'needs_clarification'
+    feedback = model_feedback(ai_response)
     if (ai_response.get('_control') or {}).get('requires_clarification'):
-        errors.append('Please clarify ' + (', '.join(uncertain) if uncertain else 'the details you would like to include') + '. I have kept the confirmed information.')
+        supplied_role = any(item.get('role') or item.get('job_title')
+                            for item in ai_response['cv_updates'].get('experience') or [])
+        if (required_step['section'] == 'experience' and required_step['field'] in ('role', 'job_title')
+                and not supplied_role):
+            fallback = 'I couldn’t identify your job title in that reply.'
+        else:
+            fallback = ('Please clarify ' + (', '.join(uncertain) if uncertain else 'the details you would like to include')
+                        + '. I have kept the confirmed information.')
+        errors.append(feedback or fallback)
     if (ai_response.get('_control') or {}).get('evidence_warning'):
-        errors.append(ai_response['_control']['evidence_warning'])
+        warning = feedback or ai_response['_control']['evidence_warning']
+        if warning not in errors:
+            errors.append(warning)
     from chatbot.services.optional_answers import review_optional_entries
     ai_response, provisional = review_optional_entries(ai_response, user_message, state)
     for path in provisional:

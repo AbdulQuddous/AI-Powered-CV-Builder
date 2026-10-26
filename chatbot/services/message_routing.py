@@ -618,8 +618,8 @@ def _skill_retry_message(state):
             f'Which skill would you like to include{example}?' + exit_hint)
 
 
-def _rejection_reason(response):
-    """Accept brief display-only Qwen feedback, with a clear local fallback."""
+def model_feedback(response):
+    """Accept bounded display-only Qwen feedback for rejected or unclear answers."""
     action = response.get('_control') or {}
     value = action.get('rejection_reason')
     if isinstance(value, str):
@@ -627,9 +627,24 @@ def _rejection_reason(response):
         if (0 < len(reason) <= 320 and not re.search(r'[<>{}?]|https?://|www\.', reason, re.I)
                 and not is_direct_abuse(reason)):
             return reason.rstrip('.!') + '.'
+    return ''
+
+
+def _rejection_reason(response):
+    reason = model_feedback(response)
+    if reason:
+        return reason
+    action = response.get('_control') or {}
     if action.get('intent') == 'inappropriate':
         return "Let's keep this professional. That sounds like a remark directed at me rather than information for your CV."
     return "That message doesn't describe CV information or a change I can apply."
+
+
+def _retry_question(state, step):
+    followup = question(state)
+    if step['section'] == 'experience' and step['field'] in ('role', 'job_title'):
+        followup += ' For example, Developer, Designer or Intern.'
+    return followup
 
 
 def present_response(response, state, errors=None, notice=''):
@@ -644,7 +659,7 @@ def present_response(response, state, errors=None, notice=''):
             'We can pause the CV. When you are safe and ready, you can say "resume CV".'))
     elif action in ('off_topic', 'inappropriate') or response.get('intent') == 'irrelevant':
         detail = _rejection_reason(response) + ' That message was not added to your CV. '
-        followup = (_skill_retry_message(state) if step['section'] == 'skills' else question(state))
+        followup = (_skill_retry_message(state) if step['section'] == 'skills' else _retry_question(state, step))
         exit_hint = (' You can switch sections or say "cancel".'
                      if state.get('mode') == 'edit_existing' and step['section'] not in ('review', 'skills') else '')
         response.update(intent='irrelevant', next_action='ask_question',
@@ -675,7 +690,16 @@ def present_response(response, state, errors=None, notice=''):
         response.update(intent='clarify_information', next_action='ask_question',
                         assistant_message=confirmation_question(state['optional_entry_confirmation']))
     elif errors or action == 'clarification':
-        detail = ' '.join(errors) if errors else notice or 'Please clarify the details you would like to include.'
+        fallback = ('I couldn’t identify your job title in that reply.'
+                    if step['section'] == 'experience' and step['field'] in ('role', 'job_title') else
+                    'Please clarify the details you would like to include.')
+        detail = (' '.join(errors) if errors else
+                  notice or model_feedback(response) or fallback)
+        if (step['section'] == 'experience' and step['field'] in ('role', 'job_title')
+                and not any(item.get('role') or item.get('job_title')
+                            for item in response.get('cv_updates', {}).get('experience') or [])
+                and 'no job title was added' not in detail.casefold()):
+            detail += ' No job title was added.'
         exit_hint = (' You can also say "cancel" or choose another section.'
                      if state.get('mode') == 'edit_existing' else '')
         control_data = response.get('_control') or {}
@@ -684,7 +708,7 @@ def present_response(response, state, errors=None, notice=''):
                               or (action == 'clarification' and not notice)))
         response.update(intent='clarify_information', next_action='ask_question',
                         assistant_message=(_skill_retry_message(state) if unclear_skill else
-                                           detail + ' ' + question(state) + exit_hint))
+                                           detail + ' ' + _retry_question(state, step) + exit_hint))
     elif action == 'finish' and step['section'] == 'review':
         response.update(intent='complete', next_action='complete', assistant_message='Your draft is ready. Review the collected details, optionally request an external Gemini review, then save when you approve.')
     else:

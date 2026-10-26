@@ -151,6 +151,19 @@ class QwenContractTests(SimpleTestCase):
                 self.assertEqual(result['intent'], 'irrelevant')
                 self.assertIsNone(result['_control']['rejection_reason'])
 
+    def test_clarification_can_carry_display_feedback_without_new_contract_fields(self):
+        reason = 'I could not identify a job title in that reply.'
+        for intent, requires_clarification in [('clarification', False), ('answer', True)]:
+            with self.subTest(intent=intent):
+                context, _ = self.provider(internal(
+                    intent=intent, section='experience', requires_clarification=requires_clarification,
+                    uncertain_fields=['experience.role'], rejection_reason=reason))
+                with patch('chatbot.services.qwen_client.httpx.Client', return_value=context):
+                    result = QwenClient().generate([])
+                self.assertEqual(result['_control']['rejection_reason'], reason)
+                self.assertFalse(any(result['cv_updates'].values()))
+                self.assertNotIn('rejection_reason', result['state_updates'])
+
     def test_unknown_fields_and_enum_rejected(self):
         for data in [internal(user_id=4), internal(intent='run_shell'), internal(extracted_fields={'personal': {'cv_id': 8}})]:
             context, _ = self.provider(data)

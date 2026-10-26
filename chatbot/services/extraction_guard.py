@@ -175,6 +175,11 @@ def guard_extraction(response, message, state):
     if unsupported:
         if all(field.startswith('education.') for field in unsupported):
             warning = 'Let’s fill in only the education details you know.'
+        elif all(field in ('experience.role', 'experience.job_title') for field in unsupported):
+            kept_role = any(item.get('role') or item.get('job_title')
+                            for item in result['cv_updates'].get('experience') or [])
+            warning = ('Some suggested job titles weren’t clear in your reply. I kept the titles you provided.'
+                       if kept_role else 'I couldn’t confirm a job title from that reply, so no job title was added.')
         elif all(field.startswith('experience.') for field in unsupported):
             warning = 'I’ve kept only the work details you provided. Let’s fill in the missing details.'
         else:

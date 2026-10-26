@@ -1195,3 +1195,40 @@ Verification passed: 180 focused Django tests and the full 732-test suite
 (16 optional checks skipped). Providers were mocked or blocked. Synthetic saved
 documents stayed unchanged until explicit save; the same-employer addition was
 also verified through the save API. Whitespace checks passed.
+
+### Follow-up: clear feedback for an unrecognized job title
+
+The work-evidence warning obscured why a proposed role was rejected, and Qwen's
+optional explanation was only retained for off-topic or inappropriate messages.
+The same bounded display field is now retained for clarification and answers
+explicitly requiring clarification. Valid explanations replace generic evidence
+or missing-field notices without hiding independent field-validation errors.
+Ordinary accepted answers ignore this feedback; it is not a CV fact or an action.
+
+For an unclear title, the reply acknowledges that no job title was added and asks
+the pending question once, with examples such as Developer, Designer or Intern.
+If no usable model explanation exists, the fallback specifically says that the
+job title could not be identified or confirmed. It no longer tells the user only
+that work details were kept. Partial valid answers still retain confirmed facts,
+and feedback does not claim that no title was added if another supported title
+was accepted in the same answer.
+
+Qwen is asked to explain the ambiguity of a typo or unfamiliar word without
+assuming criminal intent, inventing a corrected occupation or demanding a known
+job-title catalogue. Clearly harmful acts offered as positions get a contextual
+explanation. HTML, links, extra questions, abusive text, malformed values and
+oversized optional feedback use the existing bounded fallback. No extra model
+request or public M5/M10 contract field was added.
+
+A selected saved-entry field cannot turn a model clarification into an entry
+patch and discard its explanation. Accepted patches retain their existing
+validation/clarification metadata. Confirmed proposals and saved CVs remain
+unchanged during rejected or unclear turns; normal collection resumes after a
+valid title is provided.
+
+Verification passed: the full 741-test Django suite (16 optional checks skipped),
+followed by a 171-test focused recheck covering the final missing-explanation
+fallback. The nine added regressions cover Qwen clarification feedback, the
+reported inputs, invalid optional wording, partial valid answers, saved-entry
+editing and honest feedback for supported sibling titles. Providers were mocked
+or blocked; whitespace checks passed.

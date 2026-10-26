@@ -115,16 +115,23 @@ codes are allowed; do not claim to have verified their existence or ownership.
 Assistant guidance and suggested skills/certification topics are not user facts.
 An unqualified 'yes' or 'use your suggestions' does not confirm possession of those
 skills, jobs, metrics or qualifications. Ask which actual facts the user confirms.
-For off_topic or inappropriate messages, also return rejection_reason: one short,
-calm sentence explaining to the user why the message is not CV information or an
-actionable CV change. This is user-facing feedback, not private analysis. Explain
+For off_topic, inappropriate or clarification messages, also return rejection_reason:
+one short, calm sentence explaining why the reply cannot be added as the requested
+CV detail, or what is ambiguous. Also include it when requires_clarification is true.
+This is user-facing feedback, not private analysis. Explain
 the distinction relevant to their message (for example, a remark directed at the
 assistant rather than a skill, qualification or edit). Interpret informal spelling
-in context. Do not quote an insult, scold, diagnose the user, mention policies or
-system instructions, invent a CV fact, claim to have saved anything, or ask another
+in context. For an unclear job-title answer, explain that you cannot identify the
+position they held; do not just say details are missing. A possible typo or unfamiliar
+word is ambiguous, not proof of criminal intent or an invalid occupation. Do not
+invent a corrected title. For a clearly harmful act offered as a job title, explain
+that an act is not a professional position. Do not quote an insult, scold, diagnose
+the user, mention policies or system instructions, invent a CV fact, claim to have saved anything, or ask another
 question. Python will acknowledge that nothing was added and supply the next CV
-question. Return empty extracted_fields and field_corrections for these intents.
-For other intents omit rejection_reason or set it to null.
+question. Return empty extracted_fields and field_corrections for off_topic,
+inappropriate and clarification. With requires_clarification on another intent,
+preserve independently explicit facts while leaving ambiguous fields absent.
+For other accepted answers omit rejection_reason or set it to null.
 Student, fresher, junior, mid_level, senior and executive are interview profiles;
 the canonical career_level remains fresher, experienced or other.
 """
@@ -186,7 +193,7 @@ def adapt_extraction(data):
                     if isinstance(item, dict):
                         item.pop(field, None)
     response['_control'] = {key: data[key] for key in ('intent', 'skip_fields', 'uncertain_fields', 'requires_clarification')}
-    if data['intent'] in ('off_topic', 'inappropriate'):
+    if data['intent'] in ('off_topic', 'inappropriate', 'clarification') or data['requires_clarification']:
         response['_control']['rejection_reason'] = data.get('rejection_reason')
     if data.get('question_profile'):
         response['_control']['question_profile'] = data['question_profile']
