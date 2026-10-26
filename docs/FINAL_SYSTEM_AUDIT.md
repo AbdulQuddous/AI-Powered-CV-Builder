@@ -1133,3 +1133,33 @@ model-provided explanations, local fallbacks, unchanged pending questions and
 saved CVs, malformed optional feedback and rejected profile/fact updates. Qwen
 responses were mocked; its configured local endpoint was not reachable from this
 environment for a live check. Whitespace checks also passed.
+
+### Follow-up: experience fast paths bypassing semantic review
+
+The experience transcript exposed two local shortcuts: a `My role is ...` label
+accepted its value without the ordinary job-title confidence check, and an
+unconditional short-answer path treated almost any text as responsibilities.
+Labelled unfamiliar roles now use Qwen, and unclear duties are delegated rather
+than stored as scalar answers. Common clear professional titles and action-based
+duties retain their local paths. Articles in labelled job titles are stripped as
+grammar, without changing the supplied occupation.
+
+Qwen's prompt explicitly distinguishes claims of harming people from legitimate
+investigative, medical, prevention and fictional work. Rejected turns use the
+existing explanation channel and preserve the current question and confirmed
+employer. Whole-value backend checks additionally reject obvious non-occupational
+labels and direct person-harming duty claims if a model incorrectly proposes
+them. These are scoped field checks, not a ban on crime-related vocabulary in
+valid professional descriptions; unfamiliar plausible occupations remain usable.
+
+The command `want to add expeerience` is recognized locally. At the final review
+prompt, `nothing` means finish and does not invoke Qwen. It is not a global skip
+for missing experience fields. No saved CV is changed until the existing approval
+and save action; the M5/M10 contracts are unchanged.
+
+Verification passed: 724 Django tests (16 optional checks skipped), including
+nine new routing/entity regressions. Tests verify two Qwen calls for the reported
+invalid answers, unchanged pending role/employer, rejection of incorrect model
+proposals, legitimate investigative work, unfamiliar valid titles and local
+completion on `nothing`. Providers were mocked or blocked, saved synthetic CVs
+were unchanged, and whitespace checks passed.

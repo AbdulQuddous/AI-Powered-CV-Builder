@@ -92,14 +92,15 @@ def structured_section_answer(text, section):
 def section_request(text):
     """Match a request with no facts; never mistake certificate content for a command."""
     match = re.fullmatch(
-        r'(?:(?:i (?:want|wan|would like) to|can i|could i|please)\s+)?'
+        r'(?:(?:(?:i )?(?:want|wan|would like) to|can i|could i|please)\s+)?'
         r'(?P<verb>add|edit|update)(?:\s+(?:my|a new|a|an|another|new|more))?\s+'
-        r'(?P<noun>certificates?|certifications?|cetificates?|languages?|skills?|education|degrees?|experience|xperience|experiance|experince|jobs?|projects?|summary|achievements?)'
+        r'(?P<noun>certificates?|certifications?|cetificates?|languages?|skills?|education|degrees?|expe{1,2}rience|xperience|experiance|experince|jobs?|projects?|summary|achievements?)'
         r'(?:\s+to (?:my |the )?(?:cv|resume))?[.!?]?', text.strip(), re.I)
     if not match:
         return None
     noun = match['noun'].casefold()
-    noun = {'xperience': 'experience', 'experiance': 'experience', 'experince': 'experience'}.get(noun, noun)
+    noun = {'xperience': 'experience', 'expeerience': 'experience',
+            'experiance': 'experience', 'experince': 'experience'}.get(noun, noun)
     section = next((target for stem, target in (
         ('cert', 'certifications'), ('cetif', 'certifications'), ('language', 'languages'),
         ('skill', 'skills'), ('degree', 'education'), ('job', 'experience'),

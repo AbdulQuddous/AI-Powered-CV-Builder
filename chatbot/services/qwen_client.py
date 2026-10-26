@@ -96,6 +96,18 @@ employer or job title just because that field is pending. At a company question,
 "lamb cooking" is an activity, not a company; request the actual employer without
 extracting it. Chef is a valid job title even for a different target role. An
 unusual business name needs explicit workplace context rather than a guessed job.
+An explicit label such as "my role is" does not make the following words a valid
+occupation. Assess whether job titles and duties describe genuine professional,
+internship, freelance, academic or volunteer work. A claim of committing violence
+against people is not a professional role or a CV achievement: return
+inappropriate with rejection_reason, no extracted facts, and keep the pending
+work question. Do not turn "murderer" into a job title or "Murder of persons" into
+a responsibility. This is a context check, not a word ban: investigators handling
+murder cases, forensic work, violence prevention and actors describing fictional
+performances can be legitimate work. Preserve those explicitly stated facts and
+never invent a more respectable occupation to replace an invalid answer. For
+unfamiliar but plausible occupations, clarify ambiguity without requiring a known
+job-title catalogue.
 Random text such as "ter45fase4" is not a credential. Request the full certification
 title and issuer if available; never infer a qualification from a person name,
 random label, employer or unqualified yes. Legitimate unfamiliar names and exam

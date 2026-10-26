@@ -13,6 +13,7 @@ from chatbot.services.entity_validation import entity_problem, obvious_noise
 from chatbot.services.education_answers import parse_certificate
 from chatbot.services.message_routing import classify
 from chatbot.services.question_engine import next_step
+from chatbot.services.qwen_client import adapt_extraction
 from chatbot.services.section_answers import section_request
 from cvs.services import create_cv
 from tests.test_m8 import SAMPLE_CV
@@ -20,7 +21,8 @@ from tests.test_m8 import SAMPLE_CV
 
 class EntityValidationTests(SimpleTestCase):
     def test_experience_typos_are_commands_without_facts(self):
-        for message in ['i want to add xperience', 'add experiance', 'please add experince']:
+        for message in ['i want to add xperience', 'add experiance', 'please add experince',
+                        'want to add expeerience']:
             with self.subTest(message=message):
                 self.assertEqual(section_request(message), ('experience', 'add'))
         self.assertIsNone(section_request('I worked at Xperience Systems'))
@@ -56,6 +58,18 @@ class EntityValidationTests(SimpleTestCase):
                          {'name': 'Google AI Essentials', 'issuer': 'Google', 'date': '2026-06'})
         self.assertEqual(parse_certificate('Regional Professional Practice; issuer: Example Institute'),
                          {'name': 'Regional Professional Practice', 'issuer': 'Example Institute'})
+
+    def test_non_occupational_labels_and_direct_harm_are_not_work_fields(self):
+        for field, value in [('role', 'a murderer'), ('job_title', 'Murderer'), ('role', 'My role is a murderer'),
+                             ('responsibilities', ['Murder of persons']), ('highlights', ['Killed people'])]:
+            with self.subTest(field=field):
+                self.assertIsNotNone(entity_problem('experience', field, value))
+        for field, value in [('role', 'Homicide Investigator'), ('role', 'Actor'),
+                             ('responsibilities', ['Investigated murder cases.']),
+                             ('highlights', ['Killed stalled processes to restore the service.']),
+                             ('responsibilities', ['Portrayed a murderer in a fictional stage performance.'])]:
+            with self.subTest(value=value):
+                self.assertIsNone(entity_problem('experience', field, value))
 
 
 class ChatEntityValidationTests(APITestCase):
@@ -98,6 +112,120 @@ class ChatEntityValidationTests(APITestCase):
     def assert_saved_unchanged(self):
         self.cv.refresh_from_db()
         self.assertEqual((self.cv.data, self.cv.version), (self.document, 1))
+
+    def model_reply(self, *, intent='answer', entries=None, reason=None,
+                    requires_clarification=False, uncertain_fields=None):
+        return adapt_extraction({
+            'intent': intent, 'section': 'experience',
+            'extracted_fields': {'experience': entries} if entries else {},
+            'field_corrections': {}, 'skip_fields': [], 'uncertain_fields': uncertain_fields or [],
+            'cv_related_question': None, 'requires_clarification': requires_clarification,
+            'rejection_reason': reason})
+
+    def test_reported_invalid_role_and_followup_reach_qwen_without_advancing(self):
+        session = self.start()
+        self.send(session, 'cancel')
+        self.send(session, 'want to add expeerience')
+        self.send(session, 'Bitech PVT limited')
+        before = deepcopy(self.collected(session))
+        self.qwen.side_effect = None
+        self.qwen.return_value = self.model_reply(
+            intent='inappropriate', reason='That describes harm to people rather than a professional role or duty.')
+        for text in ('My role is a murderer', 'Murder of persons'):
+            reply = self.send(session, text)
+            self.assertEqual(reply['intent'], 'irrelevant')
+            self.assertIn('rather than a professional role or duty', reply['assistant_message'])
+            self.assertEqual(next_step(session.conversation_state)['field'], 'role')
+            self.assertEqual(self.collected(session), before)
+        self.assertEqual(self.qwen.call_count, 2)
+        for call in self.qwen.call_args_list:
+            self.assertIn('"field": "role"', call.args[0][1]['content'])
+        self.assert_saved_unchanged()
+
+    def test_model_cannot_approve_an_obviously_invalid_job_label(self):
+        session = self.start()
+        self.send(session, 'Bitech PVT limited')
+        self.qwen.side_effect = None
+        self.qwen.return_value = self.model_reply(entries=[{'role': 'murderer'}])
+        reply = self.send(session, 'My role is a murderer')
+        self.qwen.assert_called_once()
+        self.assertEqual(reply['intent'], 'clarify_information')
+        self.assertIn('not a professional job title', reply['assistant_message'])
+        self.assertEqual(next_step(session.conversation_state)['field'], 'role')
+        self.assertEqual(self.collected(session)['experience'], [{'company': 'Bitech PVT limited'}])
+        self.assert_saved_unchanged()
+
+    def test_unclear_duties_reach_qwen_and_invalid_proposals_stay_out(self):
+        session = self.start()
+        self.send(session, 'Bitech PVT limited')
+        self.send(session, 'Backend Developer')
+        before = deepcopy(self.collected(session))
+        self.qwen.side_effect = None
+        self.qwen.return_value = self.model_reply(entries=[{'responsibilities': ['Murder of persons']}])
+        reply = self.send(session, 'Murder of persons')
+        self.qwen.assert_called_once()
+        self.assertEqual(reply['intent'], 'clarify_information')
+        self.assertEqual(next_step(session.conversation_state)['field'], 'responsibilities')
+        self.assertEqual(self.collected(session), before)
+        self.assert_saved_unchanged()
+
+    def test_crime_related_professional_context_uses_qwen_and_is_retained(self):
+        session = self.start()
+        self.send(session, 'Example Investigations Office')
+        duty = 'Investigated murder cases and prepared court files.'
+        self.qwen.side_effect = [
+            self.model_reply(entries=[{'role': 'Homicide Investigator'}]),
+            self.model_reply(entries=[{'responsibilities': [duty]}])]
+        self.send(session, 'My role is a Homicide Investigator')
+        self.send(session, duty)
+        self.assertEqual(self.qwen.call_count, 2)
+        self.assertEqual(self.collected(session)['experience'], [{
+            'company': 'Example Investigations Office', 'role': 'Homicide Investigator',
+            'responsibilities': [duty]}])
+        self.assertEqual(next_step(session.conversation_state)['section'], 'review')
+        self.assert_saved_unchanged()
+
+    def test_unknown_but_plausible_label_is_reviewed_without_a_title_catalogue(self):
+        session = self.start()
+        self.send(session, 'Example Institute')
+        self.qwen.side_effect = None
+        self.qwen.return_value = self.model_reply(entries=[{'role': 'Clinical Ethics Steward'}])
+        self.send(session, 'My role is a Clinical Ethics Steward')
+        self.qwen.assert_called_once()
+        self.assertEqual(self.collected(session)['experience'][0]['role'], 'Clinical Ethics Steward')
+        self.assertEqual(next_step(session.conversation_state)['field'], 'responsibilities')
+
+    def test_noun_phrase_duties_need_interpretation_instead_of_scalar_storage(self):
+        session = self.start()
+        self.send(session, 'Example Institute')
+        self.send(session, 'Accountant')
+        self.qwen.side_effect = None
+        self.qwen.return_value = self.model_reply(entries=[{'responsibilities': ['Quarterly reconciliation']}])
+        self.send(session, 'Quarterly reconciliation')
+        self.qwen.assert_called_once()
+        self.assertEqual(self.collected(session)['experience'][0]['responsibilities'], ['Quarterly reconciliation'])
+
+    def test_nothing_at_final_edit_prompt_finishes_locally_without_saving(self):
+        session = self.start()
+        self.send(session, 'cancel')
+        before = deepcopy(self.collected(session))
+        reply = self.send(session, 'nothing')
+        self.assertEqual(reply['next_action'], 'complete')
+        self.assertEqual(session.status, 'completed')
+        self.assertEqual(self.collected(session), before)
+        self.qwen.assert_not_called()
+        self.assert_saved_unchanged()
+
+    def test_nothing_is_not_a_global_skip_for_an_incomplete_experience(self):
+        session = self.start()
+        self.send(session, 'Bitech PVT limited')
+        self.qwen.side_effect = None
+        self.qwen.return_value = empty_ai_response()
+        reply = self.send(session, 'nothing')
+        self.assertNotEqual(reply['next_action'], 'complete')
+        self.assertEqual(session.status, 'active')
+        self.assertEqual(next_step(session.conversation_state)['field'], 'role')
+        self.assertEqual(self.collected(session)['experience'], [{'company': 'Bitech PVT limited'}])
 
     def test_reported_transcript_never_adds_noise_or_activity_as_employment(self):
         session = self.start(section='certifications')

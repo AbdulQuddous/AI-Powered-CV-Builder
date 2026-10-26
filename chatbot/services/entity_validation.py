@@ -16,6 +16,12 @@ _EMPLOYER_CUE = re.compile(
     r'\b(?:company|employer|organization|organisation|business)(?:\s+(?:name|is|was))?\s*[:=]|'
     r'\b(?:company|employer|organization|organisation|business)\s+(?:is|was|called|named)\b|'
     r'\b(?:work(?:ed)?|intern(?:ed)?)\s+(?:at|for)\b|\bas\s+.+?\s+at\b', re.I)
+_NON_OCCUPATIONAL_LABEL = re.compile(
+    r'(?:(?:(?:my|the)\s+)?(?:role|job title)\s*(?:is|:|=)\s*)?'
+    r'(?:(?:a|an)\s+)?(?:murderer|serial killer|terrorist|robber|thief)[.!]?', re.I)
+_DIRECT_HARM_CLAIM = re.compile(
+    r'(?:(?:i|we)\s+)?(?:murder(?:ed|ing)?|kill(?:ed|ing)?)\s+(?:of\s+)?'
+    r'(?:people|persons?|humans?|civilians?)[.!]?', re.I)
 
 
 def credential_code(value):
@@ -57,6 +63,15 @@ def obvious_noise(value):
 
 
 def entity_problem(section, field, value, message=''):
+    # These are whole-value type checks, never a ban on discussing crime in
+    # legitimate investigative, medical, prevention or fictional work.
+    if section == 'experience':
+        if field in ('role', 'job_title') and isinstance(value, str) and _NON_OCCUPATIONAL_LABEL.fullmatch(value.strip()):
+            return 'That is not a professional job title. Please give your actual role or say "cancel" to leave this entry.'
+        if field in ('responsibilities', 'highlights'):
+            duties = value if isinstance(value, list) else [value]
+            if any(isinstance(duty, str) and _DIRECT_HARM_CLAIM.fullmatch(duty.strip()) for duty in duties):
+                return 'That describes harming people, rather than a professional work responsibility. Please describe your actual work, or say "cancel".'
     labels = {'experience': ('company', 'role', 'job_title'),
               'certifications': ('name', 'issuer'), 'languages': ('name',)}
     if field not in labels.get(section, ()) or not isinstance(value, str):

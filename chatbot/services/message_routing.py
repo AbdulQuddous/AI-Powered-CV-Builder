@@ -186,7 +186,8 @@ def route_message(state, text, step):
         if is_finish_command(text) or lower in ('finish', 'done', 'save', 'nothing else'):
             return control('clarification', notice='Confirm the optional entry or say "cancel" before finishing; I have not added it.')
     if state.get('mode') == 'edit_existing' and not confirmation and (
-            is_finish_command(text) or lower in ('nothing else', 'done', 'save', 'no more changes')):
+            is_finish_command(text) or lower in ('nothing else', 'done', 'save', 'no more changes')
+            or (section == 'review' and lower == 'nothing')):
         response = control('finish'); response['next_action'] = 'complete'
         return response
     from chatbot.services.optional_answers import optional_chatter
@@ -235,7 +236,7 @@ def route_message(state, text, step):
             else:
                 return control('focus', focus={**selection, 'index': index}, clear_selection=True)
         return control('clarification', notice='Please select a listed entry number before editing it.')
-    review_done = section == 'review' and lower in ('no', 'none')
+    review_done = section == 'review' and lower in ('no', 'none', 'nothing')
     done_phrase = lower in (
         'no other thing', 'no other things', 'nothing else', 'no more things',
         'no other changes', 'no thanks', 'all done', "i'm done", 'i am done')
@@ -347,7 +348,13 @@ def route_message(state, text, step):
         labelled = re.fullmatch(r'(?:(?:my|the)\s+)?(company(?:\s+name)?|employer|job title|role)\s*(?::|=|\bis\b)\s*(.+)', text, re.I)
         if labelled:
             target = 'company' if labelled[1].casefold().startswith(('company', 'employer')) else 'role'
-            return response_update(section, target, labelled[2].strip())
+            value = labelled[2].strip()
+            if target == 'role':
+                from chatbot.services.entity_validation import clear_job_title
+                value = re.sub(r'^(?:a|an)\s+', '', value, flags=re.I)
+                if not clear_job_title(value):
+                    return None  # A label alone is not evidence of an occupation.
+            return response_update(section, target, value)
         employer = parse_employer(text)
         if employer:
             response = empty_ai_response(); response['section'] = section
@@ -382,8 +389,8 @@ def route_message(state, text, step):
         if graduation:
             return response_update(section, field, graduation[1])
     if section == 'experience' and field == 'responsibilities' and '?' not in text and re.match(
-            r'^(?:i\s+(?:build|develop|design|maintain|built|developed|designed|maintained)|'
-            r'building|developing|designing|maintaining|built|developed|designed|maintained)\b', text, re.I):
+            r'^(?:i\s+)?(?:build|built|building|develop(?:ed|ing)?|design(?:ed|ing)?|'
+            r'maintain(?:ed|ing)?|manage(?:d)?|managing|prepared|tested|supported)\b', text, re.I):
         return response_update(section, field, [text])
     if section == 'projects' and field == 'description' and '?' not in text:
         response = empty_ai_response(); response['section'] = section
@@ -408,8 +415,8 @@ def route_message(state, text, step):
         return response
     if section == 'projects' and field == 'description' and re.match(r'^(?:it|this project|the project)\b', text, re.I) and '?' not in text:
         return response_update(section, field, text)
-    if section == 'experience' and field == 'responsibilities' and not complex_text:
-        return response_update(section, field, [text])
+    if section == 'experience' and field in ('responsibilities', 'highlights'):
+        return None  # Unclear duties require semantic interpretation, not scalar storage.
     if section in ('languages', 'certifications') and (not complex_text or (section == 'languages' and not re.search(r'\b(?:I|my|worked|change|update|add|remove|want)\b|[?;]', text, re.I))):
         if section == 'languages':
             response = empty_ai_response()
