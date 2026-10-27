@@ -89,6 +89,19 @@ def structured_section_answer(text, section):
     return entries
 
 
+def work_presence_answer(text):
+    """Recognize a fact-free acknowledgment; an employer/title still needs collecting."""
+    match = re.fullmatch(
+        r'(?:yes[,\s]+)?(?:i\s+)?(?:have(?:\s+(?:completed|finished))?|completed|finished|did)'
+        r'(?:\s+(?:a|an|my|some))?\s+(?P<kind>[a-z]+(?:\s+[a-z]+)?)[.!]?', text.strip(), re.I)
+    if not match:
+        return False
+    kind = ' '.join(match['kind'].casefold().split())
+    from chatbot.services.local_extractor import _one_typing_error
+    return (kind in ('work experience', 'professional experience', 'freelance work', 'volunteer work')
+            or _one_typing_error(kind, 'internship'))
+
+
 def section_request(text):
     """Match fact-free commands, allowing one typo in a known section noun."""
     match = re.fullmatch(

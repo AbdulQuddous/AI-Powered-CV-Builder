@@ -30,6 +30,40 @@ class OptionalExtractionGroundingTests(SimpleTestCase):
     def clean(self, response, state=None):
         return validated_updates(response, self.state if state is None else state)[0]['cv_updates']
 
+    def test_project_facts_cannot_authorize_an_unrelated_generated_summary(self):
+        self.state.update(edit_focus='projects', edit_operation='add', current_section='projects')
+        result = self.guard('Django project named Task Board to track tasks.',
+                            projects=[{'name': 'Task Board', 'technologies': ['Django']}],
+                            summary='Senior AI Engineer with finance experience.')
+        self.assertIsNone(result['cv_updates']['summary'])
+        self.assertEqual(result['cv_updates']['projects'], [{'name': 'Task Board', 'technologies': ['Django']}])
+
+    def test_explicit_summary_and_grouped_other_facts_remain_eligible(self):
+        result = self.guard('Summary: Python developer. Skills: Python.',
+                            summary='Python developer.', skills=['Python'])
+        self.assertEqual(result['cv_updates']['summary'], 'Python developer.')
+        self.assertEqual(result['cv_updates']['skills'], ['Python'])
+
+    def test_project_subject_summary_is_not_a_request_for_a_professional_summary(self):
+        self.state.update(edit_focus='projects', edit_operation='add', current_section='projects')
+        result = self.guard('Project: Summary Builder lets users generate a professional summary.',
+                            projects=[{'name': 'Summary Builder'}], summary='Senior ML engineer.')
+        self.assertIsNone(result['cv_updates']['summary'])
+        self.assertEqual(result['cv_updates']['projects'], [{'name': 'Summary Builder'}])
+
+    def test_requested_introduction_update_is_still_a_summary_change(self):
+        self.state.update(edit_focus=None, current_section='review')
+        result = self.guard('Please replace the introduction paragraph with: Python developer.',
+                            summary='Python developer.')
+        self.assertEqual(result['cv_updates']['summary'], 'Python developer.')
+
+    def test_pasted_cv_json_after_an_introductory_sentence_supplies_its_summary(self):
+        self.state.update(edit_focus=None, current_section='review')
+        result = self.guard('These are my CV details: {"summary":"Python developer.","skills":["Python"]}',
+                            summary='Python developer.', skills=['Python'])
+        self.assertEqual(result['cv_updates']['summary'], 'Python developer.')
+        self.assertEqual(result['cv_updates']['skills'], ['Python'])
+
     def test_travel_cannot_authorize_saved_language_names_or_proficiency(self):
         state, original = deepcopy(self.state), deepcopy(self.state)
         result = self.guard('i am going to murree', state=state,
@@ -78,6 +112,12 @@ class OptionalExtractionGroundingTests(SimpleTestCase):
     def test_certificate_add_cannot_reuse_a_saved_name_from_unrelated_text(self):
         self.state.update(edit_focus='certifications', edit_operation='add', current_section='certifications')
         result = self.guard('I am going to Murree', certifications=[{'name': 'CCNA'}])
+        self.assertIsNone(self.clean(result)['certifications'])
+
+    def test_rejected_certificate_name_cannot_leave_a_free_floating_issuer(self):
+        self.state.update(edit_focus='certifications', edit_operation='add', current_section='certifications')
+        result = self.guard('I finished a course issued by Example Institute', certifications=[
+            {'name': 'Unmentioned Course', 'issuer': 'Example Institute'}])
         self.assertIsNone(self.clean(result)['certifications'])
 
     def test_explicit_certificate_codes_and_names_still_ground_in_latest_message(self):

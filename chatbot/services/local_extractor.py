@@ -72,6 +72,7 @@ FINISH_COMMANDS = {
     "fnish",
     "finsh",
     "finsih",
+    "finssh",
     "finished",
     "complete",
     "complete cv",

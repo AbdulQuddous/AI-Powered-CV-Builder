@@ -7,7 +7,7 @@ import re
 from copy import deepcopy
 
 from chatbot.services.field_validation import ALIASES
-from chatbot.services.education_answers import education_dates, structured_education
+from chatbot.services.education_answers import education_dates, structured_education, parse_certificate
 
 
 def comparable(text):
@@ -60,13 +60,95 @@ def _explicit_section(section, message):
         'education': r'\b(?:education|degree|university|college|school|studying|graduated)\b',
         'experience': r'\b(?:experience|employer|company|internship|job|worked|responsibilities)\b',
         'projects': r'\bprojects?\b', 'achievements': r'\b(?:achievements?|awards?|accomplishments?)\b',
-        'summary': r'\bsummary\b',
+        'summary': r'\bsummary\b|\b(?:profile|introduction)[ -]paragraph\b',
     }
     return bool(re.search(cues.get(section, r'(?!)'), message, re.I))
 
 
+def _summary_supplied(message, document):
+    from chatbot.services.section_answers import labelled_summary
+    from chatbot.services.project_answers import is_profile_paragraph
+    if document is None and '{' in message:
+        from chatbot.services.structured_answers import parse_structured
+        # A pasted CV object may follow an introductory sentence. It must still
+        # be a complete valid object, with the existing duplicate-key checks.
+        document = parse_structured(message[message.index('{'):])
+    return bool(labelled_summary(message) or is_profile_paragraph(message)
+                or isinstance(document, dict) and isinstance(document.get('summary'), str)
+                or re.match(
+                    r'^(?:(?:can|could|would)\s+you\s+|please\s+|i\s+(?:want|would like)\s+to\s+)?'
+                    r'(?:write|generate|create|draft|rewrite|update|replace|change|edit|improve|add)\s+'
+                    r'(?:(?:my|the|a)\s+)?(?:professional\s+)?'
+                    r'(?:summary|(?:profile|introduction)(?:[ -]paragraph)?)\b', message, re.I))
+
+
+def _clarify_without_changes(response, warning, section):
+    from chatbot.services.conversation_router import empty_ai_response
+    result = empty_ai_response()
+    result['section'] = section
+    result['_control'] = {
+        'intent': 'clarification', 'evidence_warning': warning,
+        'rejection_reason': (response.get('_control') or {}).get('rejection_reason'),
+    }
+    return result
+
+
 def guard_extraction(response, message, state):
     result = deepcopy(response)
+    from chatbot.services.question_engine import next_step
+    from chatbot.services.entity_validation import entity_problem, narrative_problem
+    step = next_step(state)
+    control = result.get('_control') or {}
+    problem = narrative_problem(step['section'], step['field'], message)
+    if not problem and step['section'] == 'review':
+        problem = narrative_problem('summary', 'summary', message)
+    # A provider cannot launder an invalid narrative into benign invented prose,
+    # even from the review screen or a structured multi-section answer.
+    from chatbot.services.structured_answers import looks_structured, parse_structured
+    document = parse_structured(message) if looks_structured(message) else None
+    candidates = document if isinstance(document, dict) else result.get('cv_updates', {})
+    for section, value in candidates.items():
+        if problem or not value:
+            continue
+        if section in ('summary', 'achievements'):
+            problem = narrative_problem(section, section, value if document is not None else message)
+        elif section in ('experience', 'projects') and isinstance(value, list):
+            for entry in value:
+                if not isinstance(entry, dict):
+                    continue
+                for field, item in entry.items():
+                    problem = narrative_problem(section, field, item if document is not None else message)
+                    if problem:
+                        break
+                if problem:
+                    break
+    if not problem and step['section'] == 'experience' and step['field'] in ('company', 'role', 'job_title', 'responsibilities', 'highlights'):
+        problem = entity_problem('experience', step['field'], message, message)
+    elif not problem and step['section'] == 'certifications':
+        source = parse_certificate(message)
+        title = source['name'] if source else message if step['field'] in ('name', 'certifications', 'changes') else None
+        if title is not None:
+            title = re.sub(
+                r'^(?:(?:could|can|would)\s+you\s+(?:please\s+)?(?:add|include)|'
+                r'i\s+(?:want|would like)\s+to\s+(?:add|include)|please\s+(?:add|include))\s+',
+                '', title.strip(), flags=re.I)
+            problem = entity_problem('certifications', 'name', title, message)
+    if problem:
+        # Validate the source too: a model must not turn a rejected answer into
+        # invented duties/qualifications, profile changes or a silent skip.
+        if control.get('intent') in ('off_topic', 'inappropriate') or result.get('intent') == 'irrelevant':
+            return result
+        return _clarify_without_changes(result, problem, step['section'])
+    unsupported_controls = {
+        'skip': 'I haven’t skipped this section. Say "skip" if you want to leave it out, or provide the requested details.',
+        'go_back': 'I haven’t undone any details. Say "go back" if you want to undo the previous change.',
+        'finish': 'I haven’t finished the interview. Say "finish" when you are ready to review your details.',
+        'remove_information': 'I haven’t removed any details. Please identify exactly what you want to remove.',
+    }
+    if control.get('intent') in unsupported_controls:
+        # Explicit controls are handled locally before Qwen. Extraction output
+        # alone cannot authorize skipping, undoing, finishing or deleting facts.
+        return _clarify_without_changes(result, unsupported_controls[control['intent']], step['section'])
     unsupported = []
     context = state.get('collected_data') or state.get('edit_updates') or {}
     existing = state.get('existing_cv') or {}
@@ -110,6 +192,10 @@ def guard_extraction(response, message, state):
     for section, updates in result.get('cv_updates', {}).items():
         if not updates:
             continue
+        if section == 'summary' and active != 'summary' and not _summary_supplied(message, document):
+            result['cv_updates'][section] = None
+            unsupported.append('summary')
+            continue
         if (state.get('mode') == 'edit_existing' and active in ('languages', 'certifications', 'skills')
                 and section != active and not _explicit_section(section, message)):
             result['cv_updates'][section] = None
@@ -124,7 +210,7 @@ def guard_extraction(response, message, state):
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
-            had_language_name = section == 'languages' and bool(entry.get('name'))
+            had_optional_name = section in ('languages', 'certifications') and bool(entry.get('name'))
             for field, value in list(entry.items()):
                 if not value:
                     continue
@@ -168,12 +254,14 @@ def guard_extraction(response, message, state):
                     if 1 <= int(month) <= 12 and year in message and value not in message and not any(word in message.lower() for word in (month_words[int(month)-1], month_words[int(month)-1][:3])):
                         entry[field] = year
                         unsupported.append(f'{section}.{field} month')
-            if had_language_name and not entry.get('name'):
-                # A rejected target cannot leave a free-floating proficiency
-                # that later attaches to another language or advances the flow.
+            if had_optional_name and not entry.get('name'):
+                # A rejected name cannot leave an issuer/date/proficiency that
+                # later attaches to another entry or advances the interview.
                 entry.clear()
     if unsupported:
-        if all(field.startswith('education.') for field in unsupported):
+        if unsupported == ['summary']:
+            warning = 'I left out a summary that wasn’t supplied or requested. Any other confirmed details were kept.'
+        elif all(field.startswith('education.') for field in unsupported):
             warning = 'Let’s fill in only the education details you know.'
         elif all(field in ('experience.role', 'experience.job_title') for field in unsupported):
             kept_role = any(item.get('role') or item.get('job_title')

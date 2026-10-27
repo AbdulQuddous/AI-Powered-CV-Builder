@@ -123,6 +123,18 @@ class SectionFollowupTests(APITestCase):
         self.assertNotIn('section_followup', session.conversation_state)
         self.assertEqual(self.send(session, 'finish')['next_action'], 'complete')
 
+    def test_add_more_cannot_store_a_random_project_name_or_modify_the_first_project(self):
+        session = self.start('projects')
+        self.project(session)
+        previous = deepcopy(session.conversation_state['collected_data']['projects'])
+        reply = self.send(session, 'add ters354d')
+        self.assertIn('not added', reply['assistant_message'])
+        self.assertEqual(next_step(session.conversation_state), {'section': 'projects', 'field': 'name'})
+        self.assertEqual(session.conversation_state['collected_data']['projects'], previous)
+        self.assertFalse(session.conversation_state['pending_entry']['draft'])
+        self.send(session, 'Task Tracker')
+        self.assertEqual(next_step(session.conversation_state)['field'], 'description')
+
     def test_single_project_is_enough_and_skip_only_dismisses_advice(self):
         session = self.start('projects')
         self.project(session)

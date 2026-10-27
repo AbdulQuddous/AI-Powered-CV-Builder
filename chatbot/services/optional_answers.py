@@ -31,13 +31,16 @@ def clear_language(entry, message):
 
 def clear_certificate(entry, message=''):
     name = entry.get('name', '').strip()
+    from chatbot.services.entity_validation import credential_code, entity_problem
+    if not name or entity_problem('certifications', 'name', name, message):
+        return False
+    # Metadata supports an already plausible title; it never overrides a type error.
     if entry.get('issuer') or entry.get('url') or entry.get('date'):
         return True
     from chatbot.services.field_validation import extract_skills
     if (not _CREDENTIAL.search(name) and extract_skills(name)) or name.casefold() in {
             'google', 'microsoft', 'cisco', 'coursera', 'udemy', 'edx'}:
         return False
-    from chatbot.services.entity_validation import credential_code
     if _CODE.fullmatch(name) or credential_code(name):
         return True
     if re.match(r'^(?:certification|certificate)(?:\s+(?:title|name))?\s*(?::|=|\bis\b)', message.strip(), re.I):
@@ -77,6 +80,9 @@ def review_optional_entries(response, message, state):
 def confirmation_question(pending):
     titles = ', '.join('“' + entry.get('name', '')[:100] + '”' for entry in pending['entries'][:5])
     if pending['section'] == 'certifications':
+        if not any(entry.get('name') for entry in pending['entries']):
+            return ('Please provide the actual course or qualification title. '
+                    'The issuer, date or link alone does not identify a certification. You can skip or cancel.')
         return (f'I need the full certification title for {titles}, and the issuer if available. '
                 'For example: "Certification: Google AI Essentials — Google". '
                 'A simple "yes" will not add it. You can provide the details, skip or cancel.')

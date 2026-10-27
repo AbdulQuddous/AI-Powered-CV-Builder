@@ -37,6 +37,22 @@ def is_conversational_question(text):
                          r'(?:are|r|do|did|can|could|will|would)\s+(?:you|u)\b)', text, re.I))
 
 
+def interview_answer(text, prompt):
+    """Read the last answer after a copied assistant question, keeping raw history.
+
+    Only an explicit transcript wrapper and the exact current question authorize
+    trimming. Ordinary descriptions, quotes and general questions stay intact.
+    """
+    if not re.match(r'^\s*(?:AI Mode conversation\s*:|Assistant\b|(?:You|User)\s*[:\n])', text, re.I):
+        return text
+    question = r'\s+'.join(re.escape(word) for word in prompt.split())
+    matches = list(re.finditer(r'\bAssistant\s*:?\s*' + question, text, re.I))
+    if not matches:
+        return text
+    answer = text[matches[-1].end():].strip()
+    return re.sub(r'^(?:You|User)(?:\s*:\s*|\s*\n\s*)', '', answer, flags=re.I).strip()
+
+
 def is_self_harm_concern(text):
     """Recognize first-person distress; quoted project/workplace text is not a crisis turn."""
     text = ' '.join(text.strip().replace('’', "'").split())
@@ -44,6 +60,53 @@ def is_self_harm_concern(text):
         r"^(?:should i|i(?:'m| am)?(?: going to| thinking about| want to| will| might| should| feel)?)\s+"
         r'(?:(?:commit|comit)\s+(?:suicide|sucide)|(?:kill|hurt|harm)\s+myself|end\s+my\s+life|die|suicidal)\b',
         text, re.I))
+
+
+_CLAUSE_START = r'(?:^(?:[-*•]\s*)?|[,+:•·]\s*|\b(?:and|but)\s+)'
+_HARM_ROLE = re.compile(
+    _CLAUSE_START + r"(?:i(?: am|'m| was| work(?:ed)? as)|my role is)\s+"
+    r'(?:(?:a|an)\s+)?(?:murderer|serial killer|terrorist|robber|thief)'
+    r'(?=$|[,\s]*(?:current(?:ly)?|now|and|but|in|from|who)\b|\s*[,])', re.I)
+_HARM_ACTION = re.compile(
+    _CLAUSE_START + r'(?:i|we)\s+(?:(?:have|had|am|are|was|were|current|currently|now)\s+){0,3}'
+    r'(?P<verb>[a-z]+)\s+(?:(?:of|a|an|the|\d+|one|two|three|four|five|six|seven|eight|nine|ten|'
+    r'many|several|some|more than|at least)\s+){0,4}'
+    r'(?:people|persons?|humans?|civilians?|someone)\b(?![\w’\x27])', re.I)
+_FICTIONAL_ROLE = re.compile(
+    r'\b(?:in|for|during)\s+(?:(?:a|an|the|our|my)\s+)?'
+    r'(?:(?:fictional|stage|theatrical)\s+)?(?:film|play|drama|performance|simulation|story|game|novel|scene)\b|'
+    r'\bon\s*stage\b', re.I)
+_QUOTED = re.compile(r'"[^"\n]*"|“[^”\n]*”|‘[^’\n]*’|(?<!\w)\x27[^\x27\n]*\x27(?!\w)')
+
+
+def has_nonprofessional_claim(text):
+    """Recognize direct harmful self-claims, not crime-related subject matter.
+
+    Quoted reporting, negation, investigative work and fictional roles remain
+    eligible. This conservative source check supplements model interpretation;
+    it does not establish whether any claimed experience actually happened.
+    """
+    text = text.strip()
+    if _QUOTED.fullmatch(text):
+        # Quoting an entire answer alone must not bypass the check.
+        text = text[1:-1]
+    text = _QUOTED.sub(' [quote] ', text).replace('’', "'")
+    from chatbot.services.local_extractor import _one_typing_error
+    for clause in re.split(r'[.!?;\n]', text):
+        clause = clause.strip()
+        if _FICTIONAL_ROLE.search(clause):
+            continue
+        if _HARM_ROLE.search(clause):
+            return True
+        for match in _HARM_ACTION.finditer(clause):
+            verb = match['verb'].casefold()
+            # Only murder inflections tolerate a typing error. Fuzzy "killed"
+            # would misclassify legitimate "billed/filled people" sentences.
+            if verb in ('kill', 'killed', 'killing') or any(
+                    verb == known or _one_typing_error(verb, known)
+                    for known in ('murder', 'murdered', 'murdering')):
+                return True
+    return False
 
 
 def _normalise(text):

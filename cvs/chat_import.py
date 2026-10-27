@@ -82,7 +82,10 @@ def collected_updates(session):
             updates.setdefault('projects', [])
         return updates
     if 'collected_data' in session.conversation_state:
-        return deepcopy(session.conversation_state['collected_data'])
+        result = deepcopy(session.conversation_state['collected_data'])
+        if 'summary' in session.conversation_state.get('skipped_sections', []):
+            result.pop('summary', None)
+        return result
     result = {"personal": {}}
     messages = session.messages.filter(role=ChatMessage.Role.ASSISTANT).exclude(intent="irrelevant").order_by("created_at", "id")
     for message in messages:
@@ -103,6 +106,8 @@ def collected_updates(session):
                         existing.append(deepcopy(item))
             elif section == "summary":
                 result[section] = value
+    if 'summary' in session.conversation_state.get('skipped_sections', []):
+        result.pop('summary', None)
     return result
 
 

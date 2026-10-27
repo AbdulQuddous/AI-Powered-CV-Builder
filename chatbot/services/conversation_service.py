@@ -8,10 +8,10 @@ from chatbot.models import (
 
 from chatbot.services.qwen_client import QwenClient, build_qwen_messages
 from chatbot.services.field_validation import validated_updates
-from chatbot.services.message_routing import route_message, apply_control, present_response, model_feedback
+from chatbot.services.message_routing import route_message, apply_control, present_response, model_feedback, field_clarification, control
 from chatbot.services.question_engine import question, recommendations
 from chatbot.services.collection_memory import merge_collection_entries, repair_split_education, repair_structured_education, repair_study_status, sync_project_progress, FIELD_STATES
-from chatbot.services.content_handling import repair_hostile_experience
+from chatbot.services.content_handling import interview_answer, repair_hostile_experience
 from chatbot.services.optional_section_recovery import repair_optional_answers
 from chatbot.services.project_recovery import repair_project_profile_split
 from chatbot.services.career_profiles import normalize_profile
@@ -136,7 +136,9 @@ def process_user_message(
     state = repair_study_status(session, state)
     session.conversation_state = state
     required_step = get_required_conversation_step(state)
-    ai_response = route_message(state, user_message, required_step)
+    answer_message = interview_answer(user_message, question(state))
+    ai_response = (route_message(state, answer_message, required_step) if answer_message else
+                   control('clarification', notice='I can see the copied question, but no new answer after it. Please send the details you want to include.'))
     context_before_switch = None
     if ai_response is not None and state.get('mode') == 'edit_existing':
         switch = (ai_response.get('_control') or {}).pop('_edit_switch', None)
@@ -147,9 +149,9 @@ def process_user_message(
             session.conversation_state = state
             required_step = get_required_conversation_step(state)
     if ai_response is None:
-        ai_response = QwenClient().generate(build_qwen_messages(session, user_message))
+        ai_response = QwenClient().generate(build_qwen_messages(session, answer_message))
         from chatbot.services.extraction_guard import guard_extraction
-        ai_response = guard_extraction(ai_response, user_message, state)
+        ai_response = guard_extraction(ai_response, answer_message, state)
         if (ai_response.get('_control') or {}).get('intent') == 'finish':
             ai_response['_control']['intent'] = 'clarification'
     ai_response = sanitize_ai_response_for_state(ai_response)
@@ -166,27 +168,33 @@ def process_user_message(
     if blocked:
         ai_response['cv_updates'] = empty_updates()
         ai_response['state_updates'] = {}
-    ai_response, errors, statuses = validated_updates(ai_response, state, user_message=user_message)
+        ai_response['section'] = required_step['section']
+    ai_response, errors, statuses = validated_updates(ai_response, state, user_message=answer_message)
+    from chatbot.services.project_answers import retain_project_tools
+    retain_project_tools(ai_response, state, required_step)
     uncertain = (ai_response.get('_control') or {}).get('uncertain_fields') or []
     for path in uncertain:
         statuses[path] = 'needs_clarification'
     feedback = model_feedback(ai_response)
     if (ai_response.get('_control') or {}).get('requires_clarification'):
-        supplied_role = any(item.get('role') or item.get('job_title')
-                            for item in ai_response['cv_updates'].get('experience') or [])
-        if (required_step['section'] == 'experience' and required_step['field'] in ('role', 'job_title')
-                and not supplied_role):
-            fallback = 'I couldn’t identify your job title in that reply.'
-        else:
-            fallback = ('Please clarify ' + (', '.join(uncertain) if uncertain else 'the details you would like to include')
-                        + '. I have kept the confirmed information.')
+        specific = field_clarification(required_step)
+        entries = ai_response['cv_updates'].get(required_step['section']) or []
+        supplied = specific and any(isinstance(item, dict) and (
+            item.get(required_step['field']) or (required_step['field'] in ('role', 'job_title')
+                                                and (item.get('role') or item.get('job_title'))))
+                                    for item in entries)
+        fallback = (specific if specific and not supplied else
+                    'Please clarify ' + (', '.join(uncertain) if uncertain else 'the details you would like to include')
+                    + '. I have kept the confirmed information.')
         errors.append(feedback or fallback)
     if (ai_response.get('_control') or {}).get('evidence_warning'):
         warning = feedback or ai_response['_control']['evidence_warning']
+        if feedback and not any(ai_response['cv_updates'].values()) and 'not added' not in warning.casefold():
+            warning += ' That message was not added to your CV.'
         if warning not in errors:
             errors.append(warning)
     from chatbot.services.optional_answers import review_optional_entries
-    ai_response, provisional = review_optional_entries(ai_response, user_message, state)
+    ai_response, provisional = review_optional_entries(ai_response, answer_message, state)
     for path in provisional:
         statuses[path] = 'needs_clarification'
     action = (ai_response.get('_control') or {}).get('intent')
@@ -199,7 +207,7 @@ def process_user_message(
         state_response = deepcopy(ai_response)
         if action == 'entry_patch':
             state_response['cv_updates'][ai_response['_control']['section']] = None
-        new_state = update_state(state, state_response, user_message=user_message if not blocked else None)
+        new_state = update_state(state, state_response, user_message=answer_message if not blocked else None)
         new_state, notice = apply_control(new_state, ai_response)
         if new_state.get('mode') != 'edit_existing':
             from cvs.chat_import import IDENTITIES

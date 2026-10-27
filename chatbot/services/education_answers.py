@@ -194,6 +194,14 @@ def parse_education(text, field=None):
 
 
 def parse_certificate(text):
+    # Polite additions carry the same literal facts as a bare title/issuer.
+    # Remove only an explicit request wrapper, never words inside a course title.
+    request = re.match(
+        r'^(?:(?:could|can|would)\s+you\s+(?:please\s+)?|please\s+|'
+        r'i\s+(?:want|would like)\s+to\s+)(?:add|include)\s+(?:(?:a|an|my|the)\s+)?',
+        text.strip(), re.I)
+    if request:
+        text = text.strip()[request.end():].rstrip('?').strip()
     labelled = re.fullmatch(r'(?:certification|certificate)(?:\s+(?:title|name))?\s*(?::|=|\bis\b)\s*(.+)', text.strip(), re.I)
     body = labelled[1] if labelled else text.strip()
     details = {}
@@ -201,13 +209,18 @@ def parse_certificate(text):
     if match:
         body = match['name'].strip(' ,;')
         details['date'] = normalise_date(match['date'])
-    issuer = re.fullmatch(r'(.+?)\s*(?:[;|—–]|\s+-)\s*issuer\s*[:=]\s*(.+)', body, re.I)
+    issuer = re.fullmatch(r'(?P<name>.+?)\s*(?:[;|—–]|\s+-)\s*issuer\s*[:=]\s*(?P<issuer>.+)', body, re.I)
     if not issuer and labelled:
-        issuer = re.fullmatch(r'(.+?)\s+[—–]\s+(.+)', body)
+        issuer = re.fullmatch(r'(?P<name>.+?)\s+[—–]\s+(?P<issuer>.+)', body)
     if not issuer:
-        issuer = re.fullmatch(r'(.+?)\s+(?:issued by|issuer\s*[:=])\s*(.+)', body, re.I)
+        issuer = re.fullmatch(r'(?P<name>.+?)\s+(?:issued by|issuer\s*[:=])\s*(?P<issuer>.+)', body, re.I)
+    if not issuer:
+        from chatbot.services.local_extractor import _one_typing_error
+        candidate = re.fullmatch(r'(?P<name>.+?)\s+(?P<cue>[a-z]+)\s+by\s+(?P<issuer>.+)', body, re.I)
+        if candidate and _one_typing_error(candidate['cue'].casefold(), 'issued'):
+            issuer = candidate
     if issuer:
-        return {'name': issuer[1].strip(), 'issuer': issuer[2].strip(), **details}
+        return {'name': issuer['name'].strip(), 'issuer': issuer['issuer'].strip(), **details}
     if labelled or details:
         return {'name': body.strip(), **details}
     return None

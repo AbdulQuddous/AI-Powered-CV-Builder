@@ -57,7 +57,7 @@ def extraction_schema():
 
 
 EXTRACTION_SCHEMA = extraction_schema()
-SYSTEM = """You extract user-confirmed CV facts. Return only JSON matching the schema.
+EXTRACTION_RULES = """You extract user-confirmed CV facts. Return only JSON matching the schema.
 Put answers in extracted_fields and corrections in field_corrections, each keyed by
 CV section. A known answer is NOT uncertain. Never put an explicitly provided email
 or name in uncertain_fields. Use uncertain_fields only for genuinely unclear facts.
@@ -72,7 +72,7 @@ Use only facts explicitly supplied in the latest message. No invented degree, da
 employer, skill, metrics or qualifications. Do not turn 'Software Engineering' into
 'BS Software Engineering'. Preserve original names and descriptions; normalize only
 unambiguous skill aliases. Missing facts must be absent, never guessed. Do not copy
-context into updates. Several sections can be supplied together. Year-only dates stay
+context or an unrequested summary into updates. Several sections can be supplied together. Year-only dates stay
 years. Current employment has is_current true and no end_date. Ongoing education
 can have an explicitly stated expected graduation end_date. "I am currently
 studying" supplies study status only, not a degree title, institution or dates.
@@ -91,7 +91,9 @@ insults directed at the assistant are inappropriate. Workplace incidents, quoted
 and ordinary criticism are not abuse. For corrections use field_corrections. For
 commands without supplied facts return empty extracted_fields. Destructive or ambiguous
 removals require clarification, no changes. Python controls all questions and completion.
-Respect entity types: a skill, activity, food, language, date or insult is not an
+"""
+
+SYSTEM = EXTRACTION_RULES + """Respect entity types: a skill, activity, food, language, date or insult is not an
 employer or job title just because that field is pending. At a company question,
 "lamb cooking" is an activity, not a company; request the actual employer without
 extracting it. Chef is a valid job title even for a different target role. An
@@ -101,7 +103,9 @@ occupation. Assess whether job titles and duties describe genuine professional,
 internship, freelance, academic or volunteer work. A claim of committing violence
 against people is not a professional role or a CV achievement: return
 inappropriate with rejection_reason, no extracted facts, and keep the pending
-work question. Do not turn "murderer" into a job title or "Murder of persons" into
+CV question. Apply this to summaries, project descriptions, work responsibilities
+and achievements, including a claim embedded in a longer paragraph. Do not turn
+"murderer" into a job title or "Murder of persons" into
 a responsibility. This is a context check, not a word ban: investigators handling
 murder cases, forensic work, violence prevention and actors describing fictional
 performances can be legitimate work. Preserve those explicitly stated facts and
@@ -112,6 +116,20 @@ Random text such as "ter45fase4" is not a credential. Request the full certifica
 title and issuer if available; never infer a qualification from a person name,
 random label, employer or unqualified yes. Legitimate unfamiliar names and exam
 codes are allowed; do not claim to have verified their existence or ownership.
+Assess the qualification title separately from its issuer/date/link. Metadata or
+a certificate label cannot turn a person descriptor or harmful self-claim into a
+course or qualification. Request the actual course title with a calm explanation;
+do not invent a respectable title or advance the section. Genuine investigation,
+forensics, prevention and fictional/literary courses are allowed in context.
+At a project-name question, random text and an unqualified confirmation are not
+project titles. Ask for the actual name without inventing a title, description or
+technologies. An ambiguous code alone needs clarification; preserve an explicitly
+named unusual project or code without requiring a known-project catalogue.
+Apply the same entity check to project descriptions and technologies: random text,
+bare confirmations and codes alone do not describe a project's purpose or identify
+its tools. Clarify what the project does and which tools the user actually used;
+never complete one field using another field's context or invent a plausible stack.
+Unknown internal tools and meaningful descriptions mentioning codes are allowed.
 Assistant guidance and suggested skills/certification topics are not user facts.
 An unqualified 'yes' or 'use your suggestions' does not confirm possession of those
 skills, jobs, metrics or qualifications. Ask which actual facts the user confirms.
@@ -134,6 +152,45 @@ preserve independently explicit facts while leaving ambiguous fields absent.
 For other accepted answers omit rejection_reason or set it to null.
 Student, fresher, junior, mid_level, senior and executive are interview profiles;
 the canonical career_level remains fresher, experienced or other.
+An invalid or unrelated answer is not consent to skip, undo, remove or finish.
+Those commands require the user's explicit request. When a pending work-duty
+answer is a standalone harmful self-description or random code, return a rejection
+or clarification and explain that actual work tasks are needed. Do not rewrite it
+as plausible professional duties or move to the next section. A simple statement
+that an internship was completed confirms presence only; ask for the employer
+and role instead of treating it as invalid or inventing missing facts.
+"""
+
+
+CERTIFICATION_CONTROL = """CURRENT TASK: collecting qualifications, not job duties.
+A course can teach an activity: investigation, prevention, incident response or
+cooking. A named certificate about such a subject is a qualification; do not
+reject it as merely an act or a job responsibility. Crime-related study is allowed.
+A standalone person/self-description is different from studying that subject.
+A polite request to add a named qualification with its issuer contains facts;
+it is an addition, not a general question asking for CV advice. Preserve unfamiliar
+titles and issuers as stated. Do not demand a known certificate catalogue or
+claim to verify ownership/existence. Metadata cannot repair a wrong entity type.
+For clarification, off_topic or inappropriate messages, return one calm,
+user-facing rejection_reason explaining the relevant distinction. Do not ask
+another question, quote abuse or provide private analysis; Python supplies the
+question. For accepted facts, requires_clarification is false.
+Example user: Thief in Town issued by Example Academy.
+Output: {"intent":"clarification","section":"certifications","extracted_fields":{},"field_corrections":{},"skip_fields":[],"uncertain_fields":[],"cv_related_question":null,"requires_clarification":true,"rejection_reason":"That describes a person rather than a course or qualification."}
+Murder investigation and forensic analysis are fields of study. A certificate
+teaching them is a qualification, not a claim of committing an act. Copy the
+actual title from the current message; example titles are not facts about the user.
+Example user: Could you record a qualification whose title is Homicide Investigation Certificate and whose issuing body is Example Academy?
+Output: {"intent":"add_information","section":"certifications","extracted_fields":{"certifications":[{"name":"Homicide Investigation Certificate","issuer":"Example Academy"}]},"field_corrections":{},"skip_fields":[],"uncertain_fields":[],"cv_related_question":null,"requires_clarification":false}
+"""
+
+
+NARRATIVE_CONTROL = """Interpret narrative subjects in context. Counterterrorism analysts prevent
+attacks, investigators investigate crimes, and engineers can test weapons safety.
+These are professional facts, not claims of committing violence. Preserve them.
+An introduction/profile-paragraph correction belongs in summary.
+Example user: Replace my profile paragraph with: Homicide investigator focused on crime prevention.
+Output: {"intent":"correction","section":"summary","extracted_fields":{},"field_corrections":{"summary":"Homicide investigator focused on crime prevention."},"skip_fields":[],"uncertain_fields":[],"cv_related_question":null,"requires_clarification":false}
 """
 
 
@@ -149,7 +206,8 @@ def build_qwen_messages(session, pending_user_message):
     if isinstance(relevant, list):
         relevant = relevant[-3:]
     # No IDs, full CV or history; personal fields are not context for other sections.
-    context = {'current_question': step, 'target_role': state.get('target_role'),
+    from chatbot.services.question_engine import question
+    context = {'current_question': step, 'question_text': question(state)[:1000], 'target_role': state.get('target_role'),
                'question_profile': state.get('question_profile') or state.get('career_level'),
                'mode': state.get('mode', 'create'), 'accepted_in_section': relevant}
     if state.get('edit_draft'):
@@ -165,7 +223,13 @@ def build_qwen_messages(session, pending_user_message):
     if len(serialized) > 6000:
         context.pop('accepted_in_section', None)
         context.pop('active_entry', None)
-    return [{'role': 'system', 'content': SYSTEM},
+    # Keep occupational rejection rules out of qualification extraction: a course
+    # may legitimately study a subject that would not itself be a job duty.
+    system = (EXTRACTION_RULES + '\n' + CERTIFICATION_CONTROL
+              if section == 'certifications' else SYSTEM)
+    if section in ('summary', 'achievements', 'projects', 'experience', 'review'):
+        system += '\n' + NARRATIVE_CONTROL
+    return [{'role': 'system', 'content': system},
             {'role': 'user', 'content': json.dumps({'context': context, 'message': pending_user_message}, ensure_ascii=False)}]
 
 

@@ -9,9 +9,9 @@ from chatbot.services.local_extractor import is_skip_command, is_finish_command
 from chatbot.services.question_engine import question, recommendations
 from chatbot.services.content_handling import is_direct_abuse, is_conversational_question, is_self_harm_concern
 from chatbot.services.section_answers import (labelled_summary, parse_languages, proficiency_unspecified,
-    keep_languages_unchanged, section_request, structured_section_answer)
+    keep_languages_unchanged, section_request, structured_section_answer, work_presence_answer)
 from chatbot.services.education_answers import parse_education, parse_certificate, parse_employer, normalise_date, DATE
-from chatbot.services.structured_answers import looks_structured
+from chatbot.services.structured_answers import looks_structured, parse_structured
 from chatbot.services.project_answers import is_profile_paragraph, project_title, project_description
 from chatbot.services.career_profiles import profile_name, PROFILES
 from chatbot.services.career_guidance import guidance_request, guidance_message, automatic_guidance, guidance_data
@@ -110,6 +110,7 @@ def classify(text):
 
 def route_message(state, text, step):
     """Return None only when natural language actually requires local Qwen."""
+    source_text = text
     text = ' '.join(text.strip().split())
     lower = text.casefold().rstrip('.!')
     section, field = step['section'], step['field']
@@ -141,6 +142,9 @@ def route_message(state, text, step):
         value = link[1] if link else text
         if re.fullmatch(r'https?://\S+', value, re.I):
             return response_update(section, field, value)
+        from chatbot.services.local_extractor import _one_typing_error
+        if re.fullmatch(r'[a-z]{3,5}', lower) and _one_typing_error(lower, 'skip'):
+            return control('skip', skip_fields=[field])
     # Section requests must be routed before generic CV questions or scalar answers.
     request = section_request(text)
     if request:
@@ -157,10 +161,23 @@ def route_message(state, text, step):
         if kind in ('off_topic', 'inappropriate'):
             response['intent'] = 'irrelevant'
         return response
+    if section == 'projects' and field == 'name':
+        from chatbot.services.project_answers import grouped_project
+        entry = grouped_project(source_text)
+        if entry:
+            response = empty_ai_response()
+            response['section'] = section
+            response['cv_updates'][section] = [entry]
+            return response
     if lower in ('show progress', 'show collected information', 'show my information', 'review my cv'):
         return control('show_progress')
     if lower in ('go back', 'back', 'undo', 'undo last change'):
         return control('go_back')
+    if section in ('summary', 'achievements'):
+        from chatbot.services.entity_validation import narrative_problem
+        problem = narrative_problem(section, field, text)
+        if problem:
+            return control('clarification', notice=problem)
     if state.get('mode') == 'edit_existing':
         correction = _explicit_correction(state, text)
         if correction is not None:
@@ -334,7 +351,10 @@ def route_message(state, text, step):
             response = empty_ai_response(); response['section'] = section
             response['cv_updates'][section] = entries
             return response
-        if looks_structured(text) or text.startswith('"'):
+        # A quoted title followed by an issuer is prose, not a malformed JSON list.
+        quoted_certificate = (section == 'certifications' and text.startswith('"')
+                              and not looks_structured(text) and parse_certificate(text))
+        if looks_structured(text) or (text.startswith('"') and not quoted_certificate):
             return control('clarification', notice='Please check the pasted list. Use text items, or named entries with the supported fields; no duplicate JSON properties.')
     if section == 'certifications':
         certificate = parse_certificate(text)
@@ -343,7 +363,8 @@ def route_message(state, text, step):
             response['cv_updates'][section] = [certificate]
             return response
     if section == 'experience' and field in ('company', 'role'):
-        if field == 'company' and lower in ('yes', 'yes i have', 'yes i did', 'i have', 'yes please'):
+        if field == 'company' and (lower in ('yes', 'yes i have', 'yes i did', 'i have', 'yes please')
+                                   or work_presence_answer(text)):
             return control('focus', focus={'section': 'experience', 'field': 'company'})
         labelled = re.fullmatch(r'(?:(?:my|the)\s+)?(company(?:\s+name)?|employer|job title|role)\s*(?::|=|\bis\b)\s*(.+)', text, re.I)
         if labelled:
@@ -393,6 +414,10 @@ def route_message(state, text, step):
             r'maintain(?:ed|ing)?|manage(?:d)?|managing|prepared|tested|supported)\b', text, re.I):
         return response_update(section, field, [text])
     if section == 'projects' and field == 'description' and '?' not in text:
+        from chatbot.services.entity_validation import entity_problem
+        if (re.fullmatch(r'[a-z]+[.!]?', text, re.I)
+                and not entity_problem(section, field, text, text)):
+            return None  # A lone unfamiliar word needs interpretation, not scalar storage.
         response = empty_ai_response(); response['section'] = section
         response['cv_updates'][section] = [project_description(text)]
         return response
@@ -407,6 +432,11 @@ def route_message(state, text, step):
             return response_update(section, field, skills)
         if looks_structured(text):
             return control('clarification', notice='Please provide skills as a JSON list or groups of text lists, without duplicate or conflicting fields.')
+        if section == 'projects':
+            from chatbot.services.entity_validation import entity_problem
+            if entity_problem(section, field, text, text):
+                return response_update(section, field, [text])
+            return None  # Unfamiliar tools remain eligible through Qwen review.
     if re.fullmatch(r'[\w .\-]+\s+(?:basic|conversational|professional|fluent|native)(?:\s*(?:,|and)\s*[\w .\-]+\s+(?:basic|conversational|professional|fluent|native))*\.?', text, re.I):
         response = empty_ai_response()
         response['section'] = 'languages'
@@ -444,8 +474,14 @@ def route_message(state, text, step):
                 return None
         if section in ('personal', 'target', 'education', 'experience', 'projects'):
             return response_update(section, field, text)
-    if section == 'summary' and field == 'summary' and '?' not in text:
-        return response_update('summary', 'summary', text)
+    if section == 'summary' and field in ('summary', 'changes'):
+        if looks_structured(text):
+            document = parse_structured(text)
+            if isinstance(document, dict) and set(document) == {'summary'} and isinstance(document['summary'], str):
+                return response_update('summary', 'summary', document['summary'])
+            return None
+        if '?' not in text:
+            return response_update('summary', 'summary', text)
     return None
 
 
@@ -455,6 +491,13 @@ def apply_control(state, response):
     action = response.get('_control') or {}
     intent = action.get('intent')
     notice = action.get('notice', '')
+    optional = state.get('optional_entry_confirmation') or {}
+    if optional.get('section') == 'certifications':
+        from chatbot.services.entity_validation import entity_problem
+        if any(entity_problem('certifications', 'name', entry.get('name', ''))
+               for entry in optional.get('entries', [])):
+            # This is an unconfirmed candidate, not an accepted/saved qualification.
+            state.pop('optional_entry_confirmation', None)
     if action.get('dismiss_followup') or action.get('question_profile') or intent in (
             'dismiss_followup', 'focus', 'collection_focus', 'edit_focus', 'career_guidance', 'finish'):
         state.pop('section_followup', None)
@@ -583,6 +626,9 @@ def apply_control(state, response):
                 state.setdefault('skipped_sections', [])
                 if target not in state['skipped_sections']:
                     state['skipped_sections'].append(target)
+                if target == 'summary' and state.get('mode') != 'edit_existing':
+                    state.setdefault('collected_data', {})['summary'] = ''
+                    state['completed_sections'] = [item for item in state.get('completed_sections', []) if item != 'summary']
                 if target == 'experience' and state.get('career_level') == 'experienced':
                     state.setdefault('suitability_warnings', []).append('Experienced profile without employment history; absence confirmed by user.')
                 if state.get('pending_field', {}).get('section') == target:
@@ -647,6 +693,15 @@ def _retry_question(state, step):
     return followup
 
 
+def field_clarification(step):
+    return {
+        ('experience', 'role'): 'I couldn’t identify your job title in that reply.',
+        ('experience', 'job_title'): 'I couldn’t identify your job title in that reply.',
+        ('projects', 'description'): 'I couldn’t identify what this project does from that reply.',
+        ('projects', 'technologies'): 'I couldn’t identify which technologies you used from that reply.',
+    }.get((step['section'], step['field']))
+
+
 def present_response(response, state, errors=None, notice=''):
     from chatbot.services.question_engine import next_step
     step = next_step(state)
@@ -690,9 +745,7 @@ def present_response(response, state, errors=None, notice=''):
         response.update(intent='clarify_information', next_action='ask_question',
                         assistant_message=confirmation_question(state['optional_entry_confirmation']))
     elif errors or action == 'clarification':
-        fallback = ('I couldn’t identify your job title in that reply.'
-                    if step['section'] == 'experience' and step['field'] in ('role', 'job_title') else
-                    'Please clarify the details you would like to include.')
+        fallback = field_clarification(step) or 'Please clarify the details you would like to include.'
         detail = (' '.join(errors) if errors else
                   notice or model_feedback(response) or fallback)
         if (step['section'] == 'experience' and step['field'] in ('role', 'job_title')

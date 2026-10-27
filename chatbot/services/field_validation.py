@@ -21,7 +21,7 @@ ALIASES = {'drf': 'Django REST Framework', 'js': 'JavaScript', 'javascript': 'Ja
            'djnago': 'Django'}
 KNOWN_SKILLS = ['Django REST Framework', 'REST APIs', 'Python', 'Django', 'PostgreSQL',
                 'JavaScript', 'TypeScript', 'HTML', 'CSS', 'React', 'MySQL', 'Git',
-                'C++', 'C#', 'Node.js', '.NET', 'DRF', 'JS', 'Bootstrap', 'Docker',
+                'C++', 'C#', 'Node.js', '.NET', 'DRF', 'JS', 'Bootstrap', 'Docker', 'Gemini',
                 'Next.js', 'NextJS', 'Flask', 'JWT', 'Whisper', 'MediaPipe', 'Sentence Transformers', 'GitHub', 'AI', 'NLP',
                 'Postman', 'Java', 'SQL', 'AWS', 'Linux', 'Excel', 'Communication']
 
@@ -255,13 +255,41 @@ def validated_updates(response, state, *, user_message=''):
                             if is_skip_command(raw) and not _explicit_name(user_message, raw.strip()):
                                 raise ValidationError('That looks like a skip request. Your full name is required; please enter your name.')
                         from chatbot.services.entity_validation import entity_problem
-                        problem = entity_problem(section, field, raw, user_message)
+                        # Technology strings may contain both valid and invalid
+                        # names. Split them before checking each individual tool.
+                        problem = (None if section == 'projects' and field == 'technologies' else
+                                   entity_problem(section, field, raw, user_message))
                         if problem:
                             raise ValidationError(problem)
                         if field == 'is_current':
                             if type(raw) is not bool:
                                 raise ValidationError('Please confirm whether this is current.')
                             clean[field] = raw
+                        elif section == 'projects' and field == 'technologies':
+                            tools, tool_errors = [], []
+                            for item_value in raw if isinstance(raw, list) else [raw]:
+                                try:
+                                    tool_text = validate_value(field, item_value)
+                                    values = normalise_skill_list(re.split(r'[;\n]', tool_text))
+                                except ValidationError as exc:
+                                    tool_errors.extend(exc.messages)
+                                    continue
+                                for tool in values:
+                                    problem = entity_problem(section, field, tool, user_message)
+                                    if problem:
+                                        if problem not in tool_errors:
+                                            tool_errors.append(problem)
+                                    else:
+                                        tools.append(tool)
+                            if not tools:
+                                errors.extend(tool_errors or [
+                                    'No technologies were added. Please list the actual tools, languages or frameworks you used.'])
+                                statuses[path] = 'invalid'
+                                continue
+                            clean[field] = unique_skills(tools)
+                            if tool_errors:
+                                errors.append('Some entries did not look like technology names and were not added. '
+                                              'The recognized tools were kept.')
                         elif isinstance(raw, list):
                             if field not in ('responsibilities', 'highlights', 'technologies', 'features'):
                                 raise ValidationError('Please provide a single text value for this field.')
@@ -305,13 +333,28 @@ def validated_updates(response, state, *, user_message=''):
                     clean.pop('end_date', None)
                     statuses[f'{section}.{index}.end_date'] = 'invalid'
                     errors.append('A current job cannot also have an ending date. Please confirm whether you still work there or provide its ending date.')
-                if section in ('certifications', 'languages') and item.get('name') and not clean.get('name'):
+                if section in ('certifications', 'languages', 'projects') and item.get('name') and not clean.get('name'):
                     for field in clean:
                         statuses[f'{section}.{index}.{field}'] = 'needs_clarification'
                     clean = {}
                 if clean:
                     clean_entries.append(clean)
             response['cv_updates'][section] = (clean_entries[0] if clean_entries else None) if section == 'personal' else (clean_entries or None)
+        elif section == 'achievements' and isinstance(value, list):
+            from chatbot.services.entity_validation import entity_problem
+            clean = []
+            for index, item in enumerate(value):
+                path = f'achievements.{index}.achievements'
+                try:
+                    problem = entity_problem(section, section, item, user_message)
+                    if problem:
+                        raise ValidationError(problem)
+                    clean.append(validate_value(section, item))
+                    statuses[path] = 'answered'
+                except ValidationError as exc:
+                    statuses[path] = 'invalid'
+                    errors.extend(exc.messages)
+            response['cv_updates'][section] = clean or None
         elif section in ('skills', 'achievements'):
             try:
                 if not isinstance(value, list):
@@ -326,9 +369,15 @@ def validated_updates(response, state, *, user_message=''):
                 errors.extend(exc.messages)
         elif section == 'summary':
             try:
+                from chatbot.services.entity_validation import entity_problem
+                problem = entity_problem(section, section, value, user_message)
+                if problem:
+                    raise ValidationError(problem)
                 response['cv_updates'][section] = validate_value('summary', value)
+                statuses['summary.summary'] = 'answered'
             except ValidationError as exc:
                 response['cv_updates'][section] = None
+                statuses['summary.summary'] = 'invalid'
                 errors.extend(exc.messages)
     metadata = response.get('state_updates') or {}
     if metadata.get('career_level') not in (None, '', 'student', 'fresher', 'experienced', 'other'):

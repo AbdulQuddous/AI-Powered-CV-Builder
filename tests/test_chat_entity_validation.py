@@ -15,6 +15,7 @@ from chatbot.services.message_routing import classify
 from chatbot.services.question_engine import next_step
 from chatbot.services.qwen_client import adapt_extraction
 from chatbot.services.section_answers import section_request
+from chatbot.services.optional_answers import clear_certificate
 from cvs.services import create_cv
 from tests.test_m8 import SAMPLE_CV
 
@@ -69,6 +70,26 @@ class EntityValidationTests(SimpleTestCase):
         self.assertEqual(parse_certificate('Regional Professional Practice; issuer: Example Institute'),
                          {'name': 'Regional Professional Practice', 'issuer': 'Example Institute'})
 
+    def test_issuer_cue_typo_does_not_become_part_of_the_certificate_title(self):
+        for cue in ('issued', 'issud', 'issue', 'issuedd'):
+            with self.subTest(cue=cue):
+                self.assertEqual(parse_certificate('Advance Ai bootcamp certificate ' + cue + ' by GIKI'),
+                                 {'name': 'Advance Ai bootcamp certificate', 'issuer': 'GIKI'})
+
+    def test_polite_certificate_requests_preserve_literal_title_and_issuer(self):
+        for prefix in ('Could you add', 'Can you please include', 'I want to add'):
+            self.assertEqual(parse_certificate(prefix + ' Murder Investigation Certificate issued by Example Academy?'),
+                             {'name': 'Murder Investigation Certificate', 'issuer': 'Example Academy'})
+
+    def test_certificate_metadata_cannot_override_an_invalid_or_missing_title(self):
+        for metadata in ({'issuer': 'PITB'}, {'date': '2026-06'}, {'url': 'https://example.test/credential'}):
+            with self.subTest(metadata=metadata):
+                self.assertFalse(clear_certificate({'name': 'Murderer in pakistan', **metadata}))
+                self.assertFalse(clear_certificate(metadata))
+        for name in ('Murder Investigation Certificate', 'Serial Killer Profiling Certificate',
+                     'Murderer in Fiction Certificate', 'Regional Professional Practice'):
+            self.assertTrue(clear_certificate({'name': name, 'issuer': 'Example Institute'}), name)
+
     def test_non_occupational_labels_and_direct_harm_are_not_work_fields(self):
         for field, value in [('role', 'a murderer'), ('job_title', 'Murderer'), ('role', 'My role is a murderer'),
                              ('responsibilities', ['Murder of persons']), ('highlights', ['Killed people'])]:
@@ -80,6 +101,17 @@ class EntityValidationTests(SimpleTestCase):
                              ('responsibilities', ['Portrayed a murderer in a fictional stage performance.'])]:
             with self.subTest(value=value):
                 self.assertIsNone(entity_problem('experience', field, value))
+
+    def test_self_claims_and_noise_are_not_responsibilities_but_real_context_is_allowed(self):
+        for value in ('i am a serial killer', "I'm a murderer", 'My role is a robber',
+                      'ters354d4523', 'ters354d', 'I am killing people'):
+            for field in ('responsibilities', 'highlights'):
+                with self.subTest(value=value, field=field):
+                    self.assertIsNotNone(entity_problem('experience', field, [value]))
+        for value in ('Investigated serial killer cases.', 'Portrayed a serial killer in a stage production.',
+                      'Implemented RFC4122 UUID generation.', 'Killed stalled processes.',
+                      'Quarterly reconciliation'):
+            self.assertIsNone(entity_problem('experience', 'responsibilities', [value]), value)
 
 
 class ChatEntityValidationTests(APITestCase):
@@ -124,13 +156,127 @@ class ChatEntityValidationTests(APITestCase):
         self.assertEqual((self.cv.data, self.cv.version), (self.document, 1))
 
     def model_reply(self, *, intent='answer', entries=None, reason=None,
-                    requires_clarification=False, uncertain_fields=None):
+                    requires_clarification=False, uncertain_fields=None, skip_fields=None):
         return adapt_extraction({
             'intent': intent, 'section': 'experience',
             'extracted_fields': {'experience': entries} if entries else {},
-            'field_corrections': {}, 'skip_fields': [], 'uncertain_fields': uncertain_fields or [],
+            'field_corrections': {}, 'skip_fields': skip_fields or [], 'uncertain_fields': uncertain_fields or [],
             'cv_related_question': None, 'requires_clarification': requires_clarification,
             'rejection_reason': reason})
+
+    def test_full_fresher_flow_does_not_skip_invalid_project_or_experience_answers(self):
+        session = create_chat_session(user=self.user, initial_values={
+            'target_role': 'Frontend Developer', 'career_level': 'fresher', 'template_id': 'modern'})
+        for text in ('John', 'john@example.test', '03036096093', 'Las Vegas', 'skip', 'skip', 'no',
+                     'I completed BS Software Engineering from Oxford University in 2026-06',
+                     'HTML, CSS, JavaScript, TypeScript, React, Git, Unit testing, REST APIs',
+                     'Ai base interview plateform', 'Helps candidates practise interviews and receive feedback.'):
+            self.send(session, text)
+        self.assertEqual(next_step(session.conversation_state)['field'], 'technologies')
+        before = deepcopy(self.collected(session))
+        self.send(session, 'ters354d')
+        self.assertEqual(next_step(session.conversation_state)['field'], 'technologies')
+        self.assertEqual(self.collected(session), before)
+        self.qwen.assert_not_called()
+        self.send(session, 'React, Django')
+        self.send(session, 'continue')
+        self.assertEqual(next_step(session.conversation_state)['section'], 'experience')
+        reply = self.send(session, 'yes completed intenrship')
+        self.assertIn('Which company', reply['assistant_message'])
+        self.assertNotIn('unqualified', reply['assistant_message'])
+        self.qwen.assert_not_called()
+        self.send(session, 'Python Developer intern at bitech')
+        self.assertEqual(next_step(session.conversation_state)['field'], 'responsibilities')
+        before = deepcopy(self.collected(session))
+        self.qwen.side_effect = None
+        self.qwen.return_value = self.model_reply(intent='skip', skip_fields=['experience'])
+        for text in ('ters354d4523', 'i am a serial killer'):
+            reply = self.send(session, text)
+            self.assertEqual(next_step(session.conversation_state)['field'], 'responsibilities')
+            self.assertNotIn('experience', session.conversation_state.get('skipped_sections', []))
+            self.assertEqual(self.collected(session), before)
+            self.assertFalse(any(reply['cv_updates'].values()))
+        self.assertEqual(self.qwen.call_count, 2)
+        self.send(session, 'Built and tested Django API endpoints.')
+        self.assertEqual(next_step(session.conversation_state)['section'], 'certifications')
+        self.assertEqual(self.collected(session)['experience'][0]['responsibilities'],
+                         ['Built and tested Django API endpoints.'])
+        self.assert_saved_unchanged()
+
+    def test_internship_acknowledgments_ask_for_actual_employer_without_model_guesses(self):
+        for answer in ('yes completed intenrship', 'I completed an internship',
+                       'yes, I have finished my internship'):
+            with self.subTest(answer=answer):
+                session = self.start(initial=True)
+                reply = self.send(session, answer)
+                self.assertIn('Which company', reply['assistant_message'])
+                self.assertEqual(next_step(session.conversation_state)['field'], 'company')
+                self.assertFalse(self.collected(session).get('experience'))
+                self.assertFalse(any(reply['cv_updates'].values()))
+        self.qwen.assert_not_called()
+
+    def test_bad_work_source_cannot_be_rephrased_into_invented_benign_duties(self):
+        for text in ('i am a serial killer', "I'm a murderer", 'ters354d4523'):
+            with self.subTest(text=text):
+                session = self.start()
+                self.send(session, 'Bitech Systems')
+                self.send(session, 'Python Developer Intern')
+                before = deepcopy(session.conversation_state)
+                self.qwen.side_effect = None
+                proposal = self.model_reply(entries=[{'responsibilities': ['Resolved production defects.']}])
+                proposal['state_updates'] = {'target_role': 'Executive', 'career_level': 'experienced'}
+                proposal['_control']['question_profile'] = 'executive'
+                self.qwen.return_value = proposal
+                reply = self.send(session, text)
+                self.assertFalse(any(reply['cv_updates'].values()))
+                self.assertEqual(next_step(session.conversation_state)['field'], 'responsibilities')
+                self.assertEqual(self.collected(session), before['edit_updates'])
+                self.assertEqual(session.conversation_state.get('question_profile'), before.get('question_profile'))
+                self.assertEqual(session.conversation_state['target_role'], before['target_role'])
+        self.assert_saved_unchanged()
+
+    def test_model_cannot_skip_or_undo_a_work_step_without_a_user_command(self):
+        for intent in ('skip', 'go_back', 'finish'):
+            with self.subTest(intent=intent):
+                session = self.start()
+                self.send(session, 'Bitech Systems')
+                self.send(session, 'Accountant')
+                before = deepcopy(self.collected(session))
+                self.qwen.side_effect = None
+                self.qwen.return_value = self.model_reply(intent=intent, skip_fields=['experience'])
+                reply = self.send(session, 'Quarterly reconciliation')
+                self.assertEqual(next_step(session.conversation_state)['field'], 'responsibilities')
+                self.assertEqual(self.collected(session), before)
+                self.assertNotIn('experience', session.conversation_state.get('skipped_sections', []))
+                self.assertNotEqual(reply['next_action'], 'complete')
+                self.assertEqual(session.status, 'active')
+
+    def test_investigative_and_fictional_duties_are_not_rejected_by_source_check(self):
+        for text in ('Investigated serial killer cases and prepared court files.',
+                     'Portrayed a serial killer in a stage production.'):
+            with self.subTest(text=text):
+                session = self.start()
+                self.send(session, 'Example Productions')
+                self.qwen.side_effect = None
+                self.qwen.return_value = self.model_reply(entries=[{'role': 'Actor'}])
+                self.send(session, 'Actor')
+                self.qwen.return_value = self.model_reply(entries=[{'responsibilities': [text]}])
+                self.send(session, text)
+                self.assertEqual(self.collected(session)['experience'][0]['responsibilities'], [text])
+        self.assert_saved_unchanged()
+
+    def test_genuine_model_rejection_keeps_its_explanation_at_responsibilities(self):
+        session = self.start()
+        self.send(session, 'Bitech Systems')
+        self.send(session, 'Python Developer Intern')
+        reason = 'That is not a professional responsibility you can put on a CV.'
+        self.qwen.side_effect = None
+        self.qwen.return_value = self.model_reply(intent='inappropriate', reason=reason)
+        reply = self.send(session, 'i am a serial killer')
+        self.assertIn(reason, reply['assistant_message'])
+        self.assertEqual(next_step(session.conversation_state)['field'], 'responsibilities')
+        self.assertEqual(reply['assistant_message'].count('?'), 1)
+        self.assert_saved_unchanged()
 
     def test_unclear_role_uses_qwen_explanation_then_one_clear_question(self):
         session = self.start()
@@ -490,6 +636,107 @@ class ChatEntityValidationTests(APITestCase):
         self.send(session, '{"certifications": [{"name": "ter45fase4", "issuer": "Example Training", "date": "2026-06"}]}')
         self.assertFalse(self.collected(session).get('certifications'))
         self.assertFalse(session.conversation_state.get('optional_entry_confirmation'))
+
+    def test_reported_certificate_sequence_keeps_the_real_course_and_rejects_person_labels(self):
+        session = self.start(initial=True, section='certifications')
+        reply = self.send(session, 'Advance Ai bootcamp certificate issud by GIKI')
+        expected = [{'name': 'Advance Ai bootcamp certificate', 'issuer': 'GIKI'}]
+        self.assertEqual(self.collected(session)['certifications'], expected)
+        self.assertIn('1 certification', reply['assistant_message'])
+        self.send(session, 'i want to add cetificate')
+        for text in ('Murderer in pakistan', 'Murderer in pakistan issued by PITB'):
+            reply = self.send(session, text)
+            self.assertEqual(next_step(session.conversation_state)['section'], 'certifications')
+            self.assertEqual(self.collected(session)['certifications'], expected)
+            self.assertFalse(session.conversation_state.get('optional_entry_confirmation'))
+            self.assertIn('not added', reply['assistant_message'])
+            self.assertNotIn('full certification title for “Murderer', reply['assistant_message'])
+        self.send(session, 'Application Security issued by Regional Academy')
+        self.assertEqual(self.collected(session)['certifications'][-1], {
+            'name': 'Application Security', 'issuer': 'Regional Academy'})
+        self.qwen.assert_not_called()
+        self.assert_saved_unchanged()
+
+    def test_person_descriptor_certificate_rejected_with_any_metadata_in_both_modes(self):
+        for initial in (False, True):
+            for text in (
+                'Murderer in pakistan', 'Murderer in pakistan issued by PITB',
+                '"Murderer in pakistan" issued by PITB',
+                'Certification: Murderer in Pakistan — PITB',
+                'Murderer in Pakistan issued by Forensic Training Institute issue date 2026-06',
+                '{"certifications":[{"name":"Murderer in Pakistan","issuer":"PITB",'
+                '"date":"2026-06","url":"https://example.test/credential"}]}',
+            ):
+                with self.subTest(initial=initial, text=text):
+                    session = self.start(initial=initial, section='certifications')
+                    reply = self.send(session, text)
+                    self.assertFalse(self.collected(session).get('certifications'))
+                    self.assertEqual(next_step(session.conversation_state)['section'], 'certifications')
+                    self.assertFalse(session.conversation_state.get('optional_entry_confirmation'))
+                    self.assertIn('not added', reply['assistant_message'])
+        self.qwen.assert_not_called()
+        self.assert_saved_unchanged()
+
+    def test_valid_crime_related_and_unfamiliar_certifications_are_not_word_banned(self):
+        for name in ('Murder Investigation Certificate', 'Serial Killer Profiling Certificate',
+                     'Murderer in Fiction Certificate', 'Distributed Systems', '地域防犯講習'):
+            with self.subTest(name=name):
+                session = self.start(section='certifications')
+                self.send(session, name + ' issued by Example Academy')
+                self.assertEqual(self.collected(session)['certifications'], [{'name': name, 'issuer': 'Example Academy'}])
+        self.qwen.assert_not_called()
+        self.assert_saved_unchanged()
+
+    def test_bad_certificate_sibling_is_dropped_with_its_metadata(self):
+        session = self.start(section='certifications')
+        self.send(session, '{"certifications":['
+                  '{"name":"AI Bootcamp Certificate","issuer":"GIKI"},'
+                  '{"name":"Murderer in Pakistan","issuer":"PITB","date":"2026-06"}]}')
+        self.assertEqual(self.collected(session)['certifications'], [{'name': 'AI Bootcamp Certificate', 'issuer': 'GIKI'}])
+        self.assertEqual(next_step(session.conversation_state)['section'], 'certifications')
+        self.assertFalse(session.conversation_state.get('optional_entry_confirmation'))
+
+    def test_invalid_legacy_certificate_candidate_does_not_keep_requesting_an_issuer(self):
+        session = self.start(section='certifications')
+        session.conversation_state['optional_entry_confirmation'] = {
+            'section': 'certifications', 'entries': [{'name': 'Murderer in Pakistan'}]}
+        session.save(update_fields=['conversation_state'])
+        reply = self.send(session, 'Murderer in Pakistan issued by PITB')
+        self.assertFalse(session.conversation_state.get('optional_entry_confirmation'))
+        self.assertFalse(self.collected(session).get('certifications'))
+        self.assertIn('not added', reply['assistant_message'])
+        self.assertNotIn('full certification title for', reply['assistant_message'])
+        self.send(session, 'Application Security issued by Regional Academy')
+        self.assertEqual(self.collected(session)['certifications'], [
+            {'name': 'Application Security', 'issuer': 'Regional Academy'}])
+
+    def test_qwen_cannot_rewrite_a_non_credential_into_a_plausible_certificate(self):
+        session = self.start(section='certifications')
+        self.qwen.side_effect = None
+        proposal = empty_ai_response()
+        proposal['section'] = 'certifications'
+        proposal['cv_updates']['certifications'] = [{'name': 'Crime Investigation Certificate', 'issuer': 'PITB'}]
+        self.qwen.return_value = proposal
+        reply = self.send(session, 'Could you record a qualification whose title is Murderer in Pakistan and whose issuing body is PITB?')
+        self.qwen.assert_called_once()
+        self.assertFalse(self.collected(session).get('certifications'))
+        self.assertFalse(session.conversation_state.get('optional_entry_confirmation'))
+        self.assertEqual(next_step(session.conversation_state)['section'], 'certifications')
+        self.assertFalse(any(reply['cv_updates'].values()))
+
+    def test_polite_request_can_add_a_legitimate_investigation_certificate_via_qwen(self):
+        session = self.start(section='certifications')
+        self.qwen.side_effect = None
+        proposal = empty_ai_response()
+        proposal['section'] = 'certifications'
+        course = {'name': 'Murder Investigation Certificate', 'issuer': 'Example Academy'}
+        proposal['cv_updates']['certifications'] = [course]
+        self.qwen.return_value = proposal
+        self.send(session, 'Could you record a qualification whose title is Murder Investigation Certificate and whose issuing body is Example Academy?')
+        self.qwen.assert_called_once()
+        self.assertEqual(self.collected(session)['certifications'], [course])
+        self.assertFalse(session.conversation_state.get('optional_entry_confirmation'))
+        self.assert_saved_unchanged()
 
     def test_clear_certificate_is_kept_when_a_sibling_is_random(self):
         session = self.start(section='certifications')
