@@ -1232,3 +1232,236 @@ fallback. The nine added regressions cover Qwen clarification feedback, the
 reported inputs, invalid optional wording, partial valid answers, saved-entry
 editing and honest feedback for supported sibling titles. Providers were mocked
 or blocked; whitespace checks passed.
+
+### Follow-up: random text accepted as a project title
+
+The project-name fast path accepted almost any short response, and shared entity
+validation did not check project names. A bare value such as `ters354d` therefore
+advanced to the description question. Project names now reuse the existing noise
+and conversational-answer checks, with clarification for ambiguous mixed codes.
+The reply explicitly says that the name was not added and asks for the actual
+project name. It keeps the name question active and preserves confirmed entries.
+
+This does not require a dictionary of valid projects. Numeric, branded and
+international names remain usable. A genuine unusual code can be explicitly
+named with `My project is called ...` or an explicit structured name field;
+the supplied title is preserved. Bare confirmation words do not become titles.
+The same naming syntax is used by title extraction and intent validation.
+
+When a proposed project name fails validation, its description and technologies
+are withheld with that entry so they cannot attach to another project. Valid
+sibling entries are retained. This applies to initial interviews, explicit
+additions and provider proposals, with the existing M5/M10 contracts and save
+approval unchanged. Qwen's prompt also asks for clarification of random project
+names and preserves explicitly named unfamiliar projects.
+
+Verification passed: 118 focused Django tests and the full 749-test suite
+(16 optional checks skipped). Eight new regressions cover the exact input,
+repeated noise and confirmations, existing-CV additions, add-more prompts,
+incorrect provider proposals, sibling isolation, and explicit coded/numeric/
+international project names. Providers were mocked or blocked. Saved synthetic
+CVs were unchanged, and whitespace checks passed.
+
+### Follow-up: validating project descriptions and technologies
+
+Project names were guarded, but description and technology scalar shortcuts still
+accepted random text. The shared project noise check now covers each field with
+a field-specific retry. Noise, bare confirmations, contact-only values and tool
+lists cannot complete the description. Meaningful descriptions may still mention
+codes and real tools; these are whole-answer checks rather than word bans.
+
+Technology strings and lists are normalized before checking each tool, including
+comma, semicolon and newline lists. Invalid labels are withheld; valid tools in a
+mixed list remain confirmed. An entirely invalid list keeps the technologies
+question active, while partial acceptance explains that the recognized tools were
+kept. Empty or punctuation-only lists also receive a clear retry.
+
+A lone ambiguous description word and an unfamiliar single technology go through
+Qwen instead of unconditional scalar storage. Unfamiliar internal tools remain
+eligible, and the prompt asks for project-purpose/tool clarification rather than
+inventing descriptions or a stack. Missing model explanations use human field
+names instead of internal paths. The name/description/technology checks apply to
+provider proposals as well as local extraction and initial/existing-CV flows.
+The public M5/M10 contracts and explicit-save boundary are unchanged.
+
+Verification passed: 192 focused tests, a final 34-test project-flow recheck, and
+the full 758-test Django suite (16 optional checks skipped). Nine new regressions
+cover the exact sequential failure, saved-CV additions, provider/structured data,
+mixed and packed technology lists, unknown tools, meaningful code mentions and
+plain-language clarification fallbacks. Providers were mocked or blocked; saved
+synthetic CVs stayed unchanged until explicit save, and whitespace checks passed.
+
+### Follow-up: source validation and unauthorized model transitions
+
+The latest interview exposed a broader boundary problem: validating only model
+proposals does not protect the original answer if Qwen reclassifies or rewrites
+it. Whole self-descriptions such as `I am a serial killer` were not covered by
+the responsibility checks. Qwen could also emit `skip`, `go_back`, `finish` or
+`remove_information` without a matching user command and change interview flow.
+
+Work answers now receive an independent source check before model proposals can
+be used. Standalone harmful occupational claims, random codes and bare
+confirmations cannot become work duties or benign invented paraphrases. Rejected
+source turns discard proposed facts and profile/control changes while preserving
+the employer, role and pending question. Genuine model rejection explanations
+remain visible. Whole-value checks preserve investigative, medical, software and
+fictional contexts rather than banning vocabulary.
+
+Extraction output alone no longer authorizes skipping, undoing, finishing or
+removing details. Those commands must come through the existing explicit local
+routes; otherwise the assistant clarifies and retains the current step. A
+fact-free internship acknowledgment, including a single typing error in
+`internship`, locally advances to asking for the actual company and role. It
+does not invent an employer or treat confirmed internship presence as invalid.
+
+Verification passed: 194 focused Django tests and the full 766-test suite
+(16 optional checks skipped). Eight new regressions cover the complete fresher
+flow, adversarial model controls and paraphrases, acknowledgment typos, valid
+investigative/fictional duties and genuine model feedback. Automated regression
+providers were mocked or blocked; whitespace checks passed.
+
+Live verification also passed against local `qwen3.5:4b`, using the real chat API
+in an isolated in-memory database: seven flow checks with four actual model
+calls. Qwen returned `intent=answer` and experience data for the harmful
+self-description, reproducing the semantic error; backend source validation
+blocked it and retained the responsibilities question. The current-code replay
+also retained the technology question for `ters354d`, accepted the internship
+acknowledgment, accepted a valid corrected responsibility, retained legitimate
+investigative work and accepted an unfamiliar-to-the-local-parser technology.
+No saved CVs or real user records were accessed or changed, and no non-Qwen
+provider requests were made. Measured results are recorded in
+`docs/QWEN_CONVERSATION_AUDIT_2026_10_27.json`.
+
+### Follow-up: certification titles cannot be established by issuer metadata
+
+`clear_certificate` previously treated any issuer, date or link as sufficient
+evidence to accept the supplied title. This let a person descriptor become a
+qualification after an issuer was appended. Title/type validation now precedes
+metadata confidence. Whole person descriptors, including location qualifiers,
+certificate labels and quotation marks, receive a clear retry and cannot advance
+the section. Legitimate investigation, profiling, prevention and literary courses
+remain eligible; unfamiliar course names do not require a fixed catalogue.
+
+When evidence validation rejects a proposed certification name, its issuer/date/
+link are withheld with it rather than becoming an anonymous qualification or
+attaching to another entry. Known-invalid unconfirmed candidates no longer keep
+asking for an issuer. Confirmed valid sibling entries are retained. No stored CV
+is modified automatically.
+
+The existing parser also handles an explicit polite add/include wrapper and one
+typing error in the `issued by` cue, preserving the course title and issuer rather
+than including `issud by ...` in the name. It does not rename course/provider
+brands. Ambiguous free-form requests still go to Qwen. Its input now includes the
+actual interview question, and qualification extraction uses shared fact rules
+plus section-specific guidance instead of occupational rejection instructions.
+
+Live testing initially caught Qwen rejecting a legitimate investigation course as
+an act/person description. That false positive is retained in the audit history.
+The final isolated API replay passes both the reported sequence and a genuinely
+unstructured forensic-qualification request with actual `qwen3.5:4b` responses.
+Qwen still proposed adding the invalid person descriptor in that replay; the
+backend rejected it. Model classification and issuer metadata therefore remain
+proposals, not proof of qualification type, authenticity or ownership. The public
+M5/M10 contracts and explicit-save boundary are unchanged. Measured runs are in
+`docs/QWEN_CERTIFICATION_AUDIT_2026_10_27.json`.
+
+Verification passed: 218 focused tests and the full 777-test Django suite
+(16 optional checks skipped), including eleven added regressions. Six final live
+flow checks passed, with two actual local-Qwen calls and zero saved-CV writes or
+non-Qwen provider requests. The earlier false-positive live runs remain in the
+report for comparison. Whitespace checks passed.
+
+### Follow-up: summary and narrative answers need content validation
+
+The summary step previously stored any non-question plain-text answer directly,
+so a paragraph claiming personal violence could complete that section and move
+to review. A shared narrative check now covers summaries, project descriptions,
+work responsibilities and achievements. It recognizes direct self-claims rather
+than rejecting crime-related vocabulary. Quoted reporting, negation, legitimate
+investigation/prevention work, fictional performance and computer process
+termination remain eligible. A bounded typo check also handles the reported
+`murdere` verb without fuzzy-matching legitimate `billed` or `filled` statements.
+
+Both local field validation and the original-source extraction guard enforce the
+check. A model cannot replace a rejected source with invented respectable prose,
+silently skip it or finish the interview. Single-section JSON summaries are
+decoded before validation. Invalid summary status retains the actual summary
+question; independently valid achievement-list siblings are kept. New and saved-CV
+editing conversations can accept a correction or an explicit skip afterward.
+No stored CV is automatically rewritten.
+
+Rejected turns now retain the authoritative current section, preventing a model's
+unrelated section label from opening a personal-details edit. When Qwen provides
+a clarification reason with no accepted facts, the assistant retains the reason
+and explicitly acknowledges that nothing was added. Narrative extraction guidance
+distinguishes the subject of professional work from a first-person act and
+recognizes an introduction/profile-paragraph correction as a summary update.
+
+The initial isolated live replay exposed both an omitted explicit acknowledgment
+and a false rejection of a legitimate counterterrorism-analyst summary. Those
+results are retained in the live audit history rather than omitted.
+Redundant prompt guidance was shortened after the existing context-size regression
+caught an oversized prompt; the original size limit was kept. The final live
+replay passes all eight flow checks with two actual `qwen3.5:4b` calls. Its
+synthetic saved CV is unchanged and no real user records or other providers are
+accessed. Results, including the earlier runs, are recorded in
+`docs/QWEN_SUMMARY_AUDIT_2026_10_27.json`.
+
+Verification passed: 211 focused tests and the full 792-test Django suite
+(16 optional checks skipped). Fifteen new regressions cover source/typed
+validation, new/edit/review flows, valid corrections and skips, structured
+summaries, valid achievement siblings, legitimate professional/quoted contexts,
+model-created wording and controls, rejection explanations and section retention.
+The M5 public response and M10 persistence contracts remain unchanged. Whitespace
+checks passed.
+
+### Follow-up: grouped project answers and skipped summaries
+
+The John interview supplied a project heading, implementation bullets and named
+technologies together, but only its title and a generic `AI` technology survived.
+It also showed a professional summary after the user explicitly skipped that
+section. Skills were explicitly pasted by the user, so retaining those skills is
+correct; the selected senior interview profile alone is not evidence of senior
+experience or of the industries and technologies in the unwanted summary.
+
+CV-style project headings and bullet/newline descriptions now stay together in
+the existing project-answer parser. Tools come from the supplied implementation
+text, not the title. A heading year is retained in the description because M10
+has no project-date field. The existing tool vocabulary recognizes Gemini;
+unfamiliar tools still use the existing extraction paths. Updating a description
+adds its literal tools to previously confirmed tools, while an explicit tools
+answer can replace the stack. Both initial interviews and saved-CV proposals
+retain their existing explicit-save behavior.
+
+Copied interview input is trimmed only when it has an explicit transcript
+wrapper and the exact current assistant question. The latest following answer is
+processed normally, including content validation; the original user message is
+retained in chat history and request receipts. A copied question without an
+answer asks for details rather than becoming content or triggering generic CV
+advice. Ordinary descriptions and quoted examples are not rewritten by this step.
+
+Qwen cannot add an unsolicited summary while extracting another section. Explicit
+summaries, genuine profile paragraphs, requested introduction changes and valid
+CV JSON after an introductory sentence remain supported. Skipping the summary
+in a new CV clears its unsaved value, and both current-state and legacy-history
+draft import honor that skip. This also keeps an already-skipped legacy summary
+out of preview/save without deleting historical messages. Skipping an edit to a
+saved CV preserves its saved summary. Short `sip`, `skp` and transposed skip
+typos are recognized only at optional profile-link questions; email validation
+still rejects those values. The reported `finssh` finish typo follows the normal
+completion checks.
+
+The isolated live API replay passed seven checks with one actual local
+`qwen3.5:4b` request. It covers a complete senior-profile interview, explicitly
+entered skills, work duties, grouped project details, optional skip typos,
+summary omission, completion, draft review and a separate copied-transcript
+answer. It accessed no real user records, wrote no saved CVs and contacted no
+other provider. Results are in `docs/QWEN_GROUPED_ANSWERS_AUDIT_2026_10_27.json`.
+
+Verification passed: 198 focused tests and the full 812-test Django suite
+(16 optional checks skipped), including twenty new regressions. Coverage includes
+grouped data in both creation and editing, title/tool separation, description
+updates, copied and empty transcripts, source-only summary authorization,
+prose-prefixed CV JSON, current and legacy summary skips, saved-summary retention,
+optional-link typos, explicit tool replacement and normal completion checks.
+Public M5/M10 response and save contracts are unchanged. Whitespace checks passed.

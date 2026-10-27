@@ -1,0 +1,119 @@
+{
+  "date": "2026-10-27",
+  "model": "qwen3.5:4b",
+  "database": "isolated in-memory database; synthetic records only",
+  "cases": [
+    {
+      "case": "optional_link_skip_typos_keep_contact_fields_valid",
+      "passed": true,
+      "checks": {
+        "links_skipped": true,
+        "next_experience": true
+      },
+      "next_step": {
+        "section": "experience",
+        "field": "company"
+      },
+      "assistant_message": "What relevant professional experience would you like to include? Share the company and job title; one employer is enough.\n\nPrioritize 3–5 recent, relevant experiences if available; do not add jobs just to reach a count. Show architecture, technical decisions, mentoring and confirmed team impact. Use measurable achievements only when you can confirm them; a clear qualitative result is also useful."
+    },
+    {
+      "case": "real_qwen_responsibilities_do_not_create_an_unrequested_summary",
+      "passed": true,
+      "checks": {
+        "actual_duties_collected": true,
+        "no_summary": true,
+        "next_skills": true
+      },
+      "next_step": {
+        "section": "skills",
+        "field": "skills"
+      },
+      "assistant_message": "What technical skills would you like to highlight?\n\nConsider 8–15 relevant skills you can demonstrate; fewer are fine. Candidate skills (include only those you actually have): System design, Technical leadership, Mentoring, Python, Machine learning, Deep learning, Natural language processing, Data preprocessing, Model evaluation, Statistics, SQL, Git, PyTorch, scikit-learn, MLOps."
+    },
+    {
+      "case": "grouped_project_supplies_actual_details_and_tools_once",
+      "passed": true,
+      "checks": {
+        "correct_name": true,
+        "description_retained": true,
+        "actual_stack": true,
+        "no_tool_inferred_from_title": true,
+        "optional_add_more": true
+      },
+      "next_step": {
+        "section": "projects",
+        "field": "more_entries"
+      },
+      "assistant_message": "You have added 1 project. 3–5 strong relevant projects can help if available; one is fine too. Would you like to add more, or continue?"
+    },
+    {
+      "case": "summary_skip_and_user_confirmed_skills_are_respected",
+      "passed": true,
+      "checks": {
+        "blank_summary": true,
+        "all_confirmed_skills": true,
+        "ready_review": true
+      },
+      "next_step": {
+        "section": "review",
+        "field": "review"
+      },
+      "assistant_message": "Please review your collected information. You can correct a field, or finish the interview when ready.\n\nOne or two pages may be useful depending on relevant career history. The selected template and rendered preview determine the actual page count.\nYou can add another entry, ask for \"CV suggestions\", or finish when ready; no minimum number of entries is required."
+    },
+    {
+      "case": "finish_typo_completes_valid_interview",
+      "passed": true,
+      "checks": {
+        "completed": true,
+        "complete_response": true
+      },
+      "next_step": {
+        "section": "review",
+        "field": "review"
+      },
+      "assistant_message": "Your draft is ready. Review the collected details, optionally request an external Gemini review, then save when you approve."
+    },
+    {
+      "case": "draft_review_omits_summary_and_preserves_project_stack",
+      "passed": true,
+      "checks": {
+        "http_200": true,
+        "blank_summary": true,
+        "stack_preserved": true
+      },
+      "next_step": {
+        "section": "review",
+        "field": "review"
+      }
+    },
+    {
+      "case": "copied_transcript_supplies_new_answer_without_advice_loop",
+      "passed": true,
+      "checks": {
+        "actual_new_answer": true,
+        "previous_tools_retained": true,
+        "no_generic_advice": true,
+        "raw_history_retained": true
+      },
+      "next_step": {
+        "section": "projects",
+        "field": "more_entries"
+      },
+      "assistant_message": "You have added 1 project. 3–5 strong relevant projects can help if available; one is fine too. Would you like to add more, or continue?"
+    }
+  ],
+  "model_calls": [
+    {
+      "intent": "answer",
+      "sections": [
+        "experience"
+      ],
+      "seconds": 54.831
+    }
+  ],
+  "real_provider_responses": true,
+  "real_user_records_accessed": false,
+  "saved_cv_writes": 0,
+  "unexpected_provider_requests": 0,
+  "passed": true
+}

@@ -1,0 +1,497 @@
+{
+  "date": "2026-10-27",
+  "model": "qwen3.5:4b",
+  "database": "isolated in-memory test database",
+  "real_provider_responses": true,
+  "cases": [
+    {
+      "case": "valid_bootcamp_with_typo",
+      "passed": true,
+      "checks": {
+        "correct_title_and_issuer": true,
+        "count_advice": true
+      },
+      "next_step": {
+        "section": "certifications",
+        "field": "more_entries"
+      },
+      "assistant_message": "You have added 1 certification. Consider 3–5 relevant certifications only if you already hold them; fewer or none is fine. Would you like to add more, or continue?",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": [
+          {
+            "name": "Advance Ai bootcamp certificate",
+            "issuer": "GIKI"
+          }
+        ],
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "person_descriptor_not_a_qualification",
+      "passed": true,
+      "checks": {
+        "keeps_valid_course": true,
+        "still_certifications": true,
+        "no_new_facts": true,
+        "no_invalid_confirmation": true
+      },
+      "next_step": {
+        "section": "certifications",
+        "field": "name"
+      },
+      "assistant_message": "That describes a person rather than a qualification, so it was not added. An issuer, date or link does not establish a valid course title. Please provide the actual course or qualification title, or say \"skip\". Do you have any relevant certifications? Share a title and issuer/date/link if available, or skip; none is required.",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "issuer_cannot_override_title",
+      "passed": true,
+      "checks": {
+        "keeps_valid_course": true,
+        "still_certifications": true,
+        "no_new_facts": true,
+        "no_invalid_confirmation": true
+      },
+      "next_step": {
+        "section": "certifications",
+        "field": "name"
+      },
+      "assistant_message": "That describes a person rather than a qualification, so it was not added. An issuer, date or link does not establish a valid course title. Please provide the actual course or qualification title, or say \"skip\". Do you have any relevant certifications? Share a title and issuer/date/link if available, or skip; none is required.",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "legitimate_investigation_course",
+      "passed": true,
+      "checks": {
+        "qualification_added": true,
+        "keeps_valid_bootcamp": true
+      },
+      "next_step": {
+        "section": "achievements",
+        "field": "achievements"
+      },
+      "assistant_message": "Would you like to include any achievements? Share only confirmed details, or skip.",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": [
+          {
+            "name": "Murder Investigation Certificate",
+            "issuer": "Example Academy"
+          }
+        ],
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "real_model_cannot_admit_person_descriptor",
+      "passed": true,
+      "checks": {
+        "keeps_confirmed_courses": true,
+        "still_certifications": true,
+        "no_new_facts": true
+      },
+      "next_step": {
+        "section": "certifications",
+        "field": "name"
+      },
+      "assistant_message": "That describes a person rather than a qualification, so it was not added. An issuer, date or link does not establish a valid course title. Please provide the actual course or qualification title, or say \"skip\". Do you have any relevant certifications? Share a title and issuer/date/link if available, or skip; none is required.",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "real_model_accepts_legitimate_crime_related_study",
+      "passed": true,
+      "checks": {
+        "qualification_added": true,
+        "keeps_confirmed_courses": true
+      },
+      "next_step": {
+        "section": "achievements",
+        "field": "achievements"
+      },
+      "assistant_message": "Would you like to include any achievements? Share only confirmed details, or skip.",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": [
+          {
+            "name": "Forensic Analysis Certificate",
+            "issuer": "Regional Academy"
+          }
+        ],
+        "achievements": null,
+        "languages": null
+      }
+    }
+  ],
+  "model_calls": [
+    {
+      "message": "Could you record a qualification whose title is Murderer in Pakistan and whose issuing body is PITB?",
+      "native_intent": "add_information",
+      "native_sections": [
+        "certifications"
+      ],
+      "seconds": 34.141
+    },
+    {
+      "message": "Could you record a qualification whose title is Forensic Analysis Certificate and whose issuing body is Regional Academy?",
+      "native_intent": "add_information",
+      "native_sections": [
+        "certifications"
+      ],
+      "seconds": 26.134
+    }
+  ],
+  "saved_cv_writes": 0,
+  "unexpected_provider_requests": 0,
+  "passed": true,
+  "previous_runs": [
+    {
+      "model": "qwen3.5:4b",
+      "passed": false,
+      "cases": [
+        {
+          "case": "valid_bootcamp_with_typo",
+          "passed": true,
+          "checks": {
+            "correct_title_and_issuer": true,
+            "count_advice": true
+          },
+          "next_step": {
+            "section": "certifications",
+            "field": "more_entries"
+          },
+          "assistant_message": "You have added 1 certification. Consider 3–5 relevant certifications only if you already hold them; fewer or none is fine. Would you like to add more, or continue?",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": [
+              {
+                "name": "Advance Ai bootcamp certificate",
+                "issuer": "GIKI"
+              }
+            ],
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "person_descriptor_not_a_qualification",
+          "passed": true,
+          "checks": {
+            "keeps_valid_course": true,
+            "still_certifications": true,
+            "no_new_facts": true,
+            "no_invalid_confirmation": true
+          },
+          "next_step": {
+            "section": "certifications",
+            "field": "name"
+          },
+          "assistant_message": "That describes a person rather than a qualification, so it was not added. An issuer, date or link does not establish a valid course title. Please provide the actual course or qualification title, or say \"skip\". Do you have any relevant certifications? Share a title and issuer/date/link if available, or skip; none is required.",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "issuer_cannot_override_title",
+          "passed": true,
+          "checks": {
+            "keeps_valid_course": true,
+            "still_certifications": true,
+            "no_new_facts": true,
+            "no_invalid_confirmation": true
+          },
+          "next_step": {
+            "section": "certifications",
+            "field": "name"
+          },
+          "assistant_message": "That describes a person rather than a qualification, so it was not added. An issuer, date or link does not establish a valid course title. Please provide the actual course or qualification title, or say \"skip\". Do you have any relevant certifications? Share a title and issuer/date/link if available, or skip; none is required.",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "real_model_cannot_rewrite_bad_title",
+          "passed": true,
+          "checks": {
+            "keeps_valid_course": true,
+            "still_certifications": true,
+            "no_new_facts": true,
+            "no_invalid_confirmation": true
+          },
+          "next_step": {
+            "section": "certifications",
+            "field": "name"
+          },
+          "assistant_message": "A self-identified role like 'Murderer' is not a legitimate professional qualification or certification; please provide the actual course title and issuing organization. Do you have any relevant certifications? Share a title and issuer/date/link if available, or skip; none is required.",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "legitimate_investigation_course",
+          "passed": false,
+          "checks": {
+            "qualification_added": false,
+            "keeps_valid_bootcamp": true
+          },
+          "next_step": {
+            "section": "certifications",
+            "field": "name"
+          },
+          "assistant_message": "An act of investigation is not a professional qualification; please provide the actual course title and issuing organization. Do you have any relevant certifications? Share a title and issuer/date/link if available, or skip; none is required.",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        }
+      ],
+      "model_calls": [
+        {
+          "message": "Could you include Murderer in Pakistan issued by PITB?",
+          "native_intent": "clarification",
+          "native_sections": [],
+          "seconds": 48.804
+        },
+        {
+          "message": "Could you add Murder Investigation Certificate issued by Example Academy?",
+          "native_intent": "clarification",
+          "native_sections": [],
+          "seconds": 42.72
+        }
+      ]
+    },
+    {
+      "model": "qwen3.5:4b",
+      "passed": false,
+      "cases": [
+        {
+          "case": "valid_bootcamp_with_typo",
+          "passed": true,
+          "checks": {
+            "correct_title_and_issuer": true,
+            "count_advice": true
+          },
+          "next_step": {
+            "section": "certifications",
+            "field": "more_entries"
+          },
+          "assistant_message": "You have added 1 certification. Consider 3–5 relevant certifications only if you already hold them; fewer or none is fine. Would you like to add more, or continue?",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": [
+              {
+                "name": "Advance Ai bootcamp certificate",
+                "issuer": "GIKI"
+              }
+            ],
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "person_descriptor_not_a_qualification",
+          "passed": true,
+          "checks": {
+            "keeps_valid_course": true,
+            "still_certifications": true,
+            "no_new_facts": true,
+            "no_invalid_confirmation": true
+          },
+          "next_step": {
+            "section": "certifications",
+            "field": "name"
+          },
+          "assistant_message": "That describes a person rather than a qualification, so it was not added. An issuer, date or link does not establish a valid course title. Please provide the actual course or qualification title, or say \"skip\". Do you have any relevant certifications? Share a title and issuer/date/link if available, or skip; none is required.",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "issuer_cannot_override_title",
+          "passed": true,
+          "checks": {
+            "keeps_valid_course": true,
+            "still_certifications": true,
+            "no_new_facts": true,
+            "no_invalid_confirmation": true
+          },
+          "next_step": {
+            "section": "certifications",
+            "field": "name"
+          },
+          "assistant_message": "That describes a person rather than a qualification, so it was not added. An issuer, date or link does not establish a valid course title. Please provide the actual course or qualification title, or say \"skip\". Do you have any relevant certifications? Share a title and issuer/date/link if available, or skip; none is required.",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "real_model_cannot_rewrite_bad_title",
+          "passed": true,
+          "checks": {
+            "keeps_valid_course": true,
+            "still_certifications": true,
+            "no_new_facts": true,
+            "no_invalid_confirmation": true
+          },
+          "next_step": {
+            "section": "certifications",
+            "field": "name"
+          },
+          "assistant_message": "That describes a person rather than a course or qualification. Do you have any relevant certifications? Share a title and issuer/date/link if available, or skip; none is required.",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "legitimate_investigation_course",
+          "passed": false,
+          "checks": {
+            "qualification_added": false,
+            "keeps_valid_bootcamp": true
+          },
+          "next_step": {
+            "section": "certifications",
+            "field": "name"
+          },
+          "assistant_message": "That describes a person rather than a course or qualification. Do you have any relevant certifications? Share a title and issuer/date/link if available, or skip; none is required.",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        }
+      ],
+      "model_calls": [
+        {
+          "message": "Could you include Murderer in Pakistan issued by PITB?",
+          "native_intent": "clarification",
+          "native_sections": [],
+          "seconds": 32.732
+        },
+        {
+          "message": "Could you add Murder Investigation Certificate issued by Example Academy?",
+          "native_intent": "clarification",
+          "native_sections": [],
+          "seconds": 27.779
+        }
+      ]
+    }
+  ]
+}

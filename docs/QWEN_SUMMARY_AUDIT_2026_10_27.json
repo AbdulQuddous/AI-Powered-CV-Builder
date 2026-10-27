@@ -1,0 +1,663 @@
+{
+  "date": "2026-10-27",
+  "model": "qwen3.5:4b",
+  "database": "isolated in-memory test database; synthetic data only",
+  "real_provider_responses": true,
+  "cases": [
+    {
+      "case": "reported_summary_does_not_advance_to_review",
+      "passed": true,
+      "checks": {
+        "all_prior_facts_retained": true,
+        "still_summary": true,
+        "no_proposed_facts": true,
+        "clear_rejection": true
+      },
+      "next_step": {
+        "section": "summary",
+        "field": "summary"
+      },
+      "assistant_message": "That reply includes claims of harming people, rather than professional CV details, so it was not added. Please describe your qualifications, skills or actual work. You can also skip this section. What professional summary would you like to include in your CV?",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "valid_correction_proceeds_to_review",
+      "passed": true,
+      "checks": {
+        "valid_summary_collected": true,
+        "ready_for_review": true
+      },
+      "next_step": {
+        "section": "review",
+        "field": "review"
+      },
+      "assistant_message": "Please review your collected information. You can correct a field, or finish the interview when ready.\n\nAim for a concise page when practical. The selected template and rendered preview determine the actual page count.\nYou can add another entry, ask for \"CV suggestions\", or finish when ready; no minimum number of entries is required.",
+      "cv_updates": {
+        "personal": null,
+        "summary": "Software engineer experienced in building and testing Django APIs.",
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "typing_error_and_arbitrary_count_still_rejected",
+      "passed": true,
+      "checks": {
+        "no_summary": true,
+        "still_summary": true
+      },
+      "next_step": {
+        "section": "summary",
+        "field": "summary"
+      },
+      "assistant_message": "That reply includes claims of harming people, rather than professional CV details, so it was not added. Please describe your qualifications, skills or actual work. You can also skip this section. What professional summary would you like to include in your CV?",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "json_summary_cannot_bypass_validation",
+      "passed": true,
+      "checks": {
+        "no_summary": true,
+        "still_summary": true
+      },
+      "next_step": {
+        "section": "summary",
+        "field": "summary"
+      },
+      "assistant_message": "That reply includes claims of harming people, rather than professional CV details, so it was not added. Please describe your qualifications, skills or actual work. You can also skip this section. What professional summary would you like to include in your CV?",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "legitimate_professional_subject_matter_is_retained",
+      "passed": true,
+      "checks": {
+        "exact_summary_collected": true,
+        "ready_for_review": true
+      },
+      "next_step": {
+        "section": "review",
+        "field": "review"
+      },
+      "assistant_message": "Please review your collected information. You can correct a field, or finish the interview when ready.\n\nAim for a concise page when practical. The selected template and rendered preview determine the actual page count.\nYou can add another entry, ask for \"CV suggestions\", or finish when ready; no minimum number of entries is required.",
+      "cv_updates": {
+        "personal": null,
+        "summary": "Counterterrorism analyst experienced in investigating murder cases and testing weapons safety systems.",
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "editing_summary_retains_prior_proposals",
+      "passed": true,
+      "checks": {
+        "no_proposal_changes": true,
+        "still_summary": true
+      },
+      "next_step": {
+        "section": "summary",
+        "field": "changes"
+      },
+      "assistant_message": "That reply includes claims of harming people, rather than professional CV details, so it was not added. Please describe your qualifications, skills or actual work. You can also skip this section. What would you like your professional summary to say? You can also say \"cancel\" or choose another section.",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "real_qwen_review_response_cannot_admit_source",
+      "passed": true,
+      "checks": {
+        "no_proposal_changes": true,
+        "no_model_focus_switch": true,
+        "still_review": true,
+        "clear_rejection": true
+      },
+      "next_step": {
+        "section": "review",
+        "field": "edit_request"
+      },
+      "assistant_message": "Claims of committing violence are not professional roles or CV achievements; please describe actual work tasks, responsibilities, or legitimate employment. That message was not added to your CV. What else would you like to add or change in your CV? Say \"finish\" or \"nothing else\" when you are done. You can also say \"cancel\" or choose another section.",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "real_qwen_allows_investigative_summary",
+      "passed": true,
+      "checks": {
+        "summary_proposed": true,
+        "legitimate_subject_retained": true,
+        "not_rejected": true
+      },
+      "next_step": {
+        "section": "review",
+        "field": "edit_request"
+      },
+      "assistant_message": "What else would you like to add or change in your CV? Say \"finish\" or \"nothing else\" when you are done.",
+      "cv_updates": {
+        "personal": null,
+        "summary": "Counterterrorism analyst experienced in investigating murder cases and testing weapons safety systems.",
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    }
+  ],
+  "model_calls": [
+    {
+      "message": "I am a terrorist current i murdere 5 persons. i love weapons",
+      "native_intent": "clarification",
+      "native_sections": [],
+      "seconds": 31.394
+    },
+    {
+      "message": "Please replace the introduction paragraph with: Counterterrorism analyst experienced in investigating murder cases and testing weapons safety systems.",
+      "native_intent": "correction",
+      "native_sections": [
+        "summary"
+      ],
+      "seconds": 40.185
+    }
+  ],
+  "synthetic_saved_cv_unchanged": true,
+  "real_user_records_accessed": false,
+  "unexpected_provider_requests": 0,
+  "passed": true,
+  "previous_runs": [
+    {
+      "model": "qwen3.5:4b",
+      "passed": false,
+      "cases": [
+        {
+          "case": "reported_summary_does_not_advance_to_review",
+          "passed": true,
+          "checks": {
+            "all_prior_facts_retained": true,
+            "still_summary": true,
+            "no_proposed_facts": true,
+            "clear_rejection": true
+          },
+          "next_step": {
+            "section": "summary",
+            "field": "summary"
+          },
+          "assistant_message": "That reply includes claims of harming people, rather than professional CV details, so it was not added. Please describe your qualifications, skills or actual work. You can also skip this section. What professional summary would you like to include in your CV?",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "valid_correction_proceeds_to_review",
+          "passed": true,
+          "checks": {
+            "valid_summary_collected": true,
+            "ready_for_review": true
+          },
+          "next_step": {
+            "section": "review",
+            "field": "review"
+          },
+          "assistant_message": "Please review your collected information. You can correct a field, or finish the interview when ready.\n\nAim for a concise page when practical. The selected template and rendered preview determine the actual page count.\nYou can add another entry, ask for \"CV suggestions\", or finish when ready; no minimum number of entries is required.",
+          "cv_updates": {
+            "personal": null,
+            "summary": "Software engineer experienced in building and testing Django APIs.",
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "typing_error_and_arbitrary_count_still_rejected",
+          "passed": true,
+          "checks": {
+            "no_summary": true,
+            "still_summary": true
+          },
+          "next_step": {
+            "section": "summary",
+            "field": "summary"
+          },
+          "assistant_message": "That reply includes claims of harming people, rather than professional CV details, so it was not added. Please describe your qualifications, skills or actual work. You can also skip this section. What professional summary would you like to include in your CV?",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "json_summary_cannot_bypass_validation",
+          "passed": true,
+          "checks": {
+            "no_summary": true,
+            "still_summary": true
+          },
+          "next_step": {
+            "section": "summary",
+            "field": "summary"
+          },
+          "assistant_message": "That reply includes claims of harming people, rather than professional CV details, so it was not added. Please describe your qualifications, skills or actual work. You can also skip this section. What professional summary would you like to include in your CV?",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "legitimate_professional_subject_matter_is_retained",
+          "passed": true,
+          "checks": {
+            "exact_summary_collected": true,
+            "ready_for_review": true
+          },
+          "next_step": {
+            "section": "review",
+            "field": "review"
+          },
+          "assistant_message": "Please review your collected information. You can correct a field, or finish the interview when ready.\n\nAim for a concise page when practical. The selected template and rendered preview determine the actual page count.\nYou can add another entry, ask for \"CV suggestions\", or finish when ready; no minimum number of entries is required.",
+          "cv_updates": {
+            "personal": null,
+            "summary": "Counterterrorism analyst experienced in investigating murder cases and testing weapons safety systems.",
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "editing_summary_retains_prior_proposals",
+          "passed": true,
+          "checks": {
+            "no_proposal_changes": true,
+            "still_summary": true
+          },
+          "next_step": {
+            "section": "summary",
+            "field": "changes"
+          },
+          "assistant_message": "That reply includes claims of harming people, rather than professional CV details, so it was not added. Please describe your qualifications, skills or actual work. You can also skip this section. What would you like your professional summary to say? You can also say \"cancel\" or choose another section.",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "real_qwen_review_response_cannot_admit_source",
+          "passed": false,
+          "checks": {
+            "no_proposal_changes": true,
+            "no_model_focus_switch": true,
+            "still_review": true,
+            "clear_rejection": false
+          },
+          "next_step": {
+            "section": "review",
+            "field": "edit_request"
+          },
+          "assistant_message": "Claims of committing violence are not professional roles or CV achievements; I cannot add this information to your resume. What else would you like to add or change in your CV? Say \"finish\" or \"nothing else\" when you are done. You can also say \"cancel\" or choose another section.",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "real_qwen_allows_investigative_summary",
+          "passed": false,
+          "checks": {
+            "summary_proposed": false,
+            "legitimate_subject_retained": false,
+            "not_rejected": false
+          },
+          "next_step": {
+            "section": "personal",
+            "field": "changes"
+          },
+          "assistant_message": "An act of violence is not a professional position or CV achievement; please specify legitimate work duties, skills, or qualifications. Which personal detail would you like to change? You can also say \"cancel\" or choose another section.",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        }
+      ],
+      "model_calls": [
+        {
+          "message": "I am a terrorist current i murdere 5 persons. i love weapons",
+          "native_intent": "clarification",
+          "native_sections": [],
+          "seconds": 56.81
+        },
+        {
+          "message": "Please replace the introduction paragraph with: Counterterrorism analyst experienced in investigating murder cases and testing weapons safety systems.",
+          "native_intent": "clarification",
+          "native_sections": [],
+          "seconds": 31.925
+        }
+      ]
+    },
+    {
+      "model": "qwen3.5:4b",
+      "passed": true,
+      "cases": [
+        {
+          "case": "reported_summary_does_not_advance_to_review",
+          "passed": true,
+          "checks": {
+            "all_prior_facts_retained": true,
+            "still_summary": true,
+            "no_proposed_facts": true,
+            "clear_rejection": true
+          },
+          "next_step": {
+            "section": "summary",
+            "field": "summary"
+          },
+          "assistant_message": "That reply includes claims of harming people, rather than professional CV details, so it was not added. Please describe your qualifications, skills or actual work. You can also skip this section. What professional summary would you like to include in your CV?",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "valid_correction_proceeds_to_review",
+          "passed": true,
+          "checks": {
+            "valid_summary_collected": true,
+            "ready_for_review": true
+          },
+          "next_step": {
+            "section": "review",
+            "field": "review"
+          },
+          "assistant_message": "Please review your collected information. You can correct a field, or finish the interview when ready.\n\nAim for a concise page when practical. The selected template and rendered preview determine the actual page count.\nYou can add another entry, ask for \"CV suggestions\", or finish when ready; no minimum number of entries is required.",
+          "cv_updates": {
+            "personal": null,
+            "summary": "Software engineer experienced in building and testing Django APIs.",
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "typing_error_and_arbitrary_count_still_rejected",
+          "passed": true,
+          "checks": {
+            "no_summary": true,
+            "still_summary": true
+          },
+          "next_step": {
+            "section": "summary",
+            "field": "summary"
+          },
+          "assistant_message": "That reply includes claims of harming people, rather than professional CV details, so it was not added. Please describe your qualifications, skills or actual work. You can also skip this section. What professional summary would you like to include in your CV?",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "json_summary_cannot_bypass_validation",
+          "passed": true,
+          "checks": {
+            "no_summary": true,
+            "still_summary": true
+          },
+          "next_step": {
+            "section": "summary",
+            "field": "summary"
+          },
+          "assistant_message": "That reply includes claims of harming people, rather than professional CV details, so it was not added. Please describe your qualifications, skills or actual work. You can also skip this section. What professional summary would you like to include in your CV?",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "legitimate_professional_subject_matter_is_retained",
+          "passed": true,
+          "checks": {
+            "exact_summary_collected": true,
+            "ready_for_review": true
+          },
+          "next_step": {
+            "section": "review",
+            "field": "review"
+          },
+          "assistant_message": "Please review your collected information. You can correct a field, or finish the interview when ready.\n\nAim for a concise page when practical. The selected template and rendered preview determine the actual page count.\nYou can add another entry, ask for \"CV suggestions\", or finish when ready; no minimum number of entries is required.",
+          "cv_updates": {
+            "personal": null,
+            "summary": "Counterterrorism analyst experienced in investigating murder cases and testing weapons safety systems.",
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "editing_summary_retains_prior_proposals",
+          "passed": true,
+          "checks": {
+            "no_proposal_changes": true,
+            "still_summary": true
+          },
+          "next_step": {
+            "section": "summary",
+            "field": "changes"
+          },
+          "assistant_message": "That reply includes claims of harming people, rather than professional CV details, so it was not added. Please describe your qualifications, skills or actual work. You can also skip this section. What would you like your professional summary to say? You can also say \"cancel\" or choose another section.",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "real_qwen_review_response_cannot_admit_source",
+          "passed": true,
+          "checks": {
+            "no_proposal_changes": true,
+            "no_model_focus_switch": true,
+            "still_review": true,
+            "clear_rejection": true
+          },
+          "next_step": {
+            "section": "review",
+            "field": "edit_request"
+          },
+          "assistant_message": "That reply includes claims of harming people, rather than professional CV details, so it was not added. Please describe your qualifications, skills or actual work. You can also skip this section. What else would you like to add or change in your CV? Say \"finish\" or \"nothing else\" when you are done. You can also say \"cancel\" or choose another section.",
+          "cv_updates": {
+            "personal": null,
+            "summary": null,
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        },
+        {
+          "case": "real_qwen_allows_investigative_summary",
+          "passed": true,
+          "checks": {
+            "summary_proposed": true,
+            "legitimate_subject_retained": true,
+            "not_rejected": true
+          },
+          "next_step": {
+            "section": "review",
+            "field": "edit_request"
+          },
+          "assistant_message": "What else would you like to add or change in your CV? Say \"finish\" or \"nothing else\" when you are done.",
+          "cv_updates": {
+            "personal": null,
+            "summary": "Counterterrorism analyst experienced in investigating murder cases and testing weapons safety systems.",
+            "skills": null,
+            "education": null,
+            "experience": null,
+            "projects": null,
+            "certifications": null,
+            "achievements": null,
+            "languages": null
+          }
+        }
+      ],
+      "model_calls": [
+        {
+          "message": "I am a terrorist current i murdere 5 persons. i love weapons",
+          "native_intent": "answer",
+          "native_sections": [],
+          "seconds": 28.519
+        },
+        {
+          "message": "Please replace the introduction paragraph with: Counterterrorism analyst experienced in investigating murder cases and testing weapons safety systems.",
+          "native_intent": "correction",
+          "native_sections": [
+            "summary"
+          ],
+          "seconds": 30.691
+        }
+      ]
+    }
+  ]
+}

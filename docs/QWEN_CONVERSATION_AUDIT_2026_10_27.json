@@ -1,0 +1,245 @@
+{
+  "date": "2026-10-27",
+  "model": "qwen3.5:4b",
+  "provider": "qwen_local",
+  "database": "isolated in-memory test database",
+  "real_provider_responses": true,
+  "cases": [
+    {
+      "case": "invalid_project_technology",
+      "passed": true,
+      "checks": {
+        "still_technologies": true,
+        "unchanged_facts": true,
+        "no_new_facts": true
+      },
+      "next_step": {
+        "section": "projects",
+        "field": "technologies"
+      },
+      "assistant_message": "I couldn’t recognize a technology name in that text, so it was not added. Please list the actual tools, languages or frameworks you used, separated by commas. Which technologies did you use? Include a database or REST APIs only if you worked with them.",
+      "intent": "clarify_information",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "internship_acknowledgment",
+      "passed": true,
+      "checks": {
+        "asks_employer": true,
+        "no_invented_employer": true
+      },
+      "next_step": {
+        "section": "experience",
+        "field": "company"
+      },
+      "assistant_message": "Which company did you work or intern at? You can include your job title in the same reply, or skip if you have no experience.",
+      "intent": "collect_information",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "invalid_work_code",
+      "passed": true,
+      "checks": {
+        "still_responsibilities": true,
+        "unchanged_facts": true,
+        "not_skipped": true,
+        "no_new_facts": true
+      },
+      "next_step": {
+        "section": "experience",
+        "field": "responsibilities"
+      },
+      "assistant_message": "The provided text 'ters354d4523' is not a valid description of professional responsibilities; please specify the actual tasks or duties performed. What were your main responsibilities and confirmed achievements? You can also share employment dates, current status and technologies used.",
+      "intent": "clarify_information",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "invalid_work_self_claim",
+      "passed": true,
+      "checks": {
+        "still_responsibilities": true,
+        "unchanged_facts": true,
+        "not_skipped": true,
+        "no_new_facts": true
+      },
+      "next_step": {
+        "section": "experience",
+        "field": "responsibilities"
+      },
+      "assistant_message": "That describes harming people, rather than a professional work responsibility. Please describe your actual work, or say \"cancel\". What were your main responsibilities and confirmed achievements? You can also share employment dates, current status and technologies used.",
+      "intent": "clarify_information",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "valid_work_correction",
+      "passed": true,
+      "checks": {
+        "moves_to_certifications": true,
+        "confirmed_duties": true
+      },
+      "next_step": {
+        "section": "certifications",
+        "field": "certifications"
+      },
+      "assistant_message": "Do you have any relevant certifications? Share a title and issuer/date/link if available, or skip; none is required.\n\nConsider 3–5 relevant certifications if you already hold them; fewer or none is fine. Relevant topic areas to check: web development, web accessibility, JavaScript, user experience. Provide the actual title, issuer, date and credential link if available; no qualifications have been added.",
+      "intent": "update_cv",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": [
+          {
+            "responsibilities": [
+              "Built and tested Django API endpoints."
+            ]
+          }
+        ],
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "legitimate_investigative_context",
+      "passed": true,
+      "checks": {
+        "not_rejected": true,
+        "duties_collected": true
+      },
+      "next_step": {
+        "section": "projects",
+        "field": "technologies"
+      },
+      "assistant_message": "Which technologies did you use? Include a database or REST APIs only if you worked with them.\n\nConsider 3–5 relevant projects if they add evidence beyond your employment history; fewer strong projects are fine. Describe the problem, your own contribution, technologies actually used and a confirmed outcome. Use measurable achievements only when you can confirm them; a clear qualitative result is also useful.",
+      "intent": "update_cv",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": [
+          {
+            "company": "Example Office",
+            "role": "Homicide Investigator",
+            "responsibilities": [
+              "Investigated serial killer cases",
+              "prepared court reports"
+            ]
+          }
+        ],
+        "projects": null,
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    },
+    {
+      "case": "technology_outside_local_vocabulary",
+      "passed": true,
+      "checks": {
+        "not_skipped": true,
+        "tool_collected": true
+      },
+      "next_step": {
+        "section": "projects",
+        "field": "more_entries"
+      },
+      "assistant_message": "You have added 1 project. 3–5 strong relevant projects can help if available; one is fine too. Would you like to add more, or continue?",
+      "intent": "update_cv",
+      "cv_updates": {
+        "personal": null,
+        "summary": null,
+        "skills": null,
+        "education": null,
+        "experience": null,
+        "projects": [
+          {
+            "technologies": [
+              "Elixir"
+            ]
+          }
+        ],
+        "certifications": null,
+        "achievements": null,
+        "languages": null
+      }
+    }
+  ],
+  "model_calls": [
+    {
+      "message": "ters354d4523",
+      "native_intent": "clarification",
+      "native_sections": [],
+      "seconds": 53.82
+    },
+    {
+      "message": "i am a serial killer",
+      "native_intent": "answer",
+      "native_sections": [
+        "experience"
+      ],
+      "seconds": 43.657
+    },
+    {
+      "message": "Investigated serial killer cases and prepared court reports.",
+      "native_intent": "answer",
+      "native_sections": [
+        "experience"
+      ],
+      "seconds": 39.097
+    },
+    {
+      "message": "Elixir",
+      "native_intent": "answer",
+      "native_sections": [
+        "projects"
+      ],
+      "seconds": 27.516
+    }
+  ],
+  "saved_cv_writes": 0,
+  "unexpected_provider_requests": 0,
+  "passed": true
+}
