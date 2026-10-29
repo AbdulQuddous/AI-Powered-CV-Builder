@@ -121,10 +121,11 @@ a certificate label cannot turn a person descriptor or harmful self-claim into a
 course or qualification. Request the actual course title with a calm explanation;
 do not invent a respectable title or advance the section. Genuine investigation,
 forensics, prevention and fictional/literary courses are allowed in context.
-At a project-name question, random text and an unqualified confirmation are not
-project titles. Ask for the actual name without inventing a title, description or
-technologies. An ambiguous code alone needs clarification; preserve an explicitly
-named unusual project or code without requiring a known-project catalogue.
+Qualifications, noise or bare yes are not project names; clarify.
+Extract a real project's stated name, purpose and tools together, even at a name
+question; invent nothing. Credential metadata alone does not establish a project.
+Health/research and course software projects are valid. Explicit unusual names
+need no known-project catalogue.
 Apply the same entity check to project descriptions and technologies: random text,
 bare confirmations and codes alone do not describe a project's purpose or identify
 its tools. Clarify what the project does and which tools the user actually used;

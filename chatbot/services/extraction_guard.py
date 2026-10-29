@@ -99,6 +99,17 @@ def guard_extraction(response, message, state):
     from chatbot.services.entity_validation import entity_problem, narrative_problem
     step = next_step(state)
     control = result.get('_control') or {}
+    projects = result.get('cv_updates', {}).get('projects') or []
+    if (step['section'] == 'projects' and step['field'] == 'name'
+            and isinstance(projects, list) and len(projects) == 1 and isinstance(projects[0], dict)
+            and isinstance(projects[0].get('name'), str) and projects[0]['name']
+            and result.get('intent') != 'irrelevant'
+            and control.get('intent') not in ('off_topic', 'inappropriate', 'clarification')):
+        from chatbot.services.project_answers import literal_project_details
+        supplied = literal_project_details(message, projects[0]['name']) or {}
+        for field, value in supplied.items():
+            if not projects[0].get(field):
+                projects[0][field] = value
     problem = narrative_problem(step['section'], step['field'], message)
     if not problem and step['section'] == 'review':
         problem = narrative_problem('summary', 'summary', message)
@@ -117,11 +128,27 @@ def guard_extraction(response, message, state):
                 if not isinstance(entry, dict):
                     continue
                 for field, item in entry.items():
-                    problem = narrative_problem(section, field, item if document is not None else message)
+                    if document is not None and section == 'projects' and field == 'name':
+                        problem = entity_problem(section, field, item, message)
+                    else:
+                        problem = narrative_problem(section, field, item if document is not None else message)
                     if problem:
                         break
                 if problem:
                     break
+    if not problem and step['section'] == 'projects' and step['field'] == 'name' and document is None:
+        from chatbot.services.project_answers import grouped_project, project_title, project_title_problem
+        source = grouped_project(message)
+        source_text = re.sub(r'^i\s+(?:have|hold|earned|received|completed)\s+(?:(?:a|an|the)\s+)?',
+                             '', message.strip(), flags=re.I)
+        title = source['name'] if source else project_title(source_text)
+        if title:
+            type_problem = project_title_problem(title, message)
+            if type_problem:
+                # Keep this retry about projects even if Qwen asks for a
+                # certificate issuer or treats an ambiguous subject as abuse.
+                return _clarify_without_changes({}, type_problem, step['section'])
+            problem = entity_problem('projects', 'name', title, message)
     if not problem and step['section'] == 'experience' and step['field'] in ('company', 'role', 'job_title', 'responsibilities', 'highlights'):
         problem = entity_problem('experience', step['field'], message, message)
     elif not problem and step['section'] == 'certifications':

@@ -1,5 +1,6 @@
 """Regressions from the Talha interview: direct answers and project identity."""
 from copy import deepcopy
+import json
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -258,6 +259,147 @@ class ProjectFlowTests(APITestCase):
         self.assertEqual(next_step(session.conversation_state)['field'], 'description')
         self.assertEqual(session.conversation_state['collected_data']['projects'], [{'name': 'Task Tracker'}])
         self.qwen.assert_not_called()
+
+    def test_credential_reply_does_not_become_a_project_or_a_certification(self):
+        session = self.start()
+        before = deepcopy(session.conversation_state['collected_data'])
+        for text in ('certificcate of pornography', 'certificate in Python',
+                     'certification: Database Fundamentals', 'Diploma in Design',
+                     'Cloud Fundamentals certificate issued by Example Academy'):
+            with self.subTest(text=text):
+                reply = self.send(session, text)
+                self.assertEqual(reply['intent'], 'clarify_information')
+                self.assertEqual(next_step(session.conversation_state), {'section': 'projects', 'field': 'name'})
+                self.assertFalse(any(reply['cv_updates'].values()))
+                self.assertEqual(session.conversation_state['collected_data'], before)
+                self.assertIn('certification', reply['assistant_message'])
+                self.assertIn('not added', reply['assistant_message'])
+                self.assertIn('built or researched', reply['assistant_message'])
+        self.send(session, 'Interview Feedback Platform')
+        self.assertEqual(next_step(session.conversation_state)['field'], 'description')
+        self.qwen.assert_not_called()
+
+    def test_credential_reply_in_saved_cv_preserves_pending_and_saved_details(self):
+        cv = create_cv(user=self.user, values={'name': 'Saved CV', 'data': deepcopy(SAMPLE_CV)})
+        session = create_chat_session(user=self.user, cv_id=cv.pk)
+        self.send(session, 'add a project')
+        before = deepcopy(session.conversation_state['edit_updates'])
+        reply = self.send(session, 'certificcate of pornography')
+        self.assertEqual(reply['intent'], 'clarify_information')
+        self.assertEqual(next_step(session.conversation_state), {'section': 'projects', 'field': 'name'})
+        self.assertEqual(session.conversation_state['edit_updates'], before)
+        self.assertFalse(session.conversation_state['edit_draft'])
+        cv.refresh_from_db()
+        self.assertEqual((cv.data, cv.version), (SAMPLE_CV, 1))
+        self.send(session, 'cancel')
+        self.assertEqual(next_step(session.conversation_state)['section'], 'review')
+        self.qwen.assert_not_called()
+
+    def test_credential_reply_can_be_skipped_without_creating_an_entry(self):
+        session = self.start()
+        self.send(session, 'certificate of Cloud Fundamentals')
+        self.send(session, 'skip')
+        self.assertNotEqual(next_step(session.conversation_state)['section'], 'projects')
+        self.assertFalse(session.conversation_state['collected_data'].get('projects'))
+        self.qwen.assert_not_called()
+
+    def test_health_research_and_certificate_software_are_valid_project_names(self):
+        for name in ('Certificate Verification Portal', 'Certification Tracker',
+                     'Sexual Health Research', 'Pornography Exposure Study', 'Sexology Education App'):
+            with self.subTest(name=name):
+                session = self.start()
+                self.send(session, name)
+                self.assertEqual(session.conversation_state['collected_data']['projects'], [{'name': name}])
+                self.assertEqual(next_step(session.conversation_state)['field'], 'description')
+        self.qwen.assert_not_called()
+
+    def test_grouped_credential_metadata_does_not_establish_a_project(self):
+        session = self.start()
+        before = deepcopy(session.conversation_state['collected_data'])
+        reply = self.send(session, 'Certificate of Cloud Fundamentals\nIssued by Example Academy in 2026.')
+        self.assertEqual(reply['intent'], 'clarify_information')
+        self.assertEqual(session.conversation_state['collected_data'], before)
+        self.assertEqual(next_step(session.conversation_state)['field'], 'name')
+        self.qwen.assert_not_called()
+
+    def test_actual_project_work_can_clarify_a_credential_shaped_title(self):
+        session = self.start()
+        self.send(session, 'Certificate of Authenticity\nBuilt a Django application to verify digital records.')
+        entry = session.conversation_state['collected_data']['projects'][0]
+        self.assertEqual(entry['name'], 'Certificate of Authenticity')
+        self.assertEqual(entry['description'], 'Built a Django application to verify digital records.')
+        self.assertEqual(entry['technologies'], ['Django'])
+        self.qwen.assert_not_called()
+
+    def test_model_title_only_reply_retains_the_literal_purpose_already_supplied(self):
+        session = self.start()
+        self.qwen.side_effect = None
+        response = empty_ai_response()
+        response['cv_updates']['projects'] = [{'name': 'Certificate of Authenticity', 'technologies': ['Django']}]
+        self.qwen.return_value = response
+        reply = self.send(session, 'Could you record Certificate of Authenticity, a tool I built using Django to verify digital records?')
+        entry = session.conversation_state['collected_data']['projects'][0]
+        self.assertEqual(entry['description'], 'a tool I built using Django to verify digital records')
+        self.assertEqual(entry['technologies'], ['Django'])
+        self.assertNotEqual(next_step(session.conversation_state)['field'], 'description')
+        self.assertNotIn('briefly describe', reply['assistant_message'])
+        self.qwen.assert_called_once()
+
+    def test_a_literal_project_tail_still_receives_narrative_validation(self):
+        session = self.start()
+        before = deepcopy(session.conversation_state['collected_data'])
+        self.qwen.side_effect = None
+        response = empty_ai_response()
+        response['cv_updates']['projects'] = [{'name': 'Safety Lab'}]
+        self.qwen.return_value = response
+        reply = self.send(session, 'Could you record Safety Lab, a tool I built using Django. I murdered 5 people?')
+        self.assertEqual(reply['intent'], 'clarify_information')
+        self.assertFalse(any(reply['cv_updates'].values()))
+        self.assertEqual(session.conversation_state['collected_data'], before)
+        self.assertEqual(next_step(session.conversation_state)['field'], 'name')
+        self.qwen.assert_called_once()
+
+    def test_model_cannot_invent_a_project_or_change_profile_from_a_credential_reply(self):
+        for intent in ('answer', 'skip', 'finish'):
+            with self.subTest(intent=intent):
+                session = self.start()
+                before = deepcopy(session.conversation_state['collected_data'])
+                self.qwen.side_effect = None
+                self.qwen.return_value = adapt_extraction({
+                    'intent': intent, 'section': 'projects',
+                    'extracted_fields': {'projects': [{'name': 'Training Portal',
+                        'description': 'Built a Django portal.', 'technologies': ['Django']}],
+                        'summary': 'Experienced developer.'},
+                    'field_corrections': {}, 'skip_fields': [], 'uncertain_fields': [],
+                    'cv_related_question': None, 'requires_clarification': False,
+                    'target_role': 'Research Director'})
+                reply = self.send(session, 'I have a certificcate of pornography')
+                self.assertEqual(reply['intent'], 'clarify_information')
+                self.assertFalse(any(reply['cv_updates'].values()))
+                self.assertIn('certification', reply['assistant_message'])
+                self.assertEqual(session.conversation_state['collected_data'], before)
+                self.assertEqual(session.conversation_state['target_role'], 'Backend Developer')
+                self.assertEqual(next_step(session.conversation_state), {'section': 'projects', 'field': 'name'})
+                self.assertEqual(session.status, 'active')
+        self.assertEqual(self.qwen.call_count, 3)
+
+    def test_wrong_entity_retry_does_not_echo_a_model_request_for_another_section(self):
+        for intent in ('clarification', 'inappropriate'):
+            with self.subTest(intent=intent):
+                session = self.start()
+                self.qwen.side_effect = None
+                self.qwen.return_value = adapt_extraction({
+                    'intent': intent, 'section': 'certifications', 'extracted_fields': {},
+                    'field_corrections': {}, 'skip_fields': [], 'uncertain_fields': [],
+                    'cv_related_question': None, 'requires_clarification': True,
+                    'rejection_reason': 'Please provide the actual title and issuer of your certification.'})
+                reply = self.send(session, 'I have a certificcate of pornography')
+                self.assertEqual(reply['intent'], 'clarify_information')
+                self.assertEqual(reply['section'], 'projects')
+                self.assertIn('built or researched', reply['assistant_message'])
+                self.assertNotIn('issuer', reply['assistant_message'])
+                self.assertFalse(any(reply['cv_updates'].values()))
+                self.assertEqual(next_step(session.conversation_state)['field'], 'name')
 
     def test_random_title_cannot_become_a_new_project_in_a_saved_cv(self):
         cv = create_cv(user=self.user, values={'name': 'Saved CV', 'data': deepcopy(SAMPLE_CV)})
@@ -652,6 +794,59 @@ class ProjectFlowTests(APITestCase):
 
 
 class RepeatedFactGuardTests(SimpleTestCase):
+    def test_literal_project_tail_preserves_extracted_details_without_title_based_tools(self):
+        response = empty_ai_response()
+        response['cv_updates']['projects'] = [{'name': 'Django Tracker', 'description': 'Tracks volunteer work.'}]
+        guarded = guard_extraction(response, 'Django Tracker, a tool I built to organize volunteer tasks.',
+                                   {'pending_field': {'section': 'projects', 'field': 'name'}})
+        self.assertEqual(guarded['cv_updates']['projects'], response['cv_updates']['projects'])
+
+    def test_literal_project_tail_is_not_harvested_from_an_unrelated_mention(self):
+        from chatbot.services.project_answers import literal_project_details
+        for message in ('I am not adding Task Tracker, a tool I built with Django.',
+                        'Task Tracker, I completed a course from Example Academy.'):
+            self.assertIsNone(literal_project_details(message, 'Task Tracker'))
+
+    def test_project_labels_or_metadata_do_not_turn_a_qualification_into_a_project(self):
+        for message in ('certificcate of pornography',
+                        'My project is called Certificate in Cloud Fundamentals',
+                        '{"projects": [{"name": "Certificate in Cloud Fundamentals", "issuer": "Example Academy"}]}'):
+            with self.subTest(message=message):
+                response = empty_ai_response()
+                response['cv_updates']['projects'] = [{
+                    'name': ('certificcate of pornography' if message == 'certificcate of pornography'
+                             else 'Certificate in Cloud Fundamentals'),
+                    'description': 'Built a learning platform.', 'technologies': ['Django']}]
+                clean, errors, statuses = validated_updates(response, {}, user_message=message)
+                self.assertIsNone(clean['cv_updates']['projects'])
+                self.assertTrue(errors)
+                self.assertEqual(statuses['projects.0.name'], 'invalid')
+
+    def test_structured_project_purpose_is_scoped_to_its_own_literal_entry(self):
+        entries = [
+            {'name': 'Certificate in Cloud Fundamentals', 'description': 'Issued by Example Academy.'},
+            {'name': 'Task Tracker', 'description': 'Built a Django application to track tasks.'},
+            {'name': 'Certificate of Authenticity', 'description': 'Built a tool to verify digital records.'}]
+        response = empty_ai_response()
+        response['cv_updates']['projects'] = deepcopy(entries)
+        clean, errors, _ = validated_updates(response, {}, user_message=json.dumps({'projects': entries}))
+        self.assertEqual(clean['cv_updates']['projects'], entries[1:])
+        self.assertTrue(errors)
+
+    def test_source_project_type_guard_blocks_model_invention_for_plain_and_structured_answers(self):
+        state = {'pending_field': {'section': 'projects', 'field': 'name'}}
+        for message in ('certificcate of pornography',
+                        'Certificate in Cloud Fundamentals\nIssued by Example Academy.',
+                        '{"projects": [{"name": "Certificate in Cloud Fundamentals", "description": "Issued by Example Academy."}]}'):
+            with self.subTest(message=message):
+                response = empty_ai_response()
+                response['cv_updates']['projects'] = [{'name': 'Training Portal', 'description': 'Built a tool.'}]
+                response['state_updates']['target_role'] = 'Director'
+                guarded = guard_extraction(response, message, state)
+                self.assertFalse(any(guarded['cv_updates'].values()))
+                self.assertFalse(any(guarded['state_updates'].values()))
+                self.assertIn('certification', guarded['_control']['evidence_warning'])
+
     def test_provider_and_structured_project_details_cannot_bypass_noise_checks(self):
         for description in ('ters354d', 'Description: qwertyuiop'):
             response = empty_ai_response()

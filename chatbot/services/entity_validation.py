@@ -109,7 +109,10 @@ def entity_problem(section, field, value, message=''):
     if section == 'projects' and isinstance(value, str):
         from chatbot.services.optional_answers import optional_chatter
         if field == 'name':
-            from chatbot.services.project_answers import explicitly_named_project
+            from chatbot.services.project_answers import explicitly_named_project, project_title_problem
+            problem = project_title_problem(value, message)
+            if problem:
+                return problem
             # A short mixed code can be intentional; naming it establishes intent.
             if not explicitly_named_project(message, value) and (project_noise(value) or optional_chatter(value)):
                 return ('I couldn’t recognize a clear project name in that reply, so it was not added. '
