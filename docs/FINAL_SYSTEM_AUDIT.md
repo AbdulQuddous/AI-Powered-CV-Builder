@@ -1465,3 +1465,39 @@ updates, copied and empty transcripts, source-only summary authorization,
 prose-prefixed CV JSON, current and legacy summary skips, saved-summary retention,
 optional-link typos, explicit tool replacement and normal completion checks.
 Public M5/M10 response and save contracts are unchanged. Whitespace checks passed.
+
+### Follow-up: qualifications offered as project names
+
+The Ehtesham interview accepted `certificcate of pornography` as a project name
+because the short-title parser accepted ordinary noun phrases without checking
+their entity type. Credential-shaped replies now request an actual project name
+and purpose without adding a project, inventing a certification or advancing the
+pending question. The check recognizes a bounded spelling error in credential
+cues; it does not normalize course brands or use a subject blacklist.
+
+The same project-name validation runs on local and provider proposals. Source
+checks prevent Qwen from replacing a qualification with an invented project,
+changing the profile or silently skipping/finishing. A qualification-type retry
+uses the project-specific explanation even if Qwen asks for a certificate issuer,
+so the reply and the pending question stay consistent. Saved CVs retain the
+existing explicit-save behavior, and valid sibling entries survive field
+validation. Certificate-management software, health research and unfamiliar
+project names remain supported. An unusual credential-shaped title can be
+clarified by the user's actual project purpose.
+
+Live verification also exposed Qwen dropping a supplied purpose while returning
+the correct project title and tools. The existing project parser now retains a
+literal title/purpose pair from a clearly framed add/include/record request when
+the provider omits its description. Existing extracted wording is preserved;
+tools come from the supplied description rather than the title. Retained details
+still pass through source and narrative validation. No Qwen cache, timeout or
+latency configuration was introduced.
+
+Verification passed: 188 focused tests and the full 827-test Django suite
+(16 optional checks skipped), including fifteen new regressions. The isolated
+live replay passed five checks with two actual local `qwen3.5:4b` requests. It
+accessed only synthetic records in an in-memory database, left its synthetic
+saved CV unchanged and contacted no other provider. The initial service error,
+earlier omitted-purpose results and final checks are retained in
+`docs/QWEN_PROJECT_ENTITY_AUDIT_2026_10_28.json`. The existing prompt-size limit
+and M5/M10 response/save contracts remain unchanged. Whitespace checks passed.

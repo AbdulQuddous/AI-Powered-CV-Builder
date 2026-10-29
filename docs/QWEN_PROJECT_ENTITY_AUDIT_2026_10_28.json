@@ -1,0 +1,259 @@
+{
+  "date": "2026-10-28",
+  "model": "qwen3.5:4b",
+  "database": "isolated in-memory database; synthetic records only",
+  "cases": [
+    {
+      "case": "reported_wrong_entity_does_not_advance_or_create_facts",
+      "passed": true,
+      "checks": {
+        "same_project_question": true,
+        "facts_unchanged": true,
+        "clear_explanation": true,
+        "no_model_needed": true
+      },
+      "next_step": {
+        "section": "projects",
+        "field": "name"
+      },
+      "assistant_message": "That sounds like a certification or qualification rather than a project, so it was not added. Please share a project name and briefly say what you built or researched. If this is your actual project title, include its purpose to clarify. You can also say \"skip\". What is the name of the project you would like to include?"
+    },
+    {
+      "case": "real_qwen_cannot_turn_qualification_into_project",
+      "passed": true,
+      "checks": {
+        "actual_model_call": true,
+        "facts_unchanged": true,
+        "same_project_question": true,
+        "no_certificate_issuer_prompt": true,
+        "no_proposed_facts": true
+      },
+      "next_step": {
+        "section": "projects",
+        "field": "name"
+      },
+      "assistant_message": "That sounds like a certification or qualification rather than a project, so it was not added. Please share a project name and briefly say what you built or researched. If this is your actual project title, include its purpose to clarify. You can also say \"skip\". What is the name of the project you would like to include?"
+    },
+    {
+      "case": "real_qwen_retains_actual_project_with_credential_shaped_title",
+      "passed": true,
+      "checks": {
+        "actual_model_call": true,
+        "actual_title": true,
+        "actual_purpose": true,
+        "no_qualification_invented": true
+      },
+      "next_step": {
+        "section": "projects",
+        "field": "more_entries"
+      },
+      "assistant_message": "You have added 1 project. 2\u20133 strong relevant projects can help if available; one is fine too. Would you like to add more, or continue?"
+    },
+    {
+      "case": "legitimate_health_research_name_is_allowed",
+      "passed": true,
+      "checks": {
+        "actual_title": true,
+        "asks_description": true
+      },
+      "next_step": {
+        "section": "projects",
+        "field": "description"
+      },
+      "assistant_message": "Could you briefly describe what this project does?\n\nAim for 2\u20133 strong academic, personal or volunteer projects if available. Internships and work experience are optional. Describe the problem, your own contribution, technologies actually used and a confirmed outcome. Use measurable achievements only when you can confirm them; a clear qualitative result is also useful."
+    },
+    {
+      "case": "saved_cv_and_pending_proposals_stay_unchanged",
+      "passed": true,
+      "checks": {
+        "same_project_question": true,
+        "pending_unchanged": true,
+        "saved_cv_unchanged": true
+      },
+      "next_step": {
+        "section": "projects",
+        "field": "name"
+      },
+      "assistant_message": "That sounds like a certification or qualification rather than a project, so it was not added. Please share a project name and briefly say what you built or researched. If this is your actual project title, include its purpose to clarify. You can also say \"skip\". What is the name of the project you would like to include? You can also say \"cancel\" or choose another section."
+    }
+  ],
+  "model_calls": [
+    {
+      "intent": "clarification",
+      "sections": [],
+      "project_fields": null,
+      "seconds": 34.485
+    },
+    {
+      "intent": "answer",
+      "sections": [
+        "projects"
+      ],
+      "project_fields": [
+        {
+          "name": "Certificate of Authenticity",
+          "technologies": [
+            "Django"
+          ]
+        }
+      ],
+      "seconds": 32.206
+    }
+  ],
+  "real_user_records_accessed": false,
+  "saved_cv_writes_after_fixture_creation": 0,
+  "unexpected_provider_requests": 0,
+  "previous_attempts": [
+    {
+      "passed": false,
+      "case": "real_qwen_cannot_turn_qualification_into_project",
+      "http_status": 502,
+      "code": "ai_service_error",
+      "full_regression_suite_running": true
+    },
+    {
+      "passed": false,
+      "cases": [
+        {
+          "case": "real_qwen_retains_actual_project_with_credential_shaped_title",
+          "passed": false,
+          "checks": {
+            "actual_model_call": true,
+            "actual_title": true,
+            "actual_purpose": false,
+            "no_qualification_invented": true
+          },
+          "next_step": {
+            "section": "projects",
+            "field": "description"
+          },
+          "assistant_message": "Could you briefly describe what this project does?\n\nAim for 2\u20133 strong academic, personal or volunteer projects if available. Internships and work experience are optional. Describe the problem, your own contribution, technologies actually used and a confirmed outcome. Use measurable achievements only when you can confirm them; a clear qualitative result is also useful."
+        }
+      ],
+      "model_calls": [
+        {
+          "intent": "clarification",
+          "sections": [],
+          "seconds": 13.073
+        },
+        {
+          "intent": "answer",
+          "sections": [
+            "projects"
+          ],
+          "seconds": 29.884
+        }
+      ],
+      "successful_checks": 4
+    },
+    {
+      "passed": false,
+      "cases": [
+        {
+          "case": "real_qwen_retains_actual_project_with_credential_shaped_title",
+          "passed": false,
+          "checks": {
+            "actual_model_call": true,
+            "actual_title": true,
+            "actual_purpose": false,
+            "no_qualification_invented": true
+          },
+          "next_step": {
+            "section": "projects",
+            "field": "description"
+          },
+          "assistant_message": "Could you briefly describe what this project does?\n\nAim for 2\u20133 strong academic, personal or volunteer projects if available. Internships and work experience are optional. Describe the problem, your own contribution, technologies actually used and a confirmed outcome. Use measurable achievements only when you can confirm them; a clear qualitative result is also useful."
+        }
+      ],
+      "model_calls": [
+        {
+          "intent": "clarification",
+          "sections": [],
+          "seconds": 29.299
+        },
+        {
+          "intent": "answer",
+          "sections": [
+            "projects"
+          ],
+          "seconds": 26.766
+        }
+      ],
+      "successful_checks": 4
+    },
+    {
+      "passed": false,
+      "cases": [
+        {
+          "case": "real_qwen_retains_actual_project_with_credential_shaped_title",
+          "passed": false,
+          "checks": {
+            "actual_model_call": true,
+            "actual_title": true,
+            "actual_purpose": false,
+            "no_qualification_invented": true
+          },
+          "next_step": {
+            "section": "projects",
+            "field": "description"
+          },
+          "assistant_message": "Could you briefly describe what this project does?\n\nAim for 2\u20133 strong academic, personal or volunteer projects if available. Internships and work experience are optional. Describe the problem, your own contribution, technologies actually used and a confirmed outcome. Use measurable achievements only when you can confirm them; a clear qualitative result is also useful."
+        }
+      ],
+      "model_calls": [
+        {
+          "intent": "clarification",
+          "sections": [],
+          "project_fields": null,
+          "seconds": 38.471
+        },
+        {
+          "intent": "answer",
+          "sections": [
+            "projects"
+          ],
+          "project_fields": [
+            {
+              "name": "Certificate of Authenticity",
+              "technologies": [
+                "Django"
+              ]
+            }
+          ],
+          "seconds": 32.639
+        }
+      ],
+      "successful_checks": 4
+    },
+    {
+      "passed": true,
+      "cases": [],
+      "model_calls": [
+        {
+          "intent": "clarification",
+          "sections": [],
+          "project_fields": null,
+          "seconds": 33.783
+        },
+        {
+          "intent": "answer",
+          "sections": [
+            "projects"
+          ],
+          "project_fields": [
+            {
+              "name": "Certificate of Authenticity",
+              "technologies": [
+                "Django"
+              ]
+            }
+          ],
+          "seconds": 29.668
+        }
+      ],
+      "successful_checks": 5
+    }
+  ],
+  "real_provider_responses": true,
+  "passed": true
+}
